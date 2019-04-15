@@ -16,16 +16,24 @@
 
 int main (int argc, char *argv[]) 
 {
-  int nthreads, tid;
-
-//Open the parallel region
-  /* Obtain thread number */
-  // tid = call a function to get the thread id.
-  printf("Hello World from thread = %d\n", tid);
+  int nthreads, tid;  
   
-  //Use the proper clause so that only master thread does the following print statement.
-  //nthreads = call the function to get the total number of threads
-  printf("Number of threads = %d\n", nthreads);
+#pragma omp parallel private(tid)
+  {
+    tid = omp_get_thread_num();
+    nthreads = omp_get_num_threads();
+    
+    //Open the parallel region
+    /* Obtain thread number */
+    // tid = call a function to get the thread id.
+    printf("Hello World from thread = %d\n", tid);
 
+    if (tid == 0) {
+      //Use the proper clause so that only master thread does the following print statement.
+      //nthreads = call the function to get the total number of threads
+      printf("Number of threads = %d\n", nthreads);
+    }
+  }
+  return 0;
 }
 
