@@ -2,23 +2,37 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <time.h>
-#include <sys/time.h>
 #include <omp.h>
 #include <stdint.h>
 
 // file is changed 
 
-typedef double scalar_t;
+#define PRG(message) _Pragma(#message)
 
+#define M(x) PRG(message "Data type chosen: " #x)
+
+#if defined(USE_FLOAT)
+
+M(float)
+
+typedef float scalar_t;
 #define SCALAR_FMT "f"
 
-typedef scalar_t (*dot_fn_t)(scalar_t* a, scalar_t* b, int N);
+#elif defined(USE_DOUBLE)
 
-time_t mtime() {
-	struct timeval tt = {0};
-	gettimeofday(&tt, NULL);
-	return tt.tv_sec * 1e6 + tt.tv_usec;
-}
+M(double)
+
+typedef double scalar_t;
+#define SCALAR_FMT "f"
+
+#elif defined(USE_UNSIGNED_INT)
+
+M(unsigned int)
+
+typedef unsigned int scalar_t;
+#define SCALAR_FMT "ui"
+
+#endif
 
 scalar_t serial_dot_prod(scalar_t* a, scalar_t* b, int N) {
 	scalar_t sum = (scalar_t)0;
@@ -40,7 +54,7 @@ scalar_t parallel_dot_prod(scalar_t* a, scalar_t* b, int N) {
 #pragma message "Path chosen: critical"
 
 #pragma omp parallel for shared(sum)
-	for (int i = 0; i < N; i++) {
+	for (i = 0; i < N; i++) {
 #pragma omp critical
 		{
 			sum += a[i] * b[i];
@@ -59,20 +73,28 @@ scalar_t parallel_dot_prod(scalar_t* a, scalar_t* b, int N) {
 	return sum;
 }
 
+#define RANDOM_BOUND 0
+
 void fill(scalar_t* a, int N) {
 	srand(time(NULL));
 	for (int i = 0; i < N; ++i) {
-		a[i] = (scalar_t)(rand() % 0xFFFF);
+		int x = rand();
+
+		if (RANDOM_BOUND) {
+			x %= RANDOM_BOUND;
+		}
+		
+		a[i] = (scalar_t)(x);
 	}
 }
 
-int run(scalar_t* a, scalar_t* b, int N, dot_fn_t f) {
+int run(scalar_t* a, scalar_t* b, int N) {
 	fill(a, N);
 	fill(b, N);
 
 	scalar_t serial = serial_dot_prod(a, b, N);
 
-	scalar_t para = f(a, b, N);
+	scalar_t para = parallel_dot_prod(a, b, N);
 
 	int ret = para == serial;
 	
@@ -96,7 +118,7 @@ int main(int argc, char** argv) {
 	scalar_t* b = malloc(sizeof(scalar_t) * N);
 	assert(b != NULL);
 
-	return run(a, b, N, parallel_dot_prod) == 1 ? 0 : 1;
+	return run(a, b, N) == 1 ? 0 : 1;
 	
 	// Create an array of floats a and fill it with N random numbers
 	// Create an array of floats b and fill it with N random numbers
