@@ -1,0 +1,24 @@
+#!/bin/bash
+
+N=50
+i=1
+d=0
+
+#export OMP_NUM_THREADS=12
+
+while [[ $i -le $N ]] 
+do
+    v=$(./run)
+    c=$?
+    if [ $c = 1 ]; then
+        d=1 
+        echo "For test ${i}:"
+        echo "${v}"
+    fi
+    let i=i+1
+done
+
+if [ $d = 0 ]; then
+    echo "Success"
+fi
+         

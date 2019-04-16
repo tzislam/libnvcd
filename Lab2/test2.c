@@ -4,104 +4,104 @@
 #include <time.h>
 #include <sys/time.h>
 #include <omp.h>
+#include <stdint.h>
 
-typedef float (*dot_fn_t)(float* a, float* b, int N);
+// file is changed 
+
+typedef double scalar_t;
+
+#define SCALAR_FMT "f"
+
+typedef scalar_t (*dot_fn_t)(scalar_t* a, scalar_t* b, int N);
 
 time_t mtime() {
-  struct timeval tt = {0};
-  gettimeofday(&tt, NULL);
-  return tt.tv_sec * 1e6 + tt.tv_usec;
+	struct timeval tt = {0};
+	gettimeofday(&tt, NULL);
+	return tt.tv_sec * 1e6 + tt.tv_usec;
 }
 
-float absf(float x) {
-  return x < 0.0f ? -x : x;
-}
-
-float serial_dot_prod(float* a, float* b, int N) 
-{
-  float sum = 0.0;
-  int i;
+scalar_t serial_dot_prod(scalar_t* a, scalar_t* b, int N) {
+	scalar_t sum = (scalar_t)0;
+	int i;
   
-  for(i=0; i<N; i++) {
-    sum += a[i] * b[i];
-  }
+	for(i=0; i<N; i++) {
+		sum += a[i] * b[i];
+	}
 
-  return sum;
+	return sum;
 }
 
-float parallel_dot_prod1(float* a, float* b, int N) {
-  float sum = 0.0f;
-  int i;
-  
-#pragma omp parallel for schedule(static, 12) reduction(+:sum)
-  for (i = 0; i < N; ++i) {
-    sum += a[i] * b[i];
-  }
-  return sum;
-}
+scalar_t parallel_dot_prod(scalar_t* a, scalar_t* b, int N) {
+	scalar_t sum = 0.0f;
+	int i;
 
-float parallel_dot_prod2(float* a, float* b, int N) {
-  float sum = 0.0f;
-  int i;
-  
-#pragma omp parallel for schedule(static, 12) shared(sum)
-  for (i = 0; i < N; ++i) {
+#ifdef USE_CRITICAL
+
+#pragma message "Path chosen: critical"
+
+#pragma omp parallel for shared(sum)
+	for (int i = 0; i < N; i++) {
 #pragma omp critical
-    {
-      sum += a[i] * b[i];
-    }
-  }
-  return sum;
+		{
+			sum += a[i] * b[i];
+		}
+	}
+#else
+	
+#pragma message "Path chosen: reduction"
+	
+#pragma omp parallel for reduction(+:sum) schedule(static, 1)
+	for (i = 0; i < N; i++) {
+		sum += a[i] * b[i];
+	}
+
+#endif	// USE_CRITICAL
+	return sum;
 }
 
-void fill(float* a, int N) {
-  srand(time(NULL));
-  for (int i = 0; i < N; ++i) {
-    a[i] = (float)(rand() % 0xFFFF);
-  }
+void fill(scalar_t* a, int N) {
+	srand(time(NULL));
+	for (int i = 0; i < N; ++i) {
+		a[i] = (scalar_t)(rand() % 0xFFFF);
+	}
 }
 
-void run(const char* title, float* a, float* b, int N, dot_fn_t f) {
-  fill(a, N);
-  fill(b, N);
+int run(scalar_t* a, scalar_t* b, int N, dot_fn_t f) {
+	fill(a, N);
+	fill(b, N);
 
-  float serial = serial_dot_prod(a, b, N);
-  
-  printf("=====\nbegin %s\n=====\n", title);
-  
-  time_t start = mtime();
-  time_t end = mtime();
+	scalar_t serial = serial_dot_prod(a, b, N);
 
-  float para = f(a, b, N);
+	scalar_t para = f(a, b, N);
 
-  if (para == serial) {
-    puts("Correct");
-  } else {
-    puts("Incorrect");
-  }
+	int ret = para == serial;
+	
+	if (ret) {
+		puts("Correct");
+	} else {
+		puts("Incorrect");
+	}
 
-  printf("serial:\t\t%f\npara:\t\t%f\n", serial, para);
-  printf("%s\n", "=====\nend\n=====");
+	printf("\tserial:\t\t%" SCALAR_FMT "\n\tpara:\t\t%" SCALAR_FMT "\n", serial, para);
+
+	return ret;
 }
 
 int main(int argc, char** argv) {
-  int N = 100;
+	int N = 100;
   
-  float* a = malloc(sizeof(float) * N);
-  assert(a != NULL);
+	scalar_t* a = malloc(sizeof(scalar_t) * N);
+	assert(a != NULL);
 	
-  float* b = malloc(sizeof(float) * N);
-  assert(b != NULL);
+	scalar_t* b = malloc(sizeof(scalar_t) * N);
+	assert(b != NULL);
 
-  run("reduction", a, b, N, parallel_dot_prod1);
-  run("critical", a, b, N, parallel_dot_prod2); 
+	return run(a, b, N, parallel_dot_prod) == 1 ? 0 : 1;
 	
-  // Create an array of floats a and fill it with N random numbers
-  // Create an array of floats b and fill it with N random numbers
-  // Call serial_dot_prod(a, b, N) and store results in a temporary array
-  // Implement a parallel_dot_prod(a, b, N) using OpenMP
-  // Call parallel_dot_prod(a, b, N) and store results in another temporary array
-  // Compare the two results. If the resutls match, output "Correct" or elsee output "Incorrect"
-
-  return 0;
+	// Create an array of floats a and fill it with N random numbers
+	// Create an array of floats b and fill it with N random numbers
+	// Call serial_dot_prod(a, b, N) and store results in a temporary array
+	// Implement a parallel_dot_prod(a, b, N) using OpenMP
+	// Call parallel_dot_prod(a, b, N) and store results in another temporary array
+	// Compare the two results. If the resutls match, output "Correct" or elsee output "Incorrect"
 }
