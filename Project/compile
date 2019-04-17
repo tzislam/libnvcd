@@ -1,0 +1,8 @@
+#!/bin/bash
+
+CC=nvcc
+
+$CC -v -L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart src/main.cpp -o bin/perfmon
+
+#gcc-7 -v -lnvidia-ml -lcuda -lcudart src/main.cpp -o bin/perfmon
+
