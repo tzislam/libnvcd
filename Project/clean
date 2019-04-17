@@ -1,3 +1,4 @@
 #!/bin/bash
 
+rm -f obj/*.o
 rm -f bin/perfmon

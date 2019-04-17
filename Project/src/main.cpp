@@ -1,10 +1,15 @@
+#include "common.h"
 #include <nvml.h>
-#include <stdio.h>
 
-int main() {
+// main.cpp
+
+int main()
+{
 	nvmlReturn_t ret = nvmlInit();
 
 	printf("init ret: %i\n", ret);
+
+	gpu_test();
 	
 	if (ret == NVML_SUCCESS) {
 		ret = nvmlShutdown();
