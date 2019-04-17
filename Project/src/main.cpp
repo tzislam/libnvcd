@@ -10,6 +10,7 @@ int main()
 	printf("init ret: %i\n", ret);
 
 	gpu_test();
+	CUDA_FN(cudaDeviceSynchronize());
 	
 	if (ret == NVML_SUCCESS) {
 		ret = nvmlShutdown();
