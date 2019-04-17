@@ -3,7 +3,7 @@ CC=nvcc
 INCLUDE=-I./include
 CUDA_DBG=--compiler-options "-rdynamic -g -ggdb"
 DEBUG=-G $(CUDA_DBG)
-ARCH=-arch=sm_50
+ARCH=--gpu-architecture=compute_30 --gpu-code=sm_30,compute_30
 
 SRC_CPP := $(wildcard src/*.cpp)
 OBJ_CPP := $(SRC_CPP:.cpp=.o)

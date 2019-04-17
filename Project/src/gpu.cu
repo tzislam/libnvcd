@@ -121,9 +121,9 @@ namespace gpu {
 	GPU_FN void print_thread_info()
 	{
 		int thread = threadIdx.x + threadIdx.y * blockDim.x;
-		int_to_cstring_t ret{to_cstr<int>(thread)};
+		//int_to_cstring_t ret{to_cstr<int>(thread)};
 		
-		printf("Thread Num: %i, Thread String: %s\n", thread, ret.data());
+		printf("Thread Num: %i", thread);
 	}
 }
 
@@ -135,9 +135,9 @@ extern "C" {
 
 	GPU_CLIENT_FN void gpu_test()
 	{
-		dim3 grid(1, 1, 1);
-		dim3 block(2, 2, 1);
+		//dim3 grid(1, 1, 1);
+		//dim3 block(2, 2, 1);
 	
-		gpu_kernel<<<grid, block>>>();
+		gpu_kernel<<<1, 1>>>();
 	}
 }
