@@ -1,7 +1,7 @@
 #include "common.h"
 
 extern "C" {
-	GPU_FN void assert_cond_impl(bool_t condition, const char* message)
+	GPU_FN void assert_cond_impl(bool condition, const char* message)
 	{
 		if (!condition) {
 			printf("DEVICE ERROR: %s\n", message);
@@ -18,7 +18,7 @@ extern "C" {
 	
 	GPU_KERN_FN void gpu_kernel()
 	{
-		gpu::print_thread_info();
+		print_thread_info();
 	}
 
 	GPU_CLIENT_FN void gpu_test()

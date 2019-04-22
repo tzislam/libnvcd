@@ -1,7 +1,7 @@
 CC=nvcc
 
 INCLUDE=-I./include
-CUDA_DBG=--compiler-options "-rdynamic -g -ggdb"
+CUDA_DBG=--compiler-options "-rdynamic -g -ggdb" 
 DEBUG=-G $(CUDA_DBG)
 #ARCH=-arch=sm_50
 ARCH=-arch=sm_60

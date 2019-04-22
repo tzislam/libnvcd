@@ -16,8 +16,6 @@
 #define GPU_KERN_DECL extern "C" GPU_KERN_FN
 #define GPU_CLIENT_DECL extern "C" GPU_CLIENT_FN
 
-
-#if 0
 extern "C" {
 
 static inline void cuda_error_print_exit(cudaError_t status, int line, const char* expr)
@@ -29,7 +27,6 @@ static inline void cuda_error_print_exit(cudaError_t status, int line, const cha
 }
 	
 }
-#endif
 
 #define CUDA_FN(expr) //cuda_error_print_exit(expr, __LINE__, #expr)
 
