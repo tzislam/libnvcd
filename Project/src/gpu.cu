@@ -1,14 +1,14 @@
 #include "common.h"
 
 namespace gpu {
-
 	GPU_INL_FN void assert_cond_impl(bool_t condition, const char* message)
 	{
 		if (!condition) {
 			printf("DEVICE ERROR: %s\n", message);
 		}
 	}
-	
+
+#if 0
 	template <typename T, sz_t N>
 	class array
 	{
@@ -59,9 +59,12 @@ namespace gpu {
 			return backing[i];
 		}
 	};
+#endif
+	
 
+#if 0
 	using char_t = char;
-
+	
 	static constexpr sz_t CHAR_MASK = (1 << (sizeof(char_t) * 8)) - 1ULL;
 	
 	using cstring_micro_t = array<char_t, 32>;
@@ -117,13 +120,14 @@ namespace gpu {
 
 		return ret_string;
 	}
+	#endif
 	
 	GPU_FN void print_thread_info()
 	{
 		int thread = threadIdx.x + threadIdx.y * blockDim.x;
-		int_to_cstring_t ret{to_cstr<int>(thread)};
-		
-		printf("Thread Num: %i, Thread String: %s\n", thread, ret.data());
+		//int_to_cstring_t ret{to_cstr<int>(thread)};
+		printf("the thread: %i\n", thread);
+		//printf("Thread Num: %i, Thread String: %s\n", thread, ret.data());
 	}
 }
 
