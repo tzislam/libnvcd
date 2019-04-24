@@ -34,5 +34,6 @@ dirgen: bingen objgen
 
 clean:
 	rm -f *~
+	rm -f src/*~
 	rm -f bin/*
 	rm -f obj/*.o
