@@ -1,8 +1,9 @@
 #include "common.h"
 
-#define GPU_ASSERT(condition_expr) assert_cond_impl(condition_expr, #condition_expr, __LINE__) 
+#include "gpu.cuh"
 
 extern "C" {	
+
 	GPU_FN bool assert_cond_impl(bool condition, const char* message, int line)
 	{
 		if (!condition) {
