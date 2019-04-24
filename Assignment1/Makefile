@@ -7,7 +7,7 @@ FLAGS := -std=gnu99 -g -ggdb
 SRC_C := $(wildcard src/*.c)
 OBJ_C := $(SRC_C:.c=.o)
 
-LIBS= -fopenmp
+LIBS := -fopenmp
 
 TOBJ := $(OBJ_C)
 
@@ -16,19 +16,23 @@ SRCDIR := src
 
 OBJ := $(subst $(SRCDIR), $(OBJDIR), $(TOBJ))
 
-TARGET := test
+TARGET := affinity_example
 
-bin/$(TARGET): $(OBJ)
-	$(CC) $(FLAGS) $(LIBS) $(OBJ) -o $@
+affinity_example: src/affinity_example.c bingen
+	$(CC) $(FLAGS) $(LIBS) $< -o bin/$@
 
-obj/%.o: src/%.c dirgen
-	$(CC) $(FLAGS) $(INCLUDE) $(DEBUG) $(ARCH) -c $< -o $@
+#obj/%.o: src/%.c dirgen
+#	$(CC) $(FLAGS) $(INCLUDE) $(DEBUG) $(ARCH) -c $< -o $@
 
-dirgen:
+bingen:
 	mkdir -p bin
+
+objgen:
 	mkdir -p obj
+
+dirgen: bingen objgen
 
 clean:
 	rm -f *~
-	rm -f bin/perfmon
+	rm -f bin/*
 	rm -f obj/*.o
