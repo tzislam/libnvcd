@@ -1,0 +1,34 @@
+#!/bin/bash
+
+command=$1
+
+profiles=(
+    sockets_close
+    sockets_spread
+    cores_close
+    cores_spread
+)
+
+affinity() {
+    root=out/affinity
+    mkdir -p $root
+    rm -f $root/*
+    
+    for i in "${profiles[@]}"; do
+        source env.sh $i
+        for j in {1..5}
+        do
+            echo "exec $j"
+            bin/affinity_example 10000000 100 >> $root/$i
+        done
+    done
+}
+
+case "$command" in
+    "")       affinity ;;
+    affinity) affinity ;;
+    *) ;;
+esac
+
+
+    
