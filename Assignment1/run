@@ -9,6 +9,12 @@ profiles=(
     cores_spread
 )
 
+run_stats() {
+    path=$1
+
+    cat $path | paste -sd, > "${path}_squashed"
+}
+
 affinity() {
     root=out/affinity
     mkdir -p $root
@@ -19,8 +25,9 @@ affinity() {
         for j in {1..5}
         do
             echo "exec $j"
-            bin/affinity_example 10000000 100 >> $root/$i
+            bin/affinity_example 10000000 100 >> $root/$i            
         done
+        run_stats $root/$i
     done
 }
 
