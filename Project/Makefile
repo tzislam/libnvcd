@@ -11,7 +11,9 @@ ARCH=-arch=sm_50
 SRC_CPP := $(wildcard src/*.cpp)
 OBJ_CPP := $(SRC_CPP:.cpp=.o)
 
-LIBS=-L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart
+#-lnvidia-ml
+
+LIBS=-L/usr/lib/x86_64-linux-gnu -lcuda -lcudart -lcupti
 
 SRC_CU := $(wildcard src/*.cu)
 OBJ_CU := $(SRC_CU:.cu=.o)
