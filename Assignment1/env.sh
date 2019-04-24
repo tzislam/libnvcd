@@ -1,4 +1,4 @@
-export OMP_DISPLAY_ENV=true
+export OMP_DISPLAY_ENV=false
 
 preset=$1
 
