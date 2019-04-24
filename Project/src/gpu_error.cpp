@@ -24,11 +24,11 @@ extern "C" {
 									  const char* expr)
 	{
 		if (status != CUDA_SUCCESS) {
-			printf("CUDA DRIVER: %s:%i:'%s' failed. [Reason] %s\n",
+			printf("CUDA DRIVER: %s:%i:'%s' failed. [Reason] %i\n",
 				   file,
 				   line,
 				   expr,
-				   error_string);
+				   status);
 			
 			exit(status);
 		}
