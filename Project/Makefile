@@ -40,6 +40,9 @@ obj/%.o: src/%.cu
 clean:
 	rm -f bin/perfmon
 	rm -f obj/*.o
+	rm -f *~
+	rm -f include/*~
+	rm -f src/*~
 
 #$$CUDACC -v $DEBUG -c $INCLUDE $ARCH src/gpu.cu -o obj/gpu.o &&\
 #$CC -v $DEBUG $INCLUDE $ARCH -L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart obj/gpu.o src/main.cpp -o bin/perfmon
