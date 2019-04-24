@@ -7,6 +7,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
+#include <assert.h>
+
+#include <string>
+#include <sstream>
 
 #define GPU_FN __device__
 #define GPU_INL_FN static inline GPU_FN
@@ -14,10 +19,9 @@
 
 #define GPU_CLIENT_FN __host__
 
-#define GPU_KERN_DECL extern "C" GPU_KERN_FN
-#define GPU_CLIENT_DECL extern "C" GPU_CLIENT_FN
+#define GPU_API extern "C"
 
-// these are implemented in src/gpu_error.cpp
+// these are implemented in src/util.cpp
 extern "C" {
 
 	void cuda_runtime_error_print_exit(cudaError_t status,
@@ -42,7 +46,9 @@ extern "C" {
 
 #define CUPTI_FN(expr) cupti_error_print_exit(expr, __LINE__, __FILE__, #expr)
 
-GPU_KERN_DECL void gpu_kernel();
-GPU_CLIENT_DECL void gpu_test();
+GPU_API GPU_KERN_FN void gpu_kernel();
+GPU_API GPU_CLIENT_FN void gpu_test();
+
+#include "common.inl"
 
 #endif
