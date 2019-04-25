@@ -22,18 +22,35 @@ affinity() {
     root=out/affinity
     rm -rf $root
     mkdir -p $root
+
+    ginput="./${root}:"
+    profiles_len="${#profiles[@]}"
+    profiles_index=0
     
     for i in "${profiles[@]}"; do
         source env.sh $i
+
         mkdir -p $root/$i
         echo $i >> $root/$i/base
-        for j in {1..5}
+
+        for j in {1..1}
         do
             echo "exec $j"
             bin/affinity_example 10000000 100 >> $root/$i/base            
         done
+        
         run_stats $root $i
+
+        ginput="${ginput}${i}"
+
+        if (( profiles_index < profiles_len - 1 )); then
+            ginput="${ginput}|"
+        fi
+        
+        (( profiles_index++ ))
     done
+
+    echo $ginput | python3 graph.py
 }
 
 case "$command" in
