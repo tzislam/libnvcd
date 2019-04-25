@@ -10,24 +10,29 @@ profiles=(
 )
 
 run_stats() {
-    path=$1
+    root=$1
+    profile=$2
+    path=$root/$profile
 
-    cat $path | paste -sd, > "${path}_squashed"
+    cat $path/base | paste -sd, > "${path}/squashed"
+    cat "${path}/squashed" | python3 post.py >> "${path}/amm"
 }
 
 affinity() {
     root=out/affinity
+    rm -rf $root
     mkdir -p $root
-    rm -f $root/*
     
     for i in "${profiles[@]}"; do
         source env.sh $i
+        mkdir -p $root/$i
+        echo $i >> $root/$i/base
         for j in {1..5}
         do
             echo "exec $j"
-            bin/affinity_example 10000000 100 >> $root/$i            
+            bin/affinity_example 10000000 100 >> $root/$i/base            
         done
-        run_stats $root/$i
+        run_stats $root $i
     done
 }
 
