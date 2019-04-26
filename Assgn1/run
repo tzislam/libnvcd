@@ -1,6 +1,27 @@
 #!/bin/bash
 
-command=$1
+command="affinity"
+tag="---"$(date)
+clean=0
+bin="affinity_example"
+
+extract() {
+    echo $(echo $1 | cut -d'=' -f 2)
+}
+
+for var in "$@"
+do
+    case "$var" in
+        --clean) clean=1 ;;
+        --bin=*) bin=$(extract $var) ;;
+        --tag=*)
+            tmp=$(extract $var)
+            tag="---["$(date)"]: ${tmp} " ;;
+        *) ;;
+    esac    
+done
+
+tag="${tag}: ${bin}---"
 
 profiles=(
     sockets_close
@@ -9,18 +30,27 @@ profiles=(
     cores_spread
 )
 
+tag_file() {
+    echo echo "---${tag}[" $(date) "]---" >> $1
+}
+
 run_stats() {
     root=$1
     profile=$2
     path=$root/$profile
 
     cat $path/base | paste -sd, > "${path}/squashed"
+    tag_file "${path}/amm"
     cat "${path}/squashed" | python3 post.py >> "${path}/amm"
 }
 
 affinity() {
     root=out/affinity
-    rm -rf $root
+
+    if [ $clean -eq 1 ]; then
+        rm -rf $root
+    fi
+    
     mkdir -p $root
 
     ginput="./${root}:"
@@ -36,7 +66,8 @@ affinity() {
         for j in {1..5}
         do
             echo "exec $j"
-            bin/affinity_example 10000000 100 >> $root/$i/base 2>$root/$i/omp_info       
+            tag_file $root/$i/base
+            bin/affinity_example2 10000000 100 >> $root/$i/base 2>$root/$i/omp_info       
         done
         
         run_stats $root $i
