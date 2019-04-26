@@ -1,0 +1,94 @@
+#!/bin/bash
+
+command="affinity"
+tag="---"$(date)
+clean=0
+bin="affinity_example"
+
+extract() {
+    echo $(echo $1 | cut -d'=' -f 2)
+}
+
+for var in "$@"
+do
+    case "$var" in
+        --clean) clean=1 ;;
+        --bin=*) bin=$(extract $var) ;;
+        --tag=*)
+            tmp=$(extract $var)
+            tag="---["$(date)"]: ${tmp} " ;;
+        *) ;;
+    esac    
+done
+
+tag="${tag}: ${bin}---"
+
+profiles=(
+    sockets_close
+    sockets_spread
+    cores_close
+    cores_spread
+)
+
+tag_file() {
+    echo echo "---${tag}[" $(date) "]---" >> $1
+}
+
+run_stats() {
+    root=$1
+    profile=$2
+    path=$root/$profile
+
+    cat $path/base | paste -sd, > "${path}/squashed"
+    tag_file "${path}/amm"
+    cat "${path}/squashed" | python3 post.py >> "${path}/amm"
+}
+
+affinity() {
+    root=out/affinity
+
+    if [ $clean -eq 1 ]; then
+        rm -rf $root
+    fi
+    
+    mkdir -p $root
+
+    ginput="./${root}:"
+    profiles_len="${#profiles[@]}"
+    profiles_index=0
+    
+    for i in "${profiles[@]}"; do
+        source env.sh $i
+
+        mkdir -p $root/$i
+        echo $i >> $root/$i/base
+
+        for j in {1..5}
+        do
+            echo "exec $j"
+            tag_file $root/$i/base
+            bin/affinity_example2 10000000 100 >> $root/$i/base 2>$root/$i/omp_info       
+        done
+        
+        run_stats $root $i
+
+        ginput="${ginput}${i}"
+
+        if (( profiles_index < profiles_len - 1 )); then
+            ginput="${ginput}|"
+        fi
+        
+        (( profiles_index++ ))
+    done
+
+#    echo $ginput | python3 graph.py
+}
+
+case "$command" in
+    "")       affinity ;;
+    affinity) affinity ;;
+    *) ;;
+esac
+
+
+    
