@@ -21,6 +21,10 @@
 
 #define GPU_API extern "C"
 
+#if __cplusplus < 201103L
+#define nullptr NULL
+#endif
+
 // these are implemented in src/util.cpp
 extern "C" {
 

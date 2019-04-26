@@ -1,3 +1,14 @@
+// c++0x for gcc 4.4.7 doesn't implement int to_string.
+// yeet.
+
+namespace std {
+	std::string to_string(int x)
+	{
+		return std::to_string(static_cast<long long>(x));
+	}
+}
+
+
 /*
  * provides a random number in the range [min, max)
  */
@@ -17,7 +28,7 @@ namespace util {
 	{
 		CUDA_RUNTIME_FN(cudaMalloc(static_cast<void**>(&out), sz));
 	}
-
+	
 	template <typename type>
 	std::string to_string(const type* in, size_t n)
 	{
@@ -26,7 +37,8 @@ namespace util {
 		ss << "{ ";
 	
 		for (size_t i = 0; i < n; ++i) {
-			ss << std::to_string(in[i]);
+			type x = in[i];
+			ss << std::to_string(x);
 
 			if (i < n - 1) {
 				ss << ", ";
