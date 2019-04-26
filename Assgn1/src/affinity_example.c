@@ -15,11 +15,11 @@ int main(int argc, char **argv){
 	double start_time, end_time;
 	for (int step=0; step < nsteps; step++) {
 		start_time = omp_get_wtime();
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) num_threads(12)
 		for (int i=0; i < nlocal; i++) {
 			out[i] = ( in[i]+in[i+1]+in[i+2] )/3.;
 		}
-#pragma omp parallel for schedule(static)
+#pragma omp parallel for schedule(static) num_threads(12)
 		for (int i=0; i < nlocal; i++){
 			in[i+1] = out[i];
 		}
