@@ -33,10 +33,10 @@ affinity() {
         mkdir -p $root/$i
         echo $i >> $root/$i/base
 
-        for j in {1..1}
+        for j in {1..5}
         do
             echo "exec $j"
-            bin/affinity_example 10000000 100 >> $root/$i/base            
+            bin/affinity_example 10000000 100 >> $root/$i/base 2>$root/$i/omp_info       
         done
         
         run_stats $root $i
@@ -50,7 +50,7 @@ affinity() {
         (( profiles_index++ ))
     done
 
-    echo $ginput | python3 graph.py
+#    echo $ginput | python3 graph.py
 }
 
 case "$command" in

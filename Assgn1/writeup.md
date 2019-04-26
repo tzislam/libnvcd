@@ -18,6 +18,8 @@
       - Distribution: per core
       - Size: 256KB
 
+# Affinity
+
 
 
 
