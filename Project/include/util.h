@@ -1,13 +1,11 @@
-#ifndef __COMMON_INL__
-#define __COMMON_INL__
+#ifndef __UTIL_H__
+#define __UTIL_H__
 
-/*
- * provides a random number in the range [min, max)
- */
-
-#ifndef __CUDA_ARCH__
+#include "commondef.h"
 
 #include <cuda.h>
+#include <cuda_runtime.h>
+#include <cupti.h>
 
 #include <stdlib.h>
 #include <time.h>
@@ -15,8 +13,30 @@
 #include <string>
 #include <sstream>
 
+extern "C" {
+
+	void cuda_runtime_error_print_exit(cudaError_t status,
+									   int line,
+									   const char* file,
+									   const char* expr);
+
+	void cuda_driver_error_print_exit(CUresult status,
+									  int line,
+									  const char* file,
+									  const char* expr);
+	
+	void cupti_error_print_exit(CUptiResult status,
+								int line,
+								const char* file,
+								const char* expr);
+}
+
 namespace util {
 
+	/*
+	 * provides a random number in the range [min, max)
+	 */
+	
 	template <typename scalarType>
 	scalarType random_next(scalarType min, scalarType max)
 	{
@@ -53,6 +73,5 @@ namespace util {
 	}
 
 }
-#endif
 
-#endif // __COMMON_INL__
+#endif // __UTIL_H__

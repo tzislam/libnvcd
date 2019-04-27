@@ -1,10 +1,6 @@
-#include "common.h"
+#include "util.h"
 
 #include <stdio.h>
-#include <cupti.h>
-
-#include <cuda.h>
-#include <cuda_runtime.h>
 
 extern "C" {
 	void cuda_runtime_error_print_exit(cudaError_t status,

@@ -1,8 +1,13 @@
 #ifndef __GPU_H__
 #define __GPU_H__
 
-#include "common.h"
-#include "common.inl"
+#include "commondef.h"
+#include "util.h"
+#include <stdio.h>
+
+GPU_API GPU_KERN_FN void gpu_kernel();
+
+GPU_API GPU_CLIENT_FN void gpu_test();
 
 template <typename scalarType>
 static inline GPU_KERN_FN void gpu_kernel_matrix_vec_mul(int n,

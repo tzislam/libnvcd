@@ -1,4 +1,4 @@
-#include "common.h"
+#include "commondef.h"
 #include "gpu.h"
 
 int main()
