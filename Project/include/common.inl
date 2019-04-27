@@ -1,17 +1,21 @@
-// c++0x for gcc 4.4.7 doesn't implement int to_string.
-// yeet.
-
-namespace std {
-	std::string to_string(int x)
-	{
-		return std::to_string(static_cast<long long>(x));
-	}
-}
-
+#ifndef __COMMON_INL__
+#define __COMMON_INL__
 
 /*
  * provides a random number in the range [min, max)
  */
+
+#ifndef __CUDA_ARCH__
+
+#include <cuda.h>
+
+#include <stdlib.h>
+#include <time.h>
+
+#include <string>
+#include <sstream>
+
+#pragma message "YEET"
 
 namespace util {
 
@@ -51,3 +55,6 @@ namespace util {
 	}
 
 }
+#endif
+
+#endif // __COMMON_INL__

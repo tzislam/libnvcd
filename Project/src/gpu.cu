@@ -1,13 +1,16 @@
 #include "common.h"
-
 #include "gpu.cuh"
+
+//#include <stdio.h>
+
+#include <cuda.h>
 
 extern "C" {	
 
 	GPU_FN bool assert_cond_impl(bool condition, const char* message, int line)
 	{
 		if (!condition) {
-			printf("DEVICE ASSERTION FAILURE: %s (line %i)\n", message, line);
+			//			printf("DEVICE ASSERTION FAILURE: %s (line %i)\n", message, line);
 		}
 
 		return condition;
@@ -20,7 +23,7 @@ extern "C" {
 			threadIdx.y * blockDim.x +
 			threadIdx.z * blockDim.x * blockDim.y;
 		
-		printf("the thread: %i\n", thread);
+		//		printf("the thread: %i\n", thread);
 	}
 	
 	GPU_KERN_FN void gpu_kernel()

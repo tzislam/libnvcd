@@ -2,8 +2,7 @@ CC=nvcc
 
 INCLUDE=-I./include -I/usr/local/cuda-9.2/extras/CUPTI/include
 
-CUDA_DBG=--compiler-options "-rdynamic -g -ggdb -std=c++0x" 
-DEBUG=-G $(CUDA_DBG)
+CC_FLAGS=--compiler-options "-std=c++11" 
 
 ARCH=-arch=sm_50
 #ARCH=-arch=sm_60
@@ -30,16 +29,17 @@ OBJ := $(subst $(SRCDIR), $(OBJDIR), $(TOBJ))
 TARGET := perfmon
 
 $(TARGET): $(OBJ)
-	$(CC) $(FLAGS) $(LIBS) $(DEBUG) $(ARCH) $(OBJ) -o bin/$(TARGET)
+	$(CC) $(FLAGS) $(LIBS) $(ARCH) $(OBJ) -o bin/$(TARGET)
 
 obj/%.o: src/%.cpp objdep 
-	$(CC) $(FLAGS) $(INCLUDE) $(DEBUG) $(ARCH) -c $< -o $@
+	$(CC) $(FLAGS) $(INCLUDE) $(CC_FLAGS) $(ARCH) -c $< -o $@
 
 obj/%.o: src/%.cu objdep
-	$(CC) $(FLAGS) $(INCLUDE) $(DEBUG) $(ARCH) -c $< -o $@
+	$(CC) $(FLAGS) $(INCLUDE) $(ARCH) -c $< -o $@
 
 objdep:
 	mkdir -p obj
+	mkdir -p bin
 
 clean:
 	rm -f bin/perfmon
