@@ -5,28 +5,21 @@
 #include "util.h"
 #include <stdio.h>
 
-GPU_API GPU_KERN_FN void gpu_kernel();
+C_LINKAGE_START
 
-GPU_API GPU_CLIENT_FN void gpu_test();
+__global__ void gpu_kernel();
 
-template <typename scalarType>
-static inline GPU_KERN_FN void gpu_kernel_matrix_vec_mul(int n,
-										   int m,
-										   scalarType* q,
-										   scalarType* u,
-										   scalarType* v) {}
+__host__ void gpu_test();
 
-template <typename scalarType, int N, int M, int min, int max>
-static inline GPU_CLIENT_FN void gpu_test_matrix_vec_mul()
-{
-	scalarType* matrix = new scalarType[N * M];
-	scalarType* in_vector = new scalarType[M];
-		
-	scalarType* out_vector = new scalarType[N]();
-	
-	std::string x = util::to_string(out_vector, N);
 
-	printf("out_vector: %s\n", x.c_str());
-}
+__global__ void gpu_kernel_matrix_vec_mul_int(int n,
+												   int m,
+												   int* q,
+												   int* u,
+												   int* v);
+
+__host__ void gpu_test_matrix_vec_mul();
+
+C_LINKAGE_END
 
 #endif

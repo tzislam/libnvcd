@@ -2,14 +2,14 @@ CC=nvcc
 
 INCLUDE=-I./include -I/usr/local/cuda-9.2/extras/CUPTI/include
 
-CC_FLAGS=--compiler-options "-std=c++11" 
+CC_FLAGS=--compiler-options "-g -ggdb -std=c99"
 
 ARCH=-arch=sm_50
 #ARCH=-arch=sm_60
 
 
-SRC_CPP := $(wildcard src/*.cpp)
-OBJ_CPP := $(SRC_CPP:.cpp=.o)
+SRC_C := $(wildcard src/*.c)
+OBJ_C := $(SRC_C:.c=.o)
 
 #-lnvidia-ml
 
@@ -18,7 +18,7 @@ LIBS=-L/usr/lib/x86_64-linux-gnu -L/usr/local/cuda-9.2/extras/CUPTI/lib64 -lcuda
 SRC_CU := $(wildcard src/*.cu)
 OBJ_CU := $(SRC_CU:.cu=.o)
 
-TOBJ := $(OBJ_CPP) $(OBJ_CU)
+TOBJ := $(OBJ_C) $(OBJ_CU)
 OBJDIR := obj
 SRCDIR := src
 
@@ -31,7 +31,7 @@ TARGET := perfmon
 $(TARGET): $(OBJ)
 	$(CC) $(FLAGS) $(LIBS) $(ARCH) $(OBJ) -o bin/$(TARGET)
 
-obj/%.o: src/%.cpp objdep 
+obj/%.o: src/%.c objdep 
 	$(CC) $(FLAGS) $(INCLUDE) $(CC_FLAGS) $(ARCH) -c $< -o $@
 
 obj/%.o: src/%.cu objdep
@@ -49,7 +49,7 @@ clean:
 	rm -f src/*~
 
 #$$CUDACC -v $DEBUG -c $INCLUDE $ARCH src/gpu.cu -o obj/gpu.o &&\
-#$CC -v $DEBUG $INCLUDE $ARCH -L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart obj/gpu.o src/main.cpp -o bin/perfmon
+#$CC -v $DEBUG $INCLUDE $ARCH -L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart obj/gpu.o src/main.c -o bin/perfmon
 
-#gcc-7 -v -lnvidia-ml -lcuda -lcudart src/main.cpp -o bin/perfmon
+#gcc-7 -v -lnvidia-ml -lcuda -lcudart src/main.c -o bin/perfmon
 
