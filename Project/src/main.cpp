@@ -1,5 +1,5 @@
 #include "common.h"
-#include "gpu.cuh"
+#include "gpu.h"
 
 int main()
 {

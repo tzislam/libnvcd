@@ -15,8 +15,6 @@
 #include <string>
 #include <sstream>
 
-#pragma message "YEET"
-
 namespace util {
 
 	template <typename scalarType>

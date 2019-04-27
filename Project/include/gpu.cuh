@@ -1,13 +1,9 @@
-#ifndef __GPU_H__
-#define __GPU_H__
+#ifndef __GPU_CUH__
+#define __GPU_CUH__
 
-#include "common.h"
+#include "commondef.h"
 
 #include <stdio.h>
-
-#ifdef __CUDA_ARCH__
-
-#pragma message "CUDA CODE"
 
 #define GPU_ASSERT(condition_expr) assert_cond_impl(condition_expr, #condition_expr, __LINE__) 
 
@@ -33,6 +29,8 @@ GPU_KERN_FN void gpu_kernel_matrix_vec_mul(int n,
 										   scalarType* u,
 										   scalarType* v)
 {
+	printf("Kernel executed\n");
+	
 	int thread_row = thread_index1<int>();
 
 	if (GPU_ASSERT(thread_row < n)) {
@@ -49,34 +47,6 @@ GPU_KERN_FN void gpu_kernel_matrix_vec_mul(int n,
 		v[thread_row] = k;
 	}
 }
-
-#else
-
-#pragma message "NON CUDA CODE"
-
-template <typename scalarType>
-static inline GPU_KERN_FN void gpu_kernel_matrix_vec_mul(int n,
-										   int m,
-										   scalarType* q,
-										   scalarType* u,
-										   scalarType* v) {}
-
-#include "common.inl"
-
-template <typename scalarType, int N, int M, int min, int max>
-static inline GPU_CLIENT_FN void gpu_test_matrix_vec_mul()
-{
-	scalarType* matrix = new scalarType[N * M];
-	scalarType* in_vector = new scalarType[M];
-		
-	scalarType* out_vector = new scalarType[N]();
-	
-	std::string x = util::to_string(out_vector, N);
-
-	printf("out_vector: %s\n", x.c_str());
-}
-
-#endif
 
 
 #endif
