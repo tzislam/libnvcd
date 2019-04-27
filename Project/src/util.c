@@ -1,8 +1,29 @@
 #include "util.h"
 
 #include <stdio.h>
+#include <time.h>
+#include <stdlib.h>
 
 C_LINKAGE_START
+
+void* alloc_or_die(size_t size)
+{
+	void* p = malloc(size);
+
+	if (p == NULL) {
+		perror("malloc failure");
+		exit(1);
+	}
+
+	return p;
+}
+
+int random_nexti(int rmin, int rmax)
+{
+	srand(time(NULL));
+	
+	return rmin + rand()  % (rmax - rmin);
+}
 
 void cuda_runtime_error_print_exit(cudaError_t status,
 								   int line,
@@ -44,6 +65,7 @@ void cupti_error_print_exit(CUptiResult status,
 {
 	if (status != CUPTI_SUCCESS) {
 		const char* error_string = NULL;
+		
 		cuptiGetResultString(status, &error_string);
 			
 		printf("CUPTI: %s:%i:'%s' failed. [Reason] %s\n",

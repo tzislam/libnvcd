@@ -7,10 +7,11 @@
 #include <cuda_runtime.h>
 #include <cupti.h>
 
-#include <stdlib.h>
-#include <time.h>
-
 C_LINKAGE_START
+
+void* alloc_or_die(size_t size);
+
+int random_nexti(int rmin, int rmax);
 
 void cuda_runtime_error_print_exit(cudaError_t status,
 								   int line,
