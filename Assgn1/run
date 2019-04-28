@@ -40,7 +40,7 @@ run_stats() {
     path=$root/$profile
 
     cat $path/base | paste -sd, > "${path}/squashed"
-    tag_file "${path}/amm"
+    #tag_file "${path}/amm"
     cat "${path}/squashed" | python3 post.py >> "${path}/amm"
 }
 
@@ -66,7 +66,7 @@ affinity() {
         for j in {1..5}
         do
             echo "exec $j"
-            tag_file $root/$i/base
+     #       tag_file $root/$i/base
             bin/affinity_example2 10000000 100 >> $root/$i/base 2>$root/$i/omp_info       
         done
         
