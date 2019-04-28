@@ -21,9 +21,6 @@ TARGET := affinity_example
 affinity_example: src/affinity_example.c bingen
 	$(CC) $(FLAGS) $(LIBS) $< -o bin/$@
 
-#obj/%.o: src/%.c dirgen
-#	$(CC) $(FLAGS) $(INCLUDE) $(DEBUG) $(ARCH) -c $< -o $@
-
 bingen:
 	mkdir -p bin
 
