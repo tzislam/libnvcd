@@ -2,7 +2,9 @@ CC := gcc
 
 INCLUDE := -I./src
 
-FLAGS := -std=gnu99 -g -ggdb 
+CXXFLAGS := -O2 #-g -ggdb 
+
+CFLAGS := -std=gnu99 $(CXXFLAGS)
 
 SRC_C := $(wildcard src/*.c)
 OBJ_C := $(SRC_C:.c=.o)
@@ -19,7 +21,10 @@ OBJ := $(subst $(SRCDIR), $(OBJDIR), $(TOBJ))
 TARGET := affinity_example
 
 affinity_example: src/affinity_example.c bingen
-	$(CC) $(FLAGS) $(LIBS) $< -o bin/$@
+	$(CC) $(CFLAGS) $(LIBS) $< -o bin/$@
+
+mat_mul: src/mat_mul.cpp bingen
+	g++ $(CXXFLAGS) $(LIBS) $< -o bin/$@
 
 bingen:
 	mkdir -p bin
