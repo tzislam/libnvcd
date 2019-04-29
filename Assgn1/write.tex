@@ -156,6 +156,14 @@ perform groups of computations, sequentially, on unique partitions of large amou
 
 \section{Matrix Multiply}
 
+\paragraph{The speedup for the parallel version of the matrix gradually made its way to about 4x as the thread size increased; there are moments where a difference in the amount of threads used doesn't provide much of an increase in speedup, as is illustrated in the graph when the test is ran using between 8 and 10 threads. Apart from that, though, the speedup is fairly significant. The speedup was calculated by simply dividing the time of the serial version of the multiply against the time of the parallel version of the multiply.}
+
+\begin{figure}
+\caption{speedup as the amount of threads are increased for each run}
+\centering
+\includegraphics[width=\textwidth]{matrix_mul_speedup}
+\end{figure}
+
 \section{References}
 
 \begin {enumerate}
