@@ -13,6 +13,7 @@ for var in "$@"
 do
     case "$var" in
         --clean) clean=1 ;;
+        --command=*) command=$(extract $var) ;;
         --bin=*) bin=$(extract $var) ;;
         --tag=*)
             tmp=$(extract $var)
@@ -42,6 +43,57 @@ run_stats() {
     cat $path/base | paste -sd, > "${path}/squashed"
     #tag_file "${path}/amm"
     cat "${path}/squashed" | python3 post.py >> "${path}/amm"
+}
+
+run_mat_stats() {
+    root=$1
+    cat "${root}/accum" | python3 calc_speedup.py >> "${root}/speedups"
+}
+
+mat_mul() {
+    root=out/mat_mul
+
+    if [ $clean -eq 1 ]; then
+        rm -rf $root
+    fi
+    
+    mkdir -p $root
+
+    export OMP_DISPLAY_ENV=true
+    export OMP_SCHEDULE='STATIC, 100'
+
+    echo "[" >> "${root}/accum"
+    
+    for i in {1..12}
+    do
+
+        export OMP_PLACES=cores
+        export OMP_PROC_BIND=spread
+        export OMP_NUM_THREADS=$i
+        
+
+        f="${root}/${i}_threads"
+        
+        mkdir -p "${f}"
+        echo $i >> "${f}/base"
+    
+        #for j in {1..1}
+        #do
+        echo "$i threads"
+        output=$(bin/mat_mul 1000 2>"${f}/omp_info")
+
+        echo $output >> "${f}/base"
+        echo $output >> "${root}/accum"
+
+        if [ $? -ne 0 ]; then
+            echo "encountered error"
+            exit 1
+        fi
+    done
+
+    echo "]" >> "${root}/accum"
+    
+    run_mat_stats $root
 }
 
 affinity() {
@@ -87,6 +139,7 @@ affinity() {
 case "$command" in
     "")       affinity ;;
     affinity) affinity ;;
+    mat_mul)  mat_mul ;;
     *) ;;
 esac
 
