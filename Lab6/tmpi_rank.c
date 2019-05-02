@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <stdio.h>
 #include <mpi.h>
 #include <string.h>
 #include "tmpi_rank.h"
@@ -22,10 +23,12 @@ void *gather_numbers_to_root(void *number, MPI_Datatype datatype, MPI_Comm comm)
   void *gathered_numbers = NULL;
   if (comm_rank == 0) {
     gathered_numbers = malloc(datatype_size * comm_size);
-	
   }
   
-  MPI_Gather(number, 1, datatype, gathered_numbers, comm_size, datatype, 0, comm);
+  MPI_Gather(number, 1, datatype, gathered_numbers, 1, datatype, 0, comm);
+
+
+
   //TODO: Gather all of the numbers on the root proces
   return gathered_numbers;
 }

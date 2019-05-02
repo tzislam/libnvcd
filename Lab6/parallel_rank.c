@@ -12,20 +12,22 @@
 #include "tmpi_rank.h"
 #include <time.h>
 
+
 int main(int argc, char** argv) {
 	//TODO: Initialize MPI
 	MPI_Init(&argc, &argv);
 	
 	int world_rank;
 	int world_size;
+
 	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
 	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
 	// TODO: Get rank and size of the communicator
- 
+	
 	// Seed the random number generator to get different results each time
 	srand(time(NULL) * world_rank);
 
-	int rand_num = rand() % 100;
+	int rand_num = rand();
 	int rank;
 
 	printf("world_rank: %i, rand_num: %i\n", world_rank, rand_num);
