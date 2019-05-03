@@ -12,21 +12,35 @@
 #include "tmpi_rank.h"
 #include <time.h>
 
+
 int main(int argc, char** argv) {
-  //TODO: Initialize MPI
+	//TODO: Initialize MPI
+	MPI_Init(&argc, &argv);
+	
+	int world_rank;
+	int world_size;
 
-  int world_rank;
-  int world_size;
-  // TODO: Get rank and size of the communicator
+	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+	// TODO: Get rank and size of the communicator
+	
+	// Seed the random number generator to get different results each time
+	srand(time(NULL) * world_rank);
 
-  // Seed the random number generator to get different results each time
-  srand(time(NULL) * world_rank);
+	int rand_num = rand();
+	int rank;
 
-  int rand_num = rand();
-  int rank;
-  TMPI_Rank(&rand_num, &rank, MPI_INT, MPI_COMM_WORLD);
-  printf("Rank for %f on process %d - %d\n", rand_num, world_rank, rank);
+	printf("world_rank: %i, rand_num: %i\n", world_rank, rand_num);
 
-  // TODO: Use a barrier to make sure all processes come here before finishing.
-  // TODO: Finalize
+	TMPI_Rank(&rand_num, &rank, MPI_INT, MPI_COMM_WORLD);
+
+	printf("Rank for %i on process %i - %i\n", rand_num, world_rank, rank);
+
+	MPI_Barrier(MPI_COMM_WORLD);
+	// TODO: Use a barrier t make sure all processes come here before finishing.
+	// TODO: Finalize
+
+	MPI_Finalize();
+
+	return 0;
 }
