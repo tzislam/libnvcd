@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <cuda.h>
 
+
+
 /* 
  * template for taking the dot product of a vector with the row of a matrix 
  *
