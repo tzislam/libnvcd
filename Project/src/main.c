@@ -1,9 +1,11 @@
 #include "commondef.h"
 #include "gpu.h"
+
 #include <assert.h>
 #include <ctype.h>
+//#include <stdlib.h>
 
-#define ENV_METRICS "ENV_METRICS"
+#define ENV_METRICS "ENV_CUPTI_METRICS"
 #define ENV_DELIM ':'
 
 void* zalloc(size_t sz)
@@ -194,7 +196,7 @@ void test_env_var(char* str, size_t expected_count, int should_null)
 		assert(list == NULL);
 		assert(count == 0);
 
-		printf("getenv_list for %s returned NULL\n", str);
+		printf("env_var_list_read for %s returned NULL\n", str);
 	} else {
 		assert(count == expected_count);
 		assert(list != NULL);
@@ -217,6 +219,11 @@ void test_env_parse()
 	test_env_var("BLANK=::", 0, 1);
 	test_env_var("VALID=this:is:a:set:of:strings", 6, 0);
 	test_env_var("MALFORMED=this::is:a::bad:string", 0, 1);
+}
+
+void test_env_read()
+{
+	getenv
 }
 
 int main()
