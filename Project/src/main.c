@@ -50,7 +50,7 @@ const char* env_var_list_scan_entry(const char* p, size_t* p_count)
 {
 	size_t count = 0;
 
-	int error = 0;
+	bool error = false;
 	
 	while (*p && *p != ENV_DELIM && !error) {
 		error = !isalnum(*p) && !(*p == '_');
@@ -127,13 +127,13 @@ void env_var_list_scan(const char* var, scan_var_fn_t callback, scan_var_error_f
 	if (p != NULL) {
 		const char* delim = strchr(p, ENV_DELIM);
 
-		int scanning = *p;
+		bool scanning = *p != '\0';
 		
 		while (scanning) {
 			size_t this_count = 0;
 
 			if (env_var_list_scan_entry(p, &this_count) == NULL) {
-				scanning = 0;
+				scanning = false;
 			} else {
 				scanning = this_count != 0;
 			}
@@ -145,7 +145,7 @@ void env_var_list_scan(const char* var, scan_var_fn_t callback, scan_var_error_f
 						p = delim + 1;
 						delim = strchr(p, ENV_DELIM);
 					} else {
-						scanning = 0;
+						scanning = false;
 					}
 				}
 			} else if (error != NULL) {

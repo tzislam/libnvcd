@@ -144,13 +144,13 @@ __host__ void gpu_test_matrix_vec_mul()
 
 	cpu_matrix_vec_mul(n, m, sq, su, sv);
 
-	bool_t equal = _True;
+	bool equal = true;
 	
-	for (size_t i = 0; i < vsize && equal == _True; ++i) {
+	for (size_t i = 0; i < vsize && equal == true; ++i) {
 		equal = hv[i] == sv[i];
 	}
 
-	if (equal == _True) {
+	if (equal == true) {
 		puts("gpu_test_matrix_vec_mul: success");
 	} else {
 		puts("gpu_test_matrix_vec_mul: failure");
