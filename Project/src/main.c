@@ -233,11 +233,6 @@ void test_env_parse()
 	test_env_var("MALFORMED=this::is:a::bad:string", 0, 1);
 }
 
-void test_env_read()
-{
-	getenv
-}
-
 int main()
 {
 	test_env_parse();
