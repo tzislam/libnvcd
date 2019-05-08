@@ -74,9 +74,9 @@ const char* env_var_list_scan_entry(const char* p, size_t* p_count)
 	return p;
 }
 
-typedef int (*scan_var_fn_t)(const char* entry, size_t entry_len, void* user);
+typedef int (*env_var_list_scan_fn_t)(const char* entry, size_t entry_len, void* user);
 
-typedef void (*scan_var_error_fn_t)(void* user);
+typedef void (*env_var_list_scan_error_fn_t)(void* user);
 
 struct env_var_list_scan_ctx {
 	char** list;
@@ -119,7 +119,9 @@ int env_var_list_insert_entry(const char* entry, size_t entry_len, void* user)
 	return str != NULL;
 }
 
-void env_var_list_scan(const char* var, scan_var_fn_t callback, scan_var_error_fn_t error,
+void env_var_list_scan(const char* var,
+											 env_var_list_scan_fn_t callback,
+											 env_var_list_scan_error_fn_t error,
 											 void* user)
 {
 	const char* p = env_var_list_start(var);
