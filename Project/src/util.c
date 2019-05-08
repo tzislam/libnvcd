@@ -78,4 +78,12 @@ void cupti_error_print_exit(CUptiResult status,
 	}
 }
 
+void assert_impl(bool cond, const char* expr, const char* file, int line)
+{
+	if (!cond) {
+		printf("ASSERT failure: \"%s\" @ %s:%i\n", expr, file, line);
+		exit(1);
+	}
+}
+
 C_LINKAGE_END

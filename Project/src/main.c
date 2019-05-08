@@ -21,7 +21,7 @@ void* zalloc(size_t sz)
 	/* set here for testing purposes; 
 	   should not be relied upon for any
 	   real production build */
-	assert(p != NULL);
+	ASSERT(p != NULL);
 
 	return p;
 }
@@ -34,7 +34,7 @@ const char* env_var_list_start(const char* list)
 		p++;
 	}
 
-	assert(*p == '=');
+	ASSERT(*p == '=');
 
 	const char* ret = p + 1;
 
@@ -86,7 +86,7 @@ struct env_var_list_scan_ctx {
 
 int env_var_list_count_entry(const char* entry, size_t entry_len, void* user)
 {
-	assert(user != NULL);
+	ASSERT(user != NULL);
 	size_t* count = (size_t*) user;
 	*count = *count + 1;
 	return 1;
@@ -94,7 +94,7 @@ int env_var_list_count_entry(const char* entry, size_t entry_len, void* user)
 
 void env_var_list_count_entry_error(void* user)
 {
-	assert(user != NULL);
+	ASSERT(user != NULL);
 
 	size_t* count = (size_t*) user;
 	 *count = 0;
@@ -102,12 +102,12 @@ void env_var_list_count_entry_error(void* user)
 
 int env_var_list_insert_entry(const char* entry, size_t entry_len, void* user)
 {
-	assert(user != NULL);
+	ASSERT(user != NULL);
 	struct env_var_list_scan_ctx* ctx = (struct env_var_list_scan_ctx*) user;
 	
 	char* str = zalloc((entry_len + 1) * sizeof(char));
 
-	assert(ctx->index < ctx->num_elems);
+	ASSERT(ctx->index < ctx->num_elems);
 	
 	if (str != NULL) {
 		strncpy(str, entry, entry_len);
@@ -203,22 +203,22 @@ void test_env_var(char* str, size_t expected_count, bool should_null)
 	char** list = env_var_list_read(str, &count);
 
 	if (should_null) {
-		assert(list == NULL);
-		assert(count == 0);
+		ASSERT(list == NULL);
+		ASSERT(count == 0);
 
 		if (g_test_params.print_info) {
 			printf("env_var_list_read for %s returned NULL\n", str);
 		}
 	} else {
-		assert(count == expected_count);
-		assert(list != NULL);
+		ASSERT(count == expected_count);
+		ASSERT(list != NULL);
 
 		for (size_t i = 0; i < count; ++i) {
 			printf("[%lu]: %s\n", i, list[i]);
 		}
 
 		for (size_t i = 0; i < count; ++i) {
-			assert(list[i] != NULL);
+			ASSERT(list[i] != NULL);
 			free(list[i]);
 		}
 

@@ -17,6 +17,12 @@
 #include <stdbool.h>
 #endif
 
+#include <assert.h>
+#include <stdarg.h>
+#include <stdio.h>
+
+#define ASSERT(cond) assert_impl((cond), #cond, __FILE__, __LINE__)
+
 #ifdef __cplusplus
 #define C_LINKAGE_START extern "C" {
 #define C_LINKAGE_END }
