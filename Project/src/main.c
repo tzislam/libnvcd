@@ -184,12 +184,20 @@ char** env_var_list_read(const char* env_var_value, size_t* count)
 	return ctx.list;
 }
 
-void test_env_var(char* str, size_t expected_count, int should_null)
+struct test {
+	uint8_t print_info;
+} static g_test_params = {
+	false
+};
+
+void test_env_var(char* str, size_t expected_count, bool should_null)
 {
-	printf("Testing %s. Expecting %s with a count of %lu\n",
-		   str,
-		   should_null ? "failure" : "success",
-		   expected_count);
+	if (g_test_params.print_info) {
+		printf("Testing %s. Expecting %s with a count of %lu\n",
+					 str,
+					 should_null ? "failure" : "success",
+					 expected_count);
+	}
 	
 	size_t count = 0;
 	char** list = env_var_list_read(str, &count);
@@ -198,7 +206,9 @@ void test_env_var(char* str, size_t expected_count, int should_null)
 		assert(list == NULL);
 		assert(count == 0);
 
-		printf("env_var_list_read for %s returned NULL\n", str);
+		if (g_test_params.print_info) {
+			printf("env_var_list_read for %s returned NULL\n", str);
+		}
 	} else {
 		assert(count == expected_count);
 		assert(list != NULL);
