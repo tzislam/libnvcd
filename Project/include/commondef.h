@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 
-#ifndef __CUDACC__
+#if !defined(__CUDACC__) && !defined(__cplusplus)
 #include <stdbool.h>
 #endif
 
@@ -22,6 +22,8 @@
 #include <stdio.h>
 
 #define ASSERT(cond) assert_impl((cond), #cond, __FILE__, __LINE__)
+
+#define NOT_NULL(p_expr) assert_not_null_impl((p_expr), #p_expr, __FILE__, __LINE__) 
 
 #ifdef __cplusplus
 #define C_LINKAGE_START extern "C" {

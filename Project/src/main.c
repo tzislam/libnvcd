@@ -1,30 +1,23 @@
 #include "commondef.h"
 #include "gpu.h"
 
-#include <assert.h>
 #include <ctype.h>
-//#include <stdlib.h>
+#include <cupti.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
+#include <sys/time.h>
 
-#define ENV_METRICS "ENV_CUPTI_METRICS"
+#ifndef ENV_PREFIX
+#define ENV_PREFIX "BENCH_"
+#endif
+
 #define ENV_DELIM ':'
 
-void* zalloc(size_t sz)
-{
-	void* p = malloc(sz);
 
-	if (p != NULL) {
-		memset(p, 0, sz);
-	} else {
-		puts("OOM");
-	}
-
-	/* set here for testing purposes; 
-	   should not be relied upon for any
-	   real production build */
-	ASSERT(p != NULL);
-
-	return p;
-}
+/*
+ * env var list parsing
+ *
+ */
 
 const char* env_var_list_start(const char* list)
 {
@@ -124,7 +117,7 @@ void env_var_list_scan(const char* var,
 											 env_var_list_scan_error_fn_t error,
 											 void* user)
 {
-	const char* p = env_var_list_start(var);
+	const char* p = var;
 
 	if (p != NULL) {
 		const char* delim = strchr(p, ENV_DELIM);
@@ -184,9 +177,16 @@ char** env_var_list_read(const char* env_var_value, size_t* count)
 	return ctx.list;
 }
 
+/*
+ * env var list testing
+ *
+ */
+
 struct test {
 	uint8_t print_info;
+	uint8_t run;
 } static g_test_params = {
+	false,
 	false
 };
 
@@ -233,9 +233,187 @@ void test_env_parse()
 	test_env_var("MALFORMED=this::is:a::bad:string", 0, 1);
 }
 
+#define PTIME_FMT "f"
+
+typedef double profile_time_t;
+
+profile_time_t profile_time() {
+	struct timeval t = {0};
+	gettimeofday(&t, NULL);
+	return t.tv_sec + t.tv_usec * 1e-6;
+}
+
+typedef char string_micro_t[64];
+
+struct cupti_data {
+	char** metric_names; /* TODO: change this to a dynamic buffer of string_micro_t */
+	CUpti_MetricID* metric_ids;
+
+	CUpti_EventID** metric_event_lists;
+	uint32_t* metric_event_list_lengths;
+	
+	uint32_t num_metrics;
+};
+
+struct profile_data {
+	struct cupti_data cupti;
+	
+	string_micro_t* device_names;
+	CUdevice* device_ids; 
+	
+	profile_time_t start;
+	profile_time_t time; /* TODO: add darray since time slices will need to be taken */
+
+	int num_devices;
+	int device; /* Defaults to zero */
+	
+	uint8_t needs_init;
+};
+
+static struct profile_data* g_data = NULL;
+
+void string_list_free(char** list, size_t sz)
+{
+	ASSERT(list != NULL);
+	
+	for (size_t i = 0; i < sz; ++i) {
+	  ASSERT(list[i] != NULL);
+
+		free(list[i]);
+		list[i] = NULL;
+	}
+
+	free(list);
+	list = NULL;
+}
+
+struct profile_data* default_profile_data()
+{
+	if (g_data == NULL) {
+		{
+			g_data = zalloc(sizeof(*g_data));
+			ASSERT(g_data != NULL);
+
+			g_data->needs_init = true;
+		}
+	}
+
+	return g_data;
+}
+
+void profile_data_print(struct profile_data* data) {
+	for (int i = 0; i < data->cupti.num_metrics; ++i) {
+		printf("metric: %i. metric id: 0x%x, name: \"%s\"\n",
+					 i,
+					 data->cupti.metric_ids[i],
+					 data->cupti.metric_names[i]);
+	}
+	
+	for (int i = 0; i < data->num_devices; ++i) {
+		printf("device: %i. device id: 0x%x. name: \"%s\"\n",
+					 i,
+					 data->device_ids[i],
+					 data->device_names[i]);
+	}
+}
+
+void cupti_init(CUdevice device, struct cupti_data* cupti)
+{
+	char* result = NOT_NULL(getenv(ENV_PREFIX "CUPTI_METRICS"));
+
+	size_t num_metrics = 0;
+			
+  cupti->metric_names = env_var_list_read(result, &num_metrics);
+  cupti->num_metrics = (uint32_t)(num_metrics & 0xFFFFFFFF);
+	
+	ASSERT(cupti->num_metrics < 100); /* heuristical sanity check */
+
+	{
+		bool found = false;
+		uint32_t i = 0;
+
+		while (i < cupti->num_metrics && !found) {
+			found = strcmp(cupti->metric_names, ENV_PREFIX "CUPTI_ALL") == 0;
+			i++;
+		}
+
+		if (found) {
+			assert(false && "finish this!");
+		}
+	}
+	
+	{
+		cupti->metric_ids =
+			NOT_NULL(zalloc(sizeof(*(cupti->metric_ids)) * cupti->num_metrics));
+			
+		for (uint32_t i = 0; i < cupti->num_metrics; ++i) {
+			CUPTI_FN(cuptiMetricGetIdFromName(device,
+																				cupti->metric_names[i],
+																				&cupti->metric_ids[i]
+																				));
+		}
+	}
+
+}
+
+void cupti_benchmark_start()
+{
+	struct profile_data* data = default_profile_data();
+
+	if (data->needs_init) {
+		CUDA_DRIVER_FN(cuInit(0));
+
+		{
+			CUDA_RUNTIME_FN(cudaGetDeviceCount(&data->num_devices));
+
+			data->device_ids =
+				NOT_NULL(zalloc(sizeof(*(data->device_ids)) * data->num_devices));
+
+			data->device_names =
+				NOT_NULL(zalloc(sizeof(*(data->device_names)) * data->num_devices));
+		
+			for (int i = 0; i < data->num_devices; ++i) {
+				CUDA_DRIVER_FN(cuDeviceGet(&data->device_ids[i], i));
+			
+				CUDA_DRIVER_FN(cuDeviceGetName(data->device_names[i],
+																			 sizeof(data->device_names[i]) - 1,
+																			 data->device_ids[i]));
+			}
+		}
+
+		cupti_init(data->device_ids[data->device], &data->cupti);
+		
+		profile_data_print(data);
+		
+		data->needs_init = false;
+	}
+
+	data->start = profile_time();
+}
+
+void cupti_evaluate_metric(CUdevice device, struct cupti_data* cupti, int metric)
+{
+	CUPTI_FN(cuptiMetricGetNumEvents(device, &cupti->));
+}
+
+void cupti_benchmark_end()
+{
+	struct profile_data* data = default_profile_data();
+	
+	data->time = profile_time() - data->start;
+
+	printf("time taken: %" PTIME_FMT ".\n", data->time);
+
+	
+}
+
 int main()
 {
-	test_env_parse();
+	if (g_test_params.run) {
+		test_env_parse();
+	}
+
+	cupti_benchmark_start();
 	
 	gpu_test_matrix_vec_mul();
 	

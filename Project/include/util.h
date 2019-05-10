@@ -9,7 +9,7 @@
 
 C_LINKAGE_START
 
-void* alloc_or_die(size_t size);
+void* zalloc(size_t sz);
 
 int random_nexti(int rmin, int rmax);
 
@@ -32,6 +32,8 @@ void assert_impl(bool cond,
 								 const char* expr,
 								 const char* file,
 								 int line);
+
+void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
 
 C_LINKAGE_END
 

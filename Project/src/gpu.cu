@@ -115,12 +115,12 @@ __host__ void gpu_test_matrix_vec_mul()
 	int* v = cuda_alloci(vsize);
 
 	/* serial q, u, v */
-	int* sq = (int*) alloc_or_die(msize * sizeof(int));
-	int* su = (int*) alloc_or_die(vsize * sizeof(int));
-	int* sv = (int*) alloc_or_die(vsize * sizeof(int));
+	int* sq = (int*) NOT_NULL(zalloc(msize * sizeof(int)));
+	int* su = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
+	int* sv = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
 
 	/* client-side device result */
-	int* hv = (int*) alloc_or_die(vsize * sizeof(int));
+	int* hv = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
 	
 	int rmin = 5;
 	int rmax = 50;
