@@ -5,7 +5,75 @@
  * for CUDA toolkit v9.2
  */
 
-const char* g_cupti_events_3x[NUM_CUPTI_EVENTS_3X] = {
+const char* g_cupti_events_2x[NUM_CUPTI_EVENTS_2X] = {
+	/* 
+	 * domain_a 
+   */
+
+	// 6
+	"l1_local_load_hit",
+	"l1_local_load_miss",
+	"l1_local_store_hit",
+	"l1_local_store_miss",
+	"l1_global_load_hit",
+	"l1_global_load_miss",
+
+	// 1
+	"uncached_global_load_transaction",
+
+	// 1
+	"global_store_transaction",
+
+	// 1
+	"l1_shared_bank_conflict",
+
+	// 2
+	"tex0_cache_sector_queries",
+	"tex0_cache_sector_misses",
+
+	// 2
+	"tex1_cache_sector_queries",
+	"tex1_cache_sector_misses",
+
+	// 14
+	"l2_subp0_write_sector_misses",
+	"l2_subp1_write_sector_misses",
+	"l2_subp0_read_sector_misses",
+	"l2_subp1_read_sector_misses",
+	"l2_subp0_write_sector_queries",
+	"l2_subp1_write_sector_queries",
+	"l2_subp0_read_sector_queries",
+	"l2_subp1_read_sector_queries",
+	"l2_subp0_read_hit_sectors",
+	"l2_subp1_read_hit_sectors",
+	"l2_subp0_read_tex_sector_queries",
+	"l2_subp1_read_tex_sector_queries",
+	"l2_subp0_read_tex_hit_sectors",
+	"l2_subp1_read_tex_hit_sectors",
+
+	// 4
+	"fb_subp0_read_sectors",
+	"fb_subp1_read_sectors",
+	"fb_subp0_write_sectors",
+	"fb_subp1_write_sectors",
+
+	// 4
+	"fb0_subp0_read_sectors",
+	"fb0_subp1_read_sectors",
+	"fb0_subp0_write_sectors",
+	"fb0_subp1_write_sectors",
+
+	// 2
+	"fb1_subp0_read_sectors",
+	"fb1_subp1_read_sectors"
+};
+
+/*
+ * List of event metrics as listed in the CUPTI event documentation
+ * for CUDA toolkit v9.2
+ */
+
+const char* g_cupti_metrics_3x[NUM_CUPTI_METRICS_3X] = {
 
 	// 6
 	"achieved_occupancy",
