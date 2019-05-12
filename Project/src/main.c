@@ -1,5 +1,6 @@
 #include "commondef.h"
 #include "gpu.h"
+#include "cupti_lookup.h"
 
 #include <ctype.h>
 #include <cupti.h>
@@ -14,36 +15,75 @@
 #define ENV_DELIM ':'
 
 /*
+ * CUDA
+ */
+
+static CUdevice g_cuda_device = -1;
+static CUcontext g_cuda_context = NULL;
+
+CUdevice cuda_get_device() {
+	ASSERT(g_cuda_device != -1);
+
+	return g_cuda_device;
+}
+
+void cuda_set_device(CUdevice dev) {
+	g_cuda_device = dev;
+}
+
+CUcontext cuda_get_context() {	
+	if (g_cuda_context == NULL) {
+		CUDA_DRIVER_FN(cuCtxCreate(&g_cuda_context, 0, cuda_get_device()));
+	}
+
+	return g_cuda_context;
+}
+
+/*
  * CUPTI events
  */
 
-
 typedef struct cupti_event_data {
-	CUpti_EventID* ids;
-	CUpti_EventGroup group;
+	const char** event_names;
+	CUpti_EventID* event_ids;
+	CUpti_EventGroup event_group;
 	uint8_t num_events;
 	uint8_t initialized;
 } cupti_event_data_t;
 
+static CUpti_EventID g_event_id_backing_3x[NUM_CUPTI_EVENTS_3X];
 
-static CUpti_EventID g_event_id_backing[NUM_CUPTI_EVENTS];
-
-static cupti_event_data_t g_default_event_data = {
-	&g_event_id_backing[0],
+static cupti_event_data_t g_event_data_3x = {
+	&g_cupti_events_3x[0],
+	&g_event_id_backing_3x[0],
 	0,
-	NUM_CUPTI_EVENTS,
+	NUM_CUPTI_EVENTS_3X,
 	false
 };
 
+void cupti_event_data_init(cupti_event_data_t* data) {
+	if (!data->initialized) {
+		CUcontext ctx = cuda_get_context();
+		
+		CUPTI_FN(cuptiEventGroupCreate(ctx, &data->event_group, 0));
 
+		CUdevice dev = cuda_get_device();
+		
+		for (size_t i = 0; i < data->num_events; ++i) {
+			printf("%lu => %s\n", i, data->event_names[i]);
+			CUPTI_FN(cuptiEventGetIdFromName(dev,
+																			 data->event_names[i],
+																			 &data->event_ids[i]));
+		}
+
+		data->initialized = true;
+	}
+}
 
 cupti_event_data_t* default_event_data() {
-	if (!g_default_event_data.initialized) {
-		// create group, assign to g_default_event_data
-		// find ids for all event counters
-	}
+	cupti_event_data_init(&g_event_data_3x);
 
-	return &g_default_event_data;
+	return &g_event_data_3x;
 }
 
 
@@ -352,9 +392,12 @@ void cupti_benchmark_start() {
 																			 sizeof(data->device_names[i]) - 1,
 																			 data->device_ids[i]));
 			}
+
+			cuda_set_device(data->device_ids[0]);
 		}
 
-		// INIT CUPTI HERE
+		volatile cupti_event_data_t* d = default_event_data();
+		(void)d;
 		
 		profile_data_print(data);
 		

@@ -4,7 +4,7 @@ INCLUDE=-I./include -I/usr/local/cuda-9.2/extras/CUPTI/include
 
 CC_FLAGS=--compiler-options "-Wall -Werror -g -ggdb -std=c99"
 
-ARCH=-arch=sm_50
+ARCH=-arch=sm_37
 #ARCH=-arch=sm_60
 
 

@@ -6,29 +6,36 @@
  */
 
 const char* g_cupti_events_3x[NUM_CUPTI_EVENTS_3X] = {
+
+	// 6
 	"achieved_occupancy",
 	"alu_fu_utilization",
 	"atomic_replay_overhead",
 	"atomic_throughput",
   "atomic_transactions",
   "atomic_transactions_per_request",
-	
+
+	// 1
   "branch_efficiency",
 
+	// 3
 	"cf_executed",
 	"cf_fu_utilization",
 	"cf_issued",
 
+	// 5
 	"dram_read_throughput", 
 	"dram_read_transactions",
 	"dram_utilization", 	
 	"dram_write_throughput",
 	"dram_write_transactions",
 
+	// 3
 	"ecc_throughput",
 	"ecc_transactions",
 	"eligible_warps_per_cycle",
-	
+
+	// 11
 	"flop_count_dp", 
 	"flop_count_dp_add",
 	"flop_count_dp_fma",
@@ -41,6 +48,7 @@ const char* g_cupti_events_3x[NUM_CUPTI_EVENTS_3X] = {
 	"flop_dp_efficiency",
 	"flop_sp_efficiency",
 
+	// 12
 	"gld_efficiency",
 	"gld_requested_throughput",
 	"gld_throughput",
@@ -53,7 +61,8 @@ const char* g_cupti_events_3x[NUM_CUPTI_EVENTS_3X] = {
 	"gst_throughput",
 	"gst_transactions",
 	"gst_transactions_per_request",
-	
+
+	// 17
 	"inst_bit_convert",
 	"inst_compute_ld_st",
 	"inst_control",
@@ -71,7 +80,8 @@ const char* g_cupti_events_3x[NUM_CUPTI_EVENTS_3X] = {
 	"issue_slot_utilization",
 	"issue_slots",
 	"issued_ipc",
-	
+
+	// 29
 	"l1_cache_global_hit_rate",
 	"l1_cache_local_hit_rate",
 	"l1_shared_utilization",
@@ -102,13 +112,15 @@ const char* g_cupti_events_3x[NUM_CUPTI_EVENTS_3X] = {
 	"local_store_transactions",
 	"local_store_transactions_per_request",
 
+	// 6
 	"nc_cache_global_hit_rate",
 	"nc_gld_efficiency",
 	"nc_gld_requested_throughput",
 	"nc_gld_throughput",
 	"nc_l2_read_throughput",
 	"nc_l2_read_transactions",
-	
+
+	// 27 
 	"shared_efficiency",
 	"shared_load_throughput",
 	"shared_load_transactions",
@@ -137,12 +149,14 @@ const char* g_cupti_events_3x[NUM_CUPTI_EVENTS_3X] = {
 	"sysmem_write_transactions",
 	"sysmem_write_utilization",
 
+	// 5
 	"tex_cache_hit_rate",
 	"tex_cache_throughput",
 	"tex_cache_transactions",
 	"tex_fu_utilization",
 	"tex_utilization",
-	
+
+	// 2
 	"warp_execution_efficiency",
 	"warp_nonpred_execution_efficiency"
 };
