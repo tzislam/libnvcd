@@ -13,14 +13,46 @@
 
 #define ENV_DELIM ':'
 
+/*
+ * CUPTI events
+ */
+
+
+typedef struct cupti_event_data {
+	CUpti_EventID* ids;
+	CUpti_EventGroup group;
+	uint8_t num_events;
+	uint8_t initialized;
+} cupti_event_data_t;
+
+
+static CUpti_EventID g_event_id_backing[NUM_CUPTI_EVENTS];
+
+static cupti_event_data_t g_default_event_data = {
+	&g_event_id_backing[0],
+	0,
+	NUM_CUPTI_EVENTS,
+	false
+};
+
+
+
+cupti_event_data_t* default_event_data() {
+	if (!g_default_event_data.initialized) {
+		// create group, assign to g_default_event_data
+		// find ids for all event counters
+	}
+
+	return &g_default_event_data;
+}
+
 
 /*
  * env var list parsing
  *
  */
 
-const char* env_var_list_start(const char* list)
-{
+const char* env_var_list_start(const char* list) {
 	const char* p = list;
 
 	while (*p && *p != '=') {
@@ -39,8 +71,7 @@ const char* env_var_list_start(const char* list)
 	return ret;
 }
 
-const char* env_var_list_scan_entry(const char* p, size_t* p_count)
-{
+const char* env_var_list_scan_entry(const char* p, size_t* p_count) {
 	size_t count = 0;
 
 	bool error = false;
@@ -77,24 +108,21 @@ struct env_var_list_scan_ctx {
 	size_t num_elems;
 };
 
-int env_var_list_count_entry(const char* entry, size_t entry_len, void* user)
-{
+int env_var_list_count_entry(const char* entry, size_t entry_len, void* user) {
 	ASSERT(user != NULL);
 	size_t* count = (size_t*) user;
 	*count = *count + 1;
 	return 1;
 }
 
-void env_var_list_count_entry_error(void* user)
-{
+void env_var_list_count_entry_error(void* user) {
 	ASSERT(user != NULL);
 
 	size_t* count = (size_t*) user;
 	 *count = 0;
 }
 
-int env_var_list_insert_entry(const char* entry, size_t entry_len, void* user)
-{
+int env_var_list_insert_entry(const char* entry, size_t entry_len, void* user) {
 	ASSERT(user != NULL);
 	struct env_var_list_scan_ctx* ctx = (struct env_var_list_scan_ctx*) user;
 	
@@ -115,8 +143,7 @@ int env_var_list_insert_entry(const char* entry, size_t entry_len, void* user)
 void env_var_list_scan(const char* var,
 											 env_var_list_scan_fn_t callback,
 											 env_var_list_scan_error_fn_t error,
-											 void* user)
-{
+											 void* user) {
 	const char* p = var;
 
 	if (p != NULL) {
@@ -150,8 +177,7 @@ void env_var_list_scan(const char* var,
 	}
 }
 
-char** env_var_list_read(const char* env_var_value, size_t* count)
-{
+char** env_var_list_read(const char* env_var_value, size_t* count) {
 	struct env_var_list_scan_ctx ctx = {0};
 	
 	env_var_list_scan(env_var_value,
@@ -190,8 +216,7 @@ struct test {
 	false
 };
 
-void test_env_var(char* str, size_t expected_count, bool should_null)
-{
+void test_env_var(char* str, size_t expected_count, bool should_null) {
 	if (g_test_params.print_info) {
 		printf("Testing %s. Expecting %s with a count of %lu\n",
 					 str,
@@ -226,8 +251,7 @@ void test_env_var(char* str, size_t expected_count, bool should_null)
 	}
 }
 
-void test_env_parse()
-{
+void test_env_parse() {
 	test_env_var("BLANK=::", 0, 1);
 	test_env_var("VALID=this:is:a:set:of:strings", 6, 0);
 	test_env_var("MALFORMED=this::is:a::bad:string", 0, 1);
@@ -246,13 +270,8 @@ profile_time_t profile_time() {
 typedef char string_micro_t[64];
 
 struct cupti_data {
-	char** metric_names; /* TODO: change this to a dynamic buffer of string_micro_t */
-	CUpti_MetricID* metric_ids;
-
-	CUpti_EventID** metric_event_lists;
-	uint32_t* metric_event_list_lengths;
 	
-	uint32_t num_metrics;
+	
 };
 
 struct profile_data {
@@ -272,8 +291,7 @@ struct profile_data {
 
 static struct profile_data* g_data = NULL;
 
-void string_list_free(char** list, size_t sz)
-{
+void string_list_free(char** list, size_t sz) {
 	ASSERT(list != NULL);
 	
 	for (size_t i = 0; i < sz; ++i) {
@@ -287,8 +305,7 @@ void string_list_free(char** list, size_t sz)
 	list = NULL;
 }
 
-struct profile_data* default_profile_data()
-{
+struct profile_data* default_profile_data() {
 	if (g_data == NULL) {
 		{
 			g_data = zalloc(sizeof(*g_data));
@@ -302,12 +319,7 @@ struct profile_data* default_profile_data()
 }
 
 void profile_data_print(struct profile_data* data) {
-	for (int i = 0; i < data->cupti.num_metrics; ++i) {
-		printf("metric: %i. metric id: 0x%x, name: \"%s\"\n",
-					 i,
-					 data->cupti.metric_ids[i],
-					 data->cupti.metric_names[i]);
-	}
+
 	
 	for (int i = 0; i < data->num_devices; ++i) {
 		printf("device: %i. device id: 0x%x. name: \"%s\"\n",
@@ -316,48 +328,9 @@ void profile_data_print(struct profile_data* data) {
 					 data->device_names[i]);
 	}
 }
+ 
 
-void cupti_init(CUdevice device, struct cupti_data* cupti)
-{
-	char* result = NOT_NULL(getenv(ENV_PREFIX "CUPTI_METRICS"));
-
-	size_t num_metrics = 0;
-			
-  cupti->metric_names = env_var_list_read(result, &num_metrics);
-  cupti->num_metrics = (uint32_t)(num_metrics & 0xFFFFFFFF);
-	
-	ASSERT(cupti->num_metrics < 100); /* heuristical sanity check */
-
-	{
-		bool found = false;
-		uint32_t i = 0;
-
-		while (i < cupti->num_metrics && !found) {
-			found = strcmp(cupti->metric_names, ENV_PREFIX "CUPTI_ALL") == 0;
-			i++;
-		}
-
-		if (found) {
-			assert(false && "finish this!");
-		}
-	}
-	
-	{
-		cupti->metric_ids =
-			NOT_NULL(zalloc(sizeof(*(cupti->metric_ids)) * cupti->num_metrics));
-			
-		for (uint32_t i = 0; i < cupti->num_metrics; ++i) {
-			CUPTI_FN(cuptiMetricGetIdFromName(device,
-																				cupti->metric_names[i],
-																				&cupti->metric_ids[i]
-																				));
-		}
-	}
-
-}
-
-void cupti_benchmark_start()
-{
+void cupti_benchmark_start() {
 	struct profile_data* data = default_profile_data();
 
 	if (data->needs_init) {
@@ -381,7 +354,7 @@ void cupti_benchmark_start()
 			}
 		}
 
-		cupti_init(data->device_ids[data->device], &data->cupti);
+		// INIT CUPTI HERE
 		
 		profile_data_print(data);
 		
@@ -391,13 +364,7 @@ void cupti_benchmark_start()
 	data->start = profile_time();
 }
 
-void cupti_evaluate_metric(CUdevice device, struct cupti_data* cupti, int metric)
-{
-	CUPTI_FN(cuptiMetricGetNumEvents(device, &cupti->));
-}
-
-void cupti_benchmark_end()
-{
+void cupti_benchmark_end() {
 	struct profile_data* data = default_profile_data();
 	
 	data->time = profile_time() - data->start;
@@ -407,8 +374,7 @@ void cupti_benchmark_end()
 	
 }
 
-int main()
-{
+int main() {
 	if (g_test_params.run) {
 		test_env_parse();
 	}
