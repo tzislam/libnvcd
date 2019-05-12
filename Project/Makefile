@@ -1,20 +1,23 @@
 CC=nvcc
 
-INCLUDE=-I./include -I/usr/local/cuda-9.2/extras/CUPTI/include
+CUDA_HOME ?= /usr/local/cuda-9.2
+CUDA_ARCH_SM ?= sm_37
+
+CUPTI := $(CUDA_HOME)/extras/CUPTI
+
+INCLUDE=-I./include -I$(CUPTI)/include
 
 CC_FLAGS=--compiler-options "-Wall -Werror -g -ggdb -std=c99"
 
-ARCH=-arch=sm_37
+ARCH=-arch=$(CUDA_ARCH_SM)
 #ARCH=-arch=sm_60
-
-CUDA_HOME ?= /usr/local/cuda-9.2
 
 SRC_C := $(wildcard src/*.c)
 OBJ_C := $(SRC_C:.c=.o)
 
 #-lnvidia-ml
 
-LIBS=-L/usr/lib/x86_64-linux-gnu -L$(CUDA_HOME)/extras/CUPTI/lib64 -L$(CUDA_HOME)/lib64 -lcuda -lcudart -lcupti
+LIBS=-L/usr/lib/x86_64-linux-gnu -L$(CUPTI)/lib64 -L$(CUDA_HOME)/lib64 -lcuda -lcudart -lcupti
 
 SRC_CU := $(wildcard src/*.cu)
 OBJ_CU := $(SRC_CU:.cu=.o)
