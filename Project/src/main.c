@@ -51,13 +51,13 @@ typedef struct cupti_event_data {
 	uint8_t initialized;
 } cupti_event_data_t;
 
-static CUpti_EventID g_event_id_backing_3x[NUM_CUPTI_EVENTS_3X];
+static CUpti_EventID g_event_id_backing_2x[NUM_CUPTI_EVENTS_2X];
 
-static cupti_event_data_t g_event_data_3x = {
-	&g_cupti_events_3x[0],
-	&g_event_id_backing_3x[0],
+static cupti_event_data_t g_event_data_2x = {
+	&g_cupti_events_2x[0],
+	&g_event_id_backing_2x[0],
 	0,
-	NUM_CUPTI_EVENTS_3X,
+	NUM_CUPTI_EVENTS_2X,
 	false
 };
 
@@ -70,10 +70,28 @@ void cupti_event_data_init(cupti_event_data_t* data) {
 		CUdevice dev = cuda_get_device();
 		
 		for (size_t i = 0; i < data->num_events; ++i) {
-			printf("%lu => %s\n", i, data->event_names[i]);
-			CUPTI_FN(cuptiEventGetIdFromName(dev,
-																			 data->event_names[i],
-																			 &data->event_ids[i]));
+			
+			CUptiResult err = cuptiEventGetIdFromName(dev,
+																								data->event_names[i],
+																								&data->event_ids[i]);
+
+			bool available = true;
+			
+			if (err != CUPTI_SUCCESS) {
+				if (err == CUPTI_ERROR_INVALID_EVENT_NAME) {
+					available = false;
+					data->event_ids[i] = EVENT_ID_UNSET;
+				} else {
+					/* trigger exit */
+					CUPTI_FN(err);
+				}
+			}
+
+			printf("(%s) %lu => %s:0x%x\n",
+						 available ? "available" : "unavailable",
+						 i,
+						 data->event_names[i],
+						 data->event_ids[i]);
 		}
 
 		data->initialized = true;
@@ -81,9 +99,9 @@ void cupti_event_data_init(cupti_event_data_t* data) {
 }
 
 cupti_event_data_t* default_event_data() {
-	cupti_event_data_init(&g_event_data_3x);
+	cupti_event_data_init(&g_event_data_2x);
 
-	return &g_event_data_3x;
+	return &g_event_data_2x;
 }
 
 
