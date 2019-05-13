@@ -38,21 +38,75 @@ static cupti_event_data_t g_cupti_events_2x = {
 
 static CUpti_SubscriberHandle g_cupti_subscriber = NULL;
 
-void cupti_event_callback(void* userdata,
-													CUpti_CallbackDomain domain,
-													CUpti_CallbackId callback_id,
-													CUpti_CallbackData* callback_info) {
+void collect_group_events(cupti_event_data_t* event_data, uint32_t group_index) {
+	uint32_t num_instances = 0;
+	uint64_t* values = NULL;
+	size_t value_size = sizeof(num_instances);
 
+	CUptiResult err =
+		cuptiEventGroupGetAttribute(event_data->event_groups[]
+	
+	CUPTI_FN()
+}
+
+void CUPTIAPI cupti_event_callback(void* userdata,
+																	 CUpti_CallbackDomain domain,
+																	 CUpti_CallbackId callback_id,
+																	 CUpti_CallbackData* callback_info) {
+	{
+		bool found = false;
+		size_t i = 0;
+
+		while (i < NUM_CUPTI_RUNTIME_CBIDS && !found) {
+			found = callback_id == g_cupti_runtime_cbids[i];
+			i++;
+		}
+
+		ASSERT(found);
+	}
+
+	{
+		cupti_event_data_t* event_data = (cupti_event_data_t*) userdata;
+		
+		switch (callback_info->callbackSite) {
+		case CUPTI_API_ENTER: {
+			CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+
+			CUPTI_FN(cuptiSetEventCollectionMode(callback_info->context,
+																					 CUPTI_EVENT_COLLECTION_MODE_KERNEL));
+			
+			for (size_t i = 0; i < event_data->num_event_groups; ++i) {
+				CUPTI_FN(cuptiEventGroupEnable(event_data->event_groups[i]));
+			}
+			// TODO: start global (per-cupti_event_data_t) timer
+		} break;
+
+		case CUPTI_API_EXIT: {
+			CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+			// TODO: stop global (per-cupti_event_data_t) timer here
+		} break;
+
+		default:
+			ASSERT(false);
+			break;
+		}
+	}
 }
 
 void cupti_subscribe() {
-	
+	CUPTI_FN(cuptiSubscribe(&g_cupti_subscriber, (CUpti_CallbackFunc)cupti_event_callback, &g_cupti_events_2x));
+
+	for (uint32_t i = 0; i < NUM_CUPTI_RUNTIME_CBIDS; ++i) {
+		CUPTI_FN(cuptiEnableCallback(1,
+																 g_cupti_subscriber,
+																 CUPTI_CB_DOMAIN_RUNTIME_API,
+																 g_cupti_runtime_cbids[i]));
+	}
 }
 
-
-
-
-
+void cupti_unsubscribe() {
+	CUPTI_FN(cuptiUnsubscribe(g_cupti_subscriber));
+}
 
 void cupti_eventlist_push(cupti_elist_node_t** root, cupti_index_t event_name_index, CUpti_EventID event_id) {
 	ASSERT(root != NULL);
@@ -63,6 +117,7 @@ void cupti_eventlist_push(cupti_elist_node_t** root, cupti_index_t event_name_in
 	new_node->event_id = event_id;
 	new_node->event_name_index = event_name_index;
 
+	#if 0
 	{
 		ASSERT((size_t)event_name_index < g_cupti_events_2x.num_events);
 		
@@ -71,6 +126,7 @@ void cupti_eventlist_push(cupti_elist_node_t** root, cupti_index_t event_name_in
 					 new_node->event_name_index,
 					 new_node->event_id);
 	}
+	#endif
 	
 	list_push_fn_impl(root, new_node, cupti_elist_node_t, self);
 }
@@ -83,8 +139,6 @@ void cupti_eventlist_free_node(cupti_elist_node_t* n) {
 void cupti_eventlist_free(cupti_elist_node_t* root) {
 	list_free_fn_impl(root, cupti_elist_node_t, cupti_eventlist_free_node, self);
 }
-
-
 
 void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, size_t num_threads) {
 	ASSERT(ctx != NULL);
@@ -446,6 +500,38 @@ profile_time_t profile_time() {
 
 typedef char string_micro_t[64];
 
+ void profile_timelist_push(cupti_elist_node_t** root, profile_time_t start, profile_time_t end) {
+	 ASSERT(root != NULL);
+
+	cupti_elist_node_t* new_node = NOT_NULL(malloc(sizeof(*new_node)));
+
+	new_node->self.next = NULL;
+	new_node->event_id = event_id;
+	new_node->event_name_index = event_name_index;
+
+	#if 0
+	{
+		ASSERT((size_t)event_name_index < g_cupti_events_2x.num_events);
+		
+		printf("Adding Node: %s @ [%i]:0x%x |",
+					 g_cupti_events_2x.event_names[new_node->event_name_index],
+					 new_node->event_name_index,
+					 new_node->event_id);
+	}
+	#endif
+	
+	list_push_fn_impl(root, new_node, cupti_elist_node_t, self);
+}
+
+void cupti_eventlist_free_node(cupti_elist_node_t* n) {
+	n->event_id = V_UNSET;
+	n->event_name_index = V_UNSET;
+}
+
+void cupti_eventlist_free(cupti_elist_node_t* root) {
+	list_free_fn_impl(root, cupti_elist_node_t, cupti_eventlist_free_node, self);
+}
+ 
 typedef struct profile_data {
 	
 	string_micro_t* device_names;
@@ -520,7 +606,9 @@ void cupti_benchmark_start(size_t num_threads) {
 		}
 
 		init_cupti_event_data(cuda_get_context(), cuda_get_device(), &g_cupti_events_2x, num_threads);
-				
+
+		cupti_subscribe();
+		
 		profile_data_print(data);
 		
 		data->needs_init = false;
@@ -541,6 +629,7 @@ void cleanup() {
 	free_profile_data(default_profile_data());
 	free_cupti_data();
 	free_cuda_data();
+	cupti_unsubscribe();
 }
  
 int main() {
