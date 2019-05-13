@@ -5,7 +5,7 @@
  * for CUDA toolkit v9.2
  */
 
-const char* g_cupti_events_2x[NUM_CUPTI_EVENTS_2X] = {
+const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X] = {
 	/* 
 	 * domain_a 
    */
@@ -35,6 +35,10 @@ const char* g_cupti_events_2x[NUM_CUPTI_EVENTS_2X] = {
 	"tex1_cache_sector_queries",
 	"tex1_cache_sector_misses",
 
+	/* 
+	 * domain_b
+   */
+	
 	// 14
 	"l2_subp0_write_sector_misses",
 	"l2_subp1_write_sector_misses",
@@ -63,9 +67,56 @@ const char* g_cupti_events_2x[NUM_CUPTI_EVENTS_2X] = {
 	"fb0_subp0_write_sectors",
 	"fb0_subp1_write_sectors",
 
-	// 2
+	// 4
 	"fb1_subp0_read_sectors",
-	"fb1_subp1_read_sectors"
+	"fb1_subp1_read_sectors",
+	"fb1_subp0_write_sectors",
+	"fb1_subp1_write_sectors",
+
+	/*
+	 * domain_c
+	 */
+
+	"gld_inst_8bit",
+	"gld_inst_16bit",
+	"gld_inst_32bit",
+	"gld_inst_64bit",
+	"gld_inst_128bit",
+
+	"gst_inst_8bit",
+	"gst_inst_16bit",
+	"gst_inst_32bit",
+	"gst_inst_64bit",
+	"gst_inst_128bit",
+
+	/*
+	 * domain_d
+	 */
+
+	"branch",
+	"divergent_branch",
+	"warps_launched",
+	"threads_launched",
+	"active_warps",
+	"active_cycles",
+
+	"local_load",
+	"local_store",
+	"gld_request",
+	"gst_request",
+	"shared_load",
+	"shared_store",
+	"prof_trigger_XX",
+
+	"inst_issued",
+	"inst_issued1_0",
+	"inst_issued2_0",
+	"inst_issued1_1",
+	"inst_issued2_1",
+	"inst_executed",
+	
+	"thread_inst_executed_0",
+	"thread_inst_executed_1"
 };
 
 /*

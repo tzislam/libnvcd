@@ -1,6 +1,7 @@
 #include "commondef.h"
 #include "gpu.h"
 #include "cupti_lookup.h"
+#include "list.h"
 
 #include <ctype.h>
 #include <cupti.h>
@@ -13,6 +14,108 @@
 #endif
 
 #define ENV_DELIM ':'
+
+/*
+ * cupti event
+ */ 
+
+static cupti_event_data_t g_cupti_events_2x = {
+	NULL,
+	NULL,
+	&g_cupti_event_names_2x[0],
+	0,
+	NUM_CUPTI_EVENTS_2X,
+	0
+};
+
+void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, size_t num_threads) {
+	ASSERT(ctx != NULL);
+	ASSERT(dev >= 0);
+
+	e->num_event_groups = 24; /* statically allocate this for now; can make more sophisticated later */
+	e->num_threads = num_threads;
+	
+	e->counter_buffer = NOT_NULL(zalloc(sizeof(e->counter_buffer[0]) * e->num_events * e->num_threads));
+
+	e->event_groups = NOT_NULL(malloc(sizeof(e->event_groups[0]) * e->num_event_groups));
+
+	memset(e->event_groups, (uintptr_t) NULL, sizeof(e->event_groups[0]) * e->num_event_groups);
+	
+	for (size_t i = 0; i < e->num_events; ++i) {
+		CUpti_EventID event_id = EVENT_ID_UNSET;
+		
+		CUptiResult err = cuptiEventGetIdFromName(dev,
+																							e->event_names[i],
+																							&event_id);
+
+		bool available = true;
+			
+		if (err != CUPTI_SUCCESS) {
+			if (err == CUPTI_ERROR_INVALID_EVENT_NAME) {
+				available = false;
+			} else {
+				/* trigger exit */
+				CUPTI_FN(err);
+			}
+		}
+
+		size_t event_group = 0;
+		
+		if (available) {
+			size_t j = 0;
+			err = CUPTI_ERROR_NOT_COMPATIBLE;
+
+			bool iterating = j < e->num_event_groups;
+			
+			while (iterating) {
+				if (e->event_groups[j] == NULL) {
+					CUPTI_FN(cuptiEventGroupCreate(ctx, &e->event_groups[j], 0));
+				}
+
+				err = cuptiEventGroupAddEvent(e->event_groups[j], event_id);
+				
+				event_group = j;
+				j++;
+
+				if (j == e->num_event_groups
+						|| !(err == CUPTI_ERROR_MAX_LIMIT_REACHED
+								 || err == CUPTI_ERROR_NOT_COMPATIBLE)) {
+					iterating = false;
+				}
+			}
+
+			ASSERT(j <= e->num_event_groups);
+			
+			/* trigger exit if we still error out */
+			CUPTI_FN(err);
+		}
+
+		printf("(%s) index %lu, group_index %lu => %s:0x%x\n",
+					 available ? "available" : "unavailable",
+					 i,
+					 event_group,
+					 e->event_names[i],
+					 event_id);
+	}
+
+}
+
+void free_cupti_event_data(cupti_event_data_t* e) {
+	ASSERT(e != NULL);
+
+	ASSERT(e->event_groups != NULL);
+	for (size_t i = 0; i < e->num_event_groups; ++i) {
+		if (e->event_groups[i] != NULL) {
+			CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i]));
+		}
+	}
+	free(e->event_groups);
+
+	ASSERT(e->counter_buffer != NULL);
+	free(e->counter_buffer);
+
+	memset(e, 0, sizeof(*e));
+}
 
 /*
  * CUDA
@@ -45,83 +148,8 @@ void free_cuda_data() {
 	CUDA_DRIVER_FN(cuCtxDestroy(g_cuda_context));
 }
 
-/*
- * CUPTI events
- */
-
-typedef struct cupti_event_data {
-	const char** event_names;
-	CUpti_EventID* event_ids;
-	CUpti_EventGroup event_group;
-	uint8_t num_events;
-	uint8_t initialized;
-} cupti_event_data_t;
-
-static CUpti_EventID g_event_id_backing_2x[NUM_CUPTI_EVENTS_2X];
-
-static cupti_event_data_t g_event_data_2x = {
-	&g_cupti_events_2x[0],
-	&g_event_id_backing_2x[0],
-	0,
-	NUM_CUPTI_EVENTS_2X,
-	false
-};
-
-void cupti_event_data_init(cupti_event_data_t* data) {
-	if (!data->initialized) {
-		CUcontext ctx = cuda_get_context();
-		
-		CUPTI_FN(cuptiEventGroupCreate(ctx, &data->event_group, 0));
-
-		CUdevice dev = cuda_get_device();
-		
-		for (size_t i = 0; i < data->num_events; ++i) {
-			
-			CUptiResult err = cuptiEventGetIdFromName(dev,
-																								data->event_names[i],
-																								&data->event_ids[i]);
-
-			bool available = true;
-			
-			if (err != CUPTI_SUCCESS) {
-				if (err == CUPTI_ERROR_INVALID_EVENT_NAME) {
-					available = false;
-					data->event_ids[i] = EVENT_ID_UNSET;
-				} else {
-					/* trigger exit */
-					CUPTI_FN(err);
-				}
-			}
-
-			if (available) {
-				CUPTI_FN(cuptiEventGroupAddEvent(data->event_group, data->event_ids[i]));
-			}
-
-			printf("(%s) %lu => %s:0x%x\n",
-						 available ? "available" : "unavailable",
-						 i,
-						 data->event_names[i],
-						 data->event_ids[i]);
-		}
-
-		data->initialized = true;
-	}
-}
-
-cupti_event_data_t* default_event_data() {
-	cupti_event_data_init(&g_event_data_2x);
-
-	return &g_event_data_2x;
-}
-
-
 void free_cupti_data() {
-	cupti_event_data_t* data = default_event_data();
-	
-	CUPTI_FN(cuptiEventGroupDisable(data->event_group));
-	CUPTI_FN(cuptiEventGroupDestroy(data->event_group));
-
-	data->initialized = false;
+	free_cupti_event_data(&g_cupti_events_2x);
 }
 
 /*
@@ -362,11 +390,6 @@ typedef struct profile_data {
 
 static profile_data_t* g_data = NULL;
 
-/*
- * We don't check for null pointers here
- * we require for allocations to succeed
- * for profile_data_t
- */
 void free_profile_data(profile_data_t* data) {
 	free(data->device_names);
 	free(data->device_ids);
@@ -398,7 +421,7 @@ void profile_data_print(profile_data_t* data) {
 }
  
 
-void cupti_benchmark_start() {
+void cupti_benchmark_start(size_t num_threads) {
 	profile_data_t* data = default_profile_data();
 
 	if (data->needs_init) {
@@ -424,9 +447,8 @@ void cupti_benchmark_start() {
 			cuda_set_device(data->device_ids[0]);
 		}
 
-		volatile cupti_event_data_t* d = default_event_data();
-		(void)d;
-		
+		init_cupti_event_data(cuda_get_context(), cuda_get_device(), &g_cupti_events_2x, num_threads);
+				
 		profile_data_print(data);
 		
 		data->needs_init = false;
@@ -440,9 +462,7 @@ void cupti_benchmark_end() {
 	
 	data->time = profile_time() - data->start;
 
-	printf("time taken: %" PTIME_FMT ".\n", data->time);
-
-	
+	printf("time taken: %" PTIME_FMT ".\n", data->time);	
 }
 
 void cleanup() {
@@ -456,7 +476,7 @@ int main() {
 		test_env_parse();
 	}
 
-	cupti_benchmark_start();
+	cupti_benchmark_start(10);
 	
 	gpu_test_matrix_vec_mul();
 	
