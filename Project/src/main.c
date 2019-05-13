@@ -1,7 +1,6 @@
 #include "commondef.h"
 #include "gpu.h"
 #include "cupti_lookup.h"
-#include "list.h"
 
 #include <ctype.h>
 #include <cupti.h>
