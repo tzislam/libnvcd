@@ -6,7 +6,7 @@
 
 C_LINKAGE_START
 
-#define NUM_CUPTI_EVENTS_2X 70
+#define NUM_CUPTI_EVENTS_2X 71
 
 extern const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X];
 

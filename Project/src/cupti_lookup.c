@@ -10,6 +10,8 @@ const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X] = {
 	 * domain_a 
    */
 
+	"sm_cta_launched",
+	
 	// 6
 	"l1_local_load_hit",
 	"l1_local_load_miss",
