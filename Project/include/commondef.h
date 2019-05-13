@@ -25,7 +25,9 @@
 
 #define NOT_NULL(p_expr) assert_not_null_impl((p_expr), #p_expr, __FILE__, __LINE__) 
 
-#define EVENT_ID_UNSET (-1)
+#define MEMSET_NULL(p, sz) memset((p), (uintptr_t)NULL, (sz))
+
+#define V_UNSET (-1)
 
 #ifdef __cplusplus
 #define C_LINKAGE_START extern "C" {

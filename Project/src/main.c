@@ -1,6 +1,7 @@
 #include "commondef.h"
 #include "gpu.h"
 #include "cupti_lookup.h"
+#include "list.h"
 
 #include <ctype.h>
 #include <cupti.h>
@@ -28,11 +29,62 @@ static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
 static cupti_event_data_t g_cupti_events_2x = {
 	NULL,
 	NULL,
+	NULL,
 	&g_cupti_event_names_2x[0],
 	0,
 	NUM_CUPTI_EVENTS_2X,
 	0
 };
+
+static CUpti_SubscriberHandle g_cupti_subscriber = NULL;
+
+void cupti_event_callback(void* userdata,
+													CUpti_CallbackDomain domain,
+													CUpti_CallbackId callback_id,
+													CUpti_CallbackData* callback_info) {
+
+}
+
+void cupti_subscribe() {
+	
+}
+
+
+
+
+
+
+void cupti_eventlist_push(cupti_elist_node_t** root, cupti_index_t event_name_index, CUpti_EventID event_id) {
+	ASSERT(root != NULL);
+
+	cupti_elist_node_t* new_node = NOT_NULL(malloc(sizeof(*new_node)));
+
+	new_node->self.next = NULL;
+	new_node->event_id = event_id;
+	new_node->event_name_index = event_name_index;
+
+	{
+		ASSERT((size_t)event_name_index < g_cupti_events_2x.num_events);
+		
+		printf("Adding Node: %s @ [%i]:0x%x |",
+					 g_cupti_events_2x.event_names[new_node->event_name_index],
+					 new_node->event_name_index,
+					 new_node->event_id);
+	}
+	
+	list_push_fn_impl(root, new_node, cupti_elist_node_t, self);
+}
+
+void cupti_eventlist_free_node(cupti_elist_node_t* n) {
+	n->event_id = V_UNSET;
+	n->event_name_index = V_UNSET;
+}
+
+void cupti_eventlist_free(cupti_elist_node_t* root) {
+	list_free_fn_impl(root, cupti_elist_node_t, cupti_eventlist_free_node, self);
+}
+
+
 
 void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, size_t num_threads) {
 	ASSERT(ctx != NULL);
@@ -44,11 +96,13 @@ void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, s
 	e->counter_buffer = NOT_NULL(zalloc(sizeof(e->counter_buffer[0]) * e->num_events * e->num_threads));
 
 	e->event_groups = NOT_NULL(malloc(sizeof(e->event_groups[0]) * e->num_event_groups));
-
-	memset(e->event_groups, (uintptr_t) NULL, sizeof(e->event_groups[0]) * e->num_event_groups);
+	e->event_group_id_lists = NOT_NULL(malloc(sizeof(e->event_group_id_lists[0]) * e->num_event_groups));
+	
+	MEMSET_NULL(e->event_groups, sizeof(e->event_groups[0]) * e->num_event_groups);
+	MEMSET_NULL(e->event_group_id_lists, sizeof(e->event_group_id_lists[0]) * e->num_event_groups);
 	
 	for (size_t i = 0; i < e->num_events; ++i) {
-		CUpti_EventID event_id = EVENT_ID_UNSET;
+		CUpti_EventID event_id = V_UNSET;
 		
 		CUptiResult err = cuptiEventGetIdFromName(dev,
 																							e->event_names[i],
@@ -94,6 +148,12 @@ void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, s
 			
 			/* trigger exit if we still error out */
 			CUPTI_FN(err);
+			
+			if (j < e->num_event_groups) {
+				cupti_eventlist_push(&e->event_group_id_lists[event_group],
+														 (cupti_index_t) i,
+														 event_id);
+			}
 		}
 
 		printf("(%s) index %lu, group_index %lu => %s:0x%x\n",
@@ -103,29 +163,22 @@ void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, s
 					 e->event_names[i],
 					 event_id);
 	}
-
-	{
-		uint32_t profile_all = 1;
-		for (size_t i = 0; i < e->num_event_groups; ++i) {
-			if (e->event_groups[i] != NULL) {
-				CUPTI_FN(cuptiEventGroupSetAttribute(e->event_groups[i],
-																						 CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES,
-																						 sizeof(profile_all),
-																						 &profile_all));
-			}
-		}
-	}
 }
 
 void free_cupti_event_data(cupti_event_data_t* e) {
 	ASSERT(e != NULL);
-
 	ASSERT(e->event_groups != NULL);
-	for (size_t i = 0; i < e->num_event_groups; ++i) {
+	
+	for (size_t i = 0; i < e->num_event_groups; ++i) { 
 		if (e->event_groups[i] != NULL) {
+			CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i]));
 			CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i]));
+
+			ASSERT(e->event_group_id_lists[i] != NULL);
+			cupti_eventlist_free(e->event_group_id_lists[i]);
 		}
 	}
+	
 	free(e->event_groups);
 
 	ASSERT(e->counter_buffer != NULL);
@@ -133,6 +186,8 @@ void free_cupti_event_data(cupti_event_data_t* e) {
 
 	memset(e, 0, sizeof(*e));
 }
+
+
 
 /*
  * CUDA
