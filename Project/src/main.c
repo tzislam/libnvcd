@@ -18,6 +18,13 @@
  * cupti event
  */ 
 
+static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
+	CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020,
+	CUPTI_RUNTIME_TRACE_CBID_cudaLaunchKernel_v7000
+};
+
+#define NUM_CUPTI_RUNTIME_CBIDS (sizeof(g_cupti_runtime_cbids) / sizeof(g_cupti_runtime_cbids[0]))
+
 static cupti_event_data_t g_cupti_events_2x = {
 	NULL,
 	NULL,
@@ -475,6 +482,9 @@ int main() {
 		test_env_parse();
 	}
 
+	(void)g_cupti_subscriber;
+	(void)g_cupti_runtime_cbids;
+	
 	cupti_benchmark_start(10);
 	
 	gpu_test_matrix_vec_mul();
