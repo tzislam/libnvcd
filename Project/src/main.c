@@ -104,6 +104,17 @@ void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, s
 					 event_id);
 	}
 
+	{
+		uint32_t profile_all = 1;
+		for (size_t i = 0; i < e->num_event_groups; ++i) {
+			if (e->event_groups[i] != NULL) {
+				CUPTI_FN(cuptiEventGroupSetAttribute(e->event_groups[i],
+																						 CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES,
+																						 sizeof(profile_all),
+																						 &profile_all));
+			}
+		}
+	}
 }
 
 void free_cupti_event_data(cupti_event_data_t* e) {
