@@ -18,12 +18,11 @@
  * CUDA
  */
 
-static CUdevice g_cuda_device = -1;
+static CUdevice g_cuda_device = CU_DEVICE_INVALID;
 static CUcontext g_cuda_context = NULL;
 
 CUdevice cuda_get_device() {
-	ASSERT(g_cuda_device != -1);
-
+	ASSERT(g_cuda_device != CU_DEVICE_INVALID);
 	return g_cuda_device;
 }
 
@@ -37,6 +36,13 @@ CUcontext cuda_get_context() {
 	}
 
 	return g_cuda_context;
+}
+
+void free_cuda_data() {
+	ASSERT(g_cuda_context != NULL);
+	ASSERT(g_cuda_device != CU_DEVICE_INVALID);
+
+	CUDA_DRIVER_FN(cuCtxDestroy(g_cuda_context));
 }
 
 /*
@@ -87,6 +93,10 @@ void cupti_event_data_init(cupti_event_data_t* data) {
 				}
 			}
 
+			if (available) {
+				CUPTI_FN(cuptiEventGroupAddEvent(data->event_group, data->event_ids[i]));
+			}
+
 			printf("(%s) %lu => %s:0x%x\n",
 						 available ? "available" : "unavailable",
 						 i,
@@ -104,6 +114,15 @@ cupti_event_data_t* default_event_data() {
 	return &g_event_data_2x;
 }
 
+
+void free_cupti_data() {
+	cupti_event_data_t* data = default_event_data();
+	
+	CUPTI_FN(cuptiEventGroupDisable(data->event_group));
+	CUPTI_FN(cuptiEventGroupDestroy(data->event_group));
+
+	data->initialized = false;
+}
 
 /*
  * env var list parsing
@@ -327,13 +346,7 @@ profile_time_t profile_time() {
 
 typedef char string_micro_t[64];
 
-struct cupti_data {
-	
-	
-};
-
-struct profile_data {
-	struct cupti_data cupti;
+typedef struct profile_data {
 	
 	string_micro_t* device_names;
 	CUdevice* device_ids; 
@@ -345,25 +358,22 @@ struct profile_data {
 	int device; /* Defaults to zero */
 	
 	uint8_t needs_init;
-};
+} profile_data_t;
 
-static struct profile_data* g_data = NULL;
+static profile_data_t* g_data = NULL;
 
-void string_list_free(char** list, size_t sz) {
-	ASSERT(list != NULL);
-	
-	for (size_t i = 0; i < sz; ++i) {
-	  ASSERT(list[i] != NULL);
-
-		free(list[i]);
-		list[i] = NULL;
-	}
-
-	free(list);
-	list = NULL;
+/*
+ * We don't check for null pointers here
+ * we require for allocations to succeed
+ * for profile_data_t
+ */
+void free_profile_data(profile_data_t* data) {
+	free(data->device_names);
+	free(data->device_ids);
+	free(data);
 }
-
-struct profile_data* default_profile_data() {
+ 
+profile_data_t* default_profile_data() {
 	if (g_data == NULL) {
 		{
 			g_data = zalloc(sizeof(*g_data));
@@ -376,7 +386,7 @@ struct profile_data* default_profile_data() {
 	return g_data;
 }
 
-void profile_data_print(struct profile_data* data) {
+void profile_data_print(profile_data_t* data) {
 
 	
 	for (int i = 0; i < data->num_devices; ++i) {
@@ -389,7 +399,7 @@ void profile_data_print(struct profile_data* data) {
  
 
 void cupti_benchmark_start() {
-	struct profile_data* data = default_profile_data();
+	profile_data_t* data = default_profile_data();
 
 	if (data->needs_init) {
 		CUDA_DRIVER_FN(cuInit(0));
@@ -426,7 +436,7 @@ void cupti_benchmark_start() {
 }
 
 void cupti_benchmark_end() {
-	struct profile_data* data = default_profile_data();
+	profile_data_t* data = default_profile_data();
 	
 	data->time = profile_time() - data->start;
 
@@ -435,6 +445,12 @@ void cupti_benchmark_end() {
 	
 }
 
+void cleanup() {
+	free_profile_data(default_profile_data());
+	free_cupti_data();
+	free_cuda_data();
+}
+ 
 int main() {
 	if (g_test_params.run) {
 		test_env_parse();
@@ -447,6 +463,10 @@ int main() {
 	gpu_test();
 	
 	CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+
+	cupti_benchmark_end();
+
+	cleanup();
 	
 	return 0;
 }
