@@ -43,10 +43,17 @@ void collect_group_events(cupti_event_data_t* event_data, uint32_t group_index) 
 	uint64_t* values = NULL;
 	size_t value_size = sizeof(num_instances);
 
-	CUptiResult err =
-		cuptiEventGroupGetAttribute(event_data->event_groups[]
+
+	CUPTI_FN(cuptiEventGroupGetAttribute(event_data->event_groups[group_index],
+																			 CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
+																			 &value_size,
+																			 &num_instances));
+
+	values = NOT_NULL(zalloc(sizeof(uint64_t) * num_instances));
+
 	
-	CUPTI_FN()
+	
+	free(values);
 }
 
 void CUPTIAPI cupti_event_callback(void* userdata,
@@ -499,7 +506,7 @@ profile_time_t profile_time() {
 }
 
 typedef char string_micro_t[64];
-
+#if 0
  void profile_timelist_push(cupti_elist_node_t** root, profile_time_t start, profile_time_t end) {
 	 ASSERT(root != NULL);
 
@@ -509,17 +516,7 @@ typedef char string_micro_t[64];
 	new_node->event_id = event_id;
 	new_node->event_name_index = event_name_index;
 
-	#if 0
-	{
-		ASSERT((size_t)event_name_index < g_cupti_events_2x.num_events);
 		
-		printf("Adding Node: %s @ [%i]:0x%x |",
-					 g_cupti_events_2x.event_names[new_node->event_name_index],
-					 new_node->event_name_index,
-					 new_node->event_id);
-	}
-	#endif
-	
 	list_push_fn_impl(root, new_node, cupti_elist_node_t, self);
 }
 
@@ -531,6 +528,7 @@ void cupti_eventlist_free_node(cupti_elist_node_t* n) {
 void cupti_eventlist_free(cupti_elist_node_t* root) {
 	list_free_fn_impl(root, cupti_elist_node_t, cupti_eventlist_free_node, self);
 }
+ #endif
  
 typedef struct profile_data {
 	
@@ -639,18 +637,21 @@ int main() {
 
 	(void)g_cupti_subscriber;
 	(void)g_cupti_runtime_cbids;
+
+	int threads = 1024;
 	
-	cupti_benchmark_start(10);
+	//	cupti_benchmark_start(threads);
+
+	clock64_t* thread_times = NOT_NULL(zalloc(sizeof(thread_times[0]) * threads));
+	gpu_test_matrix_vec_mul(threads, thread_times);
 	
-	gpu_test_matrix_vec_mul();
-	
-	gpu_test();
+	//	gpu_test();
 	
 	CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
-	cupti_benchmark_end();
+	//cupti_benchmark_end();
 
-	cleanup();
+	//cleanup();
 	
 	return 0;
 }

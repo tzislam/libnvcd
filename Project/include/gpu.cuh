@@ -6,14 +6,11 @@
 
 C_LINKAGE_START
 
-struct gpu_data {
-	size_t num_threads;
-};
+typedef long long int clock64_t;
 
 #define GPU_ASSERT(condition_expr) assert_cond_impl(condition_expr, #condition_expr, __LINE__) 
 
 __device__ bool assert_cond_impl(bool condition, const char* message, int line);
-
 
 /*
  * transforms an M x 1 vector u 
@@ -23,11 +20,12 @@ __device__ bool assert_cond_impl(bool condition, const char* message, int line);
  * qu = v 
  */
 
-__global__ void gpu_kernel_matrix_vec_int(int n,
-										  int m,
-										  int* q,
-										  int* u,
-										  int* v);
+__global__ void gpu_kernel_matrix_vec_mul_int(int n,
+																							int m,
+																							int* q,
+																							int* u,
+																							int* v,
+																						  clock64_t* d_times);
 
 
 C_LINKAGE_END

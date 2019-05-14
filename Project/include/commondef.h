@@ -29,6 +29,8 @@
 
 #define V_UNSET (-1)
 
+typedef long long int clock64_t;
+
 #ifdef __cplusplus
 #define C_LINKAGE_START extern "C" {
 #define C_LINKAGE_END }

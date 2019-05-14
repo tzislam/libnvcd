@@ -18,18 +18,28 @@
  * tmplV: pointer of tmplType to the output vector's buffer
  */ 
 #define vec_mat_dot_tmpl(tmplRow, tmplM, tmplType, tmplQ, tmplU, tmplV)	\
-	do {																\
-		int c = 0;														\
-		int __m = (tmplM);												\
-		int __row = (tmplRow);											\
-		tmplType k = 0;													\
-		while (c < (tmplM)) {											\
-			k += (tmplQ)[__row * __m + c] = (tmplU)[c];					\
-			c++;														\
-		}																\
-		(tmplV)[__row] = k;												\
+	do {																																	\
+		int c = 0;																													\
+		int __m = (tmplM);																									\
+		int __row = (tmplRow);																							\
+		tmplType k = 0;																											\
+		while (c < (tmplM)) {																								\
+			k += (tmplQ)[__row * __m + c] = (tmplU)[c];												\
+			c++;																															\
+		}																																		\
+		(tmplV)[__row] = k;																									\
 	} while (0)
 
+#define cuda_alloc_tmpl(tmplType, in_tmplN, out_tmplMemory)				\
+	do {																														\
+		void* memory = NULL;																					\
+		size_t memorysz = (in_tmplN) * sizeof(tmplType);									\
+																																	\
+		CUDA_RUNTIME_FN(cudaMalloc(&memory, memorysz));								\
+		CUDA_RUNTIME_FN(cudaMemset(memory, 0, memorysz));							\
+																																	\
+		(out_tmplMemory) = (tmplType*) memory;												\
+	} while (0)
 
 C_LINKAGE_START	
 
@@ -57,17 +67,24 @@ __global__ void gpu_kernel()
 }
 
 __global__ void gpu_kernel_matrix_vec_int(int n,
-										  int m,
-										  int* q,
-										  int* u,
-										  int* v)
+																					int m,
+																					int* q,
+																					int* u,
+																					int* v,
+																					clock64_t* d_times)
 {	
 	int thread_row = threadIdx.x;
 
-	printf("Kernel executed: %i\n", thread_row);
+	//	printf("Kernel executed: %i\n", thread_row);
 	
 	if (GPU_ASSERT(thread_row < n)) {
+		clock64_t start = clock64();
+		
 		vec_mat_dot_tmpl(thread_row, m, int, q, u, v);
+
+		clock64_t time = clock64() - start;
+
+		d_times[thread_row] = time;
 	}
 }
 
@@ -78,16 +95,17 @@ __host__ void gpu_test()
 	
 	gpu_kernel<<<grid, block>>>();
 }
- 
-static inline __host__ int* cuda_alloci(size_t num)
-{
-	void* memory = NULL;
-	size_t memorysz = num * sizeof(int);
 
-	CUDA_RUNTIME_FN(cudaMalloc(&memory, memorysz));
-	CUDA_RUNTIME_FN(cudaMemset(memory, 0, memorysz));
-	
-	return (int*) memory;
+static inline __host__ int* cuda_alloci(size_t num) {
+	int* imem = NULL;
+	cuda_alloc_tmpl(int, num, imem);
+	return imem;
+}
+
+static inline __host__ int64_t* cuda_alloci64(size_t num) {
+	int64_t* mem = NULL;
+	cuda_alloc_tmpl(int64_t, num, mem);
+	return mem;
 }
 
 static __host__ void cpu_matrix_vec_mul(int n, int m, int* q, int* u, int* v)
@@ -97,17 +115,17 @@ static __host__ void cpu_matrix_vec_mul(int n, int m, int* q, int* u, int* v)
 	}
 }
 
-__host__ void gpu_test_matrix_vec_mul()
+__host__ void gpu_test_matrix_vec_mul(int num_threads, clock64_t* h_exec_times)
 {
 	dim3 grid(1, 1, 1);
 
-	int n = 10; /* rows */
+	int n = num_threads; /* rows */
 	int m = 10; /* columns */
 
 	dim3 block(n, 1, 1);
 	
-	size_t msize = (size_t)(n * m);
-	size_t vsize = (size_t)m;
+	size_t msize = (size_t)(n * m); /* matrix size */
+	size_t vsize = (size_t)m; /* vector size */
 
 	/* parallel q, u, v */
 	int* q = cuda_alloci(msize); 
@@ -135,9 +153,22 @@ __host__ void gpu_test_matrix_vec_mul()
 
 	CUDA_RUNTIME_FN(cudaMemcpy(q, sq, msize * sizeof(int), cudaMemcpyHostToDevice));
 	CUDA_RUNTIME_FN(cudaMemcpy(u, su, vsize * sizeof(int), cudaMemcpyHostToDevice));
-	
-	gpu_kernel_matrix_vec_int<<<grid, block>>>(n, m, q, u, v);
 
+	{
+		ASSERT(sizeof(clock64_t) == sizeof(int64_t));
+		
+		clock64_t* d_exec_times = (clock64_t*) cuda_alloci64((size_t) num_threads);
+
+		gpu_kernel_matrix_vec_int<<<grid, block>>>(n, m, q, u, v, d_exec_times);
+
+		CUDA_RUNTIME_FN(cudaMemcpy(h_exec_times,
+															 d_exec_times,
+															 sizeof(clock64_t) * num_threads,
+															 cudaMemcpyDeviceToHost));
+
+		CUDA_RUNTIME_FN(cudaFree(d_exec_times));
+	}
+	
 	CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
 	CUDA_RUNTIME_FN(cudaMemcpy(hv, v, vsize * sizeof(int), cudaMemcpyDeviceToHost));
@@ -155,6 +186,11 @@ __host__ void gpu_test_matrix_vec_mul()
 	} else {
 		puts("gpu_test_matrix_vec_mul: failure");
 	}
+	/*
+	CUDA_RUNTIME_FN(cudaFree(q));
+	CUDA_RUNTIME_FN(cudaFree(u));
+	CUDA_RUNTIME_FN(cudaFree(v));
+	*/
 }
 
 C_LINKAGE_END
