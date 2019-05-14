@@ -1,0 +1,5 @@
+#!/bin/bash
+
+#http://www.responsive.se/thomas/2013/09/20/debugging-memory-leaks-with-valgrind-and-gdb/
+
+optirun valgrind -v --leak-check=full --log-file=./memcheck-vgdb.log --vgdb=yes --vgdb-error=0 bin/perfmon
