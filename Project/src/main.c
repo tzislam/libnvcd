@@ -649,6 +649,10 @@ int main() {
 	
 	CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
+	for (int i = 0; i < threads; ++i) {
+		printf("[%i] time: %llu\n", i, thread_times[i]);
+	}
+	
 	//cupti_benchmark_end();
 
 	//cleanup();
