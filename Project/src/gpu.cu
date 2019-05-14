@@ -17,28 +17,32 @@
  * tmplU: pointer of tmplType to the input vector's buffer
  * tmplV: pointer of tmplType to the output vector's buffer
  */ 
-#define vec_mat_dot_tmpl(tmplRow, tmplM, tmplType, tmplQ, tmplU, tmplV)	\
+#define vec_mat_dot_tmpl(tmplRow, tmplM, tmplType, tmplQ, tmplU, tmplV) \
 	do {																																	\
 		int c = 0;																													\
 		int __m = (tmplM);																									\
 		int __row = (tmplRow);																							\
+		int* __Q = (tmplQ);																									\
+		int* __U = (tmplU);																									\
+		int* __V = (tmplV);																									\
 		tmplType k = 0;																											\
-		while (c < (tmplM)) {																								\
-			k += (tmplQ)[__row * __m + c] = (tmplU)[c];												\
+		while (c < __m) {																										\
+			k += __Q[__row * __m + c] * __U[c];																\
 			c++;																															\
 		}																																		\
-		(tmplV)[__row] = k;																									\
+		__V[__row] = k;																											\
 	} while (0)
 
-#define cuda_alloc_tmpl(tmplType, in_tmplN, out_tmplMemory)				\
-	do {																														\
-		void* memory = NULL;																					\
-		size_t memorysz = (in_tmplN) * sizeof(tmplType);									\
-																																	\
-		CUDA_RUNTIME_FN(cudaMalloc(&memory, memorysz));								\
-		CUDA_RUNTIME_FN(cudaMemset(memory, 0, memorysz));							\
-																																	\
-		(out_tmplMemory) = (tmplType*) memory;												\
+#define cuda_alloc_tmpl(tmplType, in_tmplN, out_tmplMemory)	\
+	do {																											\
+		void* memory = NULL;																		\
+		size_t memorysz = (in_tmplN) * sizeof(tmplType);				\
+																														\
+		CUDA_RUNTIME_FN(cudaMalloc(&memory, memorysz));					\
+		ASSERT(memory != NULL);																	\
+		CUDA_RUNTIME_FN(cudaMemset(memory, 0, memorysz));				\
+																														\
+		(out_tmplMemory) = (tmplType*) memory;									\
 	} while (0)
 
 C_LINKAGE_START	
@@ -110,8 +114,16 @@ static inline __host__ int64_t* cuda_alloci64(size_t num) {
 
 static __host__ void cpu_matrix_vec_mul(int n, int m, int* q, int* u, int* v)
 {
-	for (int r = 0; r < n; ++r) {
-		vec_mat_dot_tmpl(r, m, int, q, u, v);
+	for (int r = 0; r < n; r++) {
+		int c = 0;																																																						
+
+		int k = 0;																											
+		while (c < m) {																										
+			k += q[r * m + c] * u[c];																
+			c++;																															
+		}
+		
+		v[r] = k;
 	}
 }
 
@@ -124,17 +136,18 @@ __host__ void gpu_test_matrix_vec_mul(int num_threads, clock64_t* h_exec_times)
 
 	dim3 block(n, 1, 1);
 	
-	size_t msize = (size_t)(n * m); /* matrix size */
-	size_t vsize = (size_t)m; /* vector size */
+	size_t qsize = (size_t)(n * m); /* matrix size */
+	size_t usize = (size_t)m;
+	size_t vsize = (size_t)n; /* vector size */
 
 	/* parallel q, u, v */
-	int* q = cuda_alloci(msize); 
-	int* u = cuda_alloci(vsize);
+	int* q = cuda_alloci(qsize); 
+	int* u = cuda_alloci(usize);
 	int* v = cuda_alloci(vsize);
 
 	/* serial q, u, v */
-	int* sq = (int*) NOT_NULL(zalloc(msize * sizeof(int)));
-	int* su = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
+	int* sq = (int*) NOT_NULL(zalloc(qsize * sizeof(int)));
+	int* su = (int*) NOT_NULL(zalloc(usize * sizeof(int)));
 	int* sv = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
 
 	/* client-side device result */
@@ -143,16 +156,16 @@ __host__ void gpu_test_matrix_vec_mul(int num_threads, clock64_t* h_exec_times)
 	int rmin = 5;
 	int rmax = 50;
 	
-	for (size_t i = 0; i < msize; ++i) {
+	for (size_t i = 0; i < qsize; ++i) {
 		sq[i] = random_nexti(rmin, rmax);
 	}
 
-	for (size_t i = 0; i < vsize; ++i) {
+	for (size_t i = 0; i < usize; ++i) {
 		su[i] = random_nexti(rmin, rmax);
 	}
 
-	CUDA_RUNTIME_FN(cudaMemcpy(q, sq, msize * sizeof(int), cudaMemcpyHostToDevice));
-	CUDA_RUNTIME_FN(cudaMemcpy(u, su, vsize * sizeof(int), cudaMemcpyHostToDevice));
+	CUDA_RUNTIME_FN(cudaMemcpy(q, sq, qsize * sizeof(int), cudaMemcpyHostToDevice));
+	CUDA_RUNTIME_FN(cudaMemcpy(u, su, usize * sizeof(int), cudaMemcpyHostToDevice));
 
 	{
 		ASSERT(sizeof(clock64_t) == sizeof(int64_t));
