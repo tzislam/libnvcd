@@ -199,11 +199,10 @@ __host__ void gpu_test_matrix_vec_mul(int num_threads, clock64_t* h_exec_times)
 	} else {
 		puts("gpu_test_matrix_vec_mul: failure");
 	}
-	/*
+	
 	CUDA_RUNTIME_FN(cudaFree(q));
 	CUDA_RUNTIME_FN(cudaFree(u));
 	CUDA_RUNTIME_FN(cudaFree(v));
-	*/
 }
 
 C_LINKAGE_END
