@@ -10,8 +10,16 @@
 - allow for slices in the device - arbitrary dynamic memory. need a gpu vector or something that can push slices of thread times,
 multiple times for a single kernel invocation
 
+
 -----
-time slice
+time slice - once per kernel
+-----
+
+- majority of data should be managed by host
+- cache efficiency is important, but can be assessed more, beyond the standard declaration ordering and struct of arrays.
+
+-----
+time slice - multiple per kernel
 -----
 
 - kernels can use malloc, so double up on memory usage each time an allocation is required (make sure allocation happens _before_ start time is taken via clock64() and _after_ gpumon_device_end() has been called)
