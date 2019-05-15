@@ -7,6 +7,7 @@ EXTC DEV void gpumon_device_start(int thread);
 EXTC DEV void gpumon_device_end(int thread);
 
 EXTC HOST void gpumon_init_device_mem(int num_threads);
+EXTC HOST void gpumon_free_device_mem();
 
 EXTC HOST void gpumon_get_device_ttime(clock64_t* out);
 

@@ -25,4 +25,6 @@ EXTC HOST void gpumon_host_end() {
 	for (size_t i = 0; i < host_ttime.size(); ++i) {
 		printf("[%lu] time = %lli \n", i, host_ttime.at(i));
 	}
+
+	gpumon_free_device_mem();
 }
