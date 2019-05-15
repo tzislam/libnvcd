@@ -24,7 +24,7 @@ static void* d_dev_ttime = nullptr;
 static void* d_dev_num_iter = nullptr;
 static void* d_dev_smids = nullptr;
 
-static volatile bool test_imbalance_detect = false;
+static volatile bool test_imbalance_detect = true;
 
 template <class T>
 static void* __cuda_zalloc_sym(size_t size, const T& sym, const char* ssym) {
