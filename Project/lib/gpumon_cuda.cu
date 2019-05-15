@@ -48,6 +48,7 @@ template <class T>
 static void cuda_safe_free(T*& ptr) {
 	if (ptr != nullptr) {
 		CUDA_RUNTIME_FN(cudaFree(static_cast<void*>(ptr)));
+		ptr = nullptr;
 	}
 }
 
