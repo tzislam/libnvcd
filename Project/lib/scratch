@@ -10,3 +10,68 @@
 - allow for slices in the device - arbitrary dynamic memory. need a gpu vector or something that can push slices of thread times,
 multiple times for a single kernel invocation
 
+-----
+time slice
+-----
+
+- kernels can use malloc, so double up on memory usage each time an allocation is required (make sure allocation happens _before_ start time is taken via clock64() and _after_ gpumon_device_end() has been called)
+
+- for performance, since the data structures are going to have to be reallocated, a barrier will need to be invoked 
+after every call to gpumon_device_end(); it should look as follows:
+
+gpumon_device_end() {
+  // finish recording time
+  // get smid, etc 
+
+  g_needs_realloc = false;
+  barrier();
+
+  slice_counters[curr_thread]++;
+
+  if (slice_counters[curr_thread] >= max_slices) {
+     g_needs_realloc = true;
+  }
+
+  barrier();
+
+  //...
+}
+
+gpumon_device_start() {
+   if (g_needs_realloc && thread == 0) {
+      max_slices <<= 2;
+      // reallocate memory here
+      g_needs_realloc = false;
+   }
+
+   barrier();
+}
+
+gp
+
+- device data structure needs to resemble something like:
+
+struct {
+   __device__ uint* smids; // length: atleast slice_counters[thread] * num_threads
+   __device__ clock64_t* time_start; length: // atleast slice_counters[thread] * num_threads
+   __device__ clock64_t* time; // length: atleast slice_counters[thread] * num_threads
+   
+   __device__ int* slice_counters; // length: num_threads
+
+   __device__ int max_slices;
+
+   __device__ void set_smid(int thread, uint smid) {
+      smids[]
+   }
+};
+
+- IMPORTANT: barriers only provide block level synchronization; there is no mechanism for synchronizing entire grids.
+The only way to do this is to separate a single kernel into multiple, separate kernels.
+Thus, it's important that the following is done if all tracking is provided in-kernel (throughout multiple slices): 
+    - array of the struct, the amount of items in the array should be NUM_GRIDS * NUM_BLOCKS;
+      - each struct represents one block
+      - thread indices therefore MUST be local to the block when accessing the memory itself
+
+- the above will take time to implement; for now, it's probably best to limit tracking on a per-kernel invocation basis,
+  and let the host increase memory as needed. Offloading to the GPU can be done, but it will take too long
+  given the current time constraint.
