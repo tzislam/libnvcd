@@ -5,9 +5,9 @@
 #include <time.h>
 #include <vector>
 
-__device__ clock64_t* dev_tstart;
-__device__ clock64_t* dev_ttime;
-__device__ int* dev_num_iter;
+DEV clock64_t* dev_tstart;
+DEV clock64_t* dev_ttime;
+DEV int* dev_num_iter;
 
 static size_t dev_tbuf_size = 0;
 static size_t dev_num_iter_size = 0;
