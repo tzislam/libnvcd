@@ -9,7 +9,7 @@ INCLUDE=-I$(CUPTI)/include -I$(CUDA_HOME)/include
 
 CXX_FLAGS=-Wall -Werror -g -ggdb -std=c++11
 
-CC_FLAGS=-std=c++11 --compiler-options "$(CXX_FLAGS)"
+CC_FLAGS=-std=c++11 -G -O0 -g --compiler-options "$(CXX_FLAGS)"
 
 ARCH=-arch=$(CUDA_ARCH_SM)
 #ARCH=-arch=sm_60
