@@ -1,3 +1,0 @@
-#!/bin/bash
-
-optirun cuda-memcheck bin/perfmon
