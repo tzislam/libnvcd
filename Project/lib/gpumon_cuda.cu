@@ -17,7 +17,7 @@ static void* d_dev_ttime = nullptr;
 static void* d_dev_num_iter = nullptr;
 
 template <class T>
-void* __cuda_zalloc_sym(size_t size, const T& sym, const char* ssym) {
+static void* __cuda_zalloc_sym(size_t size, const T& sym, const char* ssym) {
 	void* address_of_sym = nullptr;
 	CUDA_RUNTIME_FN(cudaGetSymbolAddress(&address_of_sym, sym));
 
@@ -33,10 +33,11 @@ void* __cuda_zalloc_sym(size_t size, const T& sym, const char* ssym) {
 
 	return device_allocated_mem;
 }
+
 #define cuda_zalloc_sym(sz, sym) __cuda_zalloc_sym(sz, sym, #sym)
 
 template <class T>
-void cuda_safe_free(T*& ptr) {
+static void cuda_safe_free(T*& ptr) {
 	if (ptr != nullptr) {
 		CUDA_RUNTIME_FN(cudaFree(static_cast<void*>(ptr)));
 	}
