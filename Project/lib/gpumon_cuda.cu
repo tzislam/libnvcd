@@ -4,17 +4,25 @@
 #include <stdlib.h>
 #include <time.h>
 #include <vector>
+#include <unordered_map>
+
+//--------------------------------------
+// internal
+//-------------------------------------
 
 DEV clock64_t* dev_tstart;
 DEV clock64_t* dev_ttime;
 DEV int* dev_num_iter;
+DEV uint* dev_smids;
 
 static size_t dev_tbuf_size = 0;
 static size_t dev_num_iter_size = 0;
+static size_t dev_smids_size = 0;
 
 static void* d_dev_tstart = nullptr;
 static void* d_dev_ttime = nullptr;
 static void* d_dev_num_iter = nullptr;
+static void* d_dev_smids = nullptr;
 
 template <class T>
 static void* __cuda_zalloc_sym(size_t size, const T& sym, const char* ssym) {
@@ -43,11 +51,51 @@ static void cuda_safe_free(T*& ptr) {
 	}
 }
 
+template <class T>
+static void cuda_memcpy_host_to_dev(void* dst, std::vector<T> host) {
+	size_t size = host.size() * sizeof(T);
+	
+	CUDA_RUNTIME_FN(cudaMemcpy(static_cast<void*>(dst),
+														 static_cast<void*>(host.data()),
+														 size,
+														 cudaMemcpyHostToDevice));
+
+}
+
+// see https://devtalk.nvidia.com/default/topic/481465/any-way-to-know-on-which-sm-a-thread-is-running-/
+DEV uint get_smid() {
+	uint ret;
+	asm("mov.u32 %0, %smid;" : "=r"(ret) );
+	return ret;
+}
+
+struct kernel_invoke_data {
+	struct thread_slice_info {
+		unsigned smid;
+		std::vector<int> thread_indices;
+
+		thread_slice_info(unsigned smid_, std::vector<int> thread_indices_)
+			: smid(smid_),
+				thread_indices(std::move(thread_indices_))
+		{}
+	};
+	
+	using time_thread_map_t = std::unordered_map<clock64_t, thread_slice_info>;
+
+	time_thread_map_t time_to_thread_info;
+
+	
+};
+
+//-------------------------------------
+// public
+//-------------------------------------
 
 EXTC HOST void gpumon_free_device_mem() {
 	cuda_safe_free(d_dev_tstart);
 	cuda_safe_free(d_dev_ttime);
 	cuda_safe_free(d_dev_num_iter);
+	cuda_safe_free(d_dev_smids);
 }
 
 EXTC HOST void gpumon_init_device_mem(int num_threads) {
@@ -55,8 +103,13 @@ EXTC HOST void gpumon_init_device_mem(int num_threads) {
 		dev_tbuf_size = sizeof(clock64_t) * static_cast<size_t>(num_threads);
 
 		d_dev_tstart = cuda_zalloc_sym(dev_tbuf_size, dev_tstart);
-
 		d_dev_ttime = cuda_zalloc_sym(dev_tbuf_size, dev_ttime);
+	}
+
+	{
+		dev_smids_size = sizeof(uint) * static_cast<size_t>(num_threads);
+		
+		d_dev_smids = cuda_zalloc_sym(dev_smids_size, dev_smids);
 	}
 
 	// test code
@@ -75,10 +128,7 @@ EXTC HOST void gpumon_init_device_mem(int num_threads) {
 			host_num_iter[i] = iter_min + (rand() % (iter_max - iter_min));
 		}
 
-		CUDA_RUNTIME_FN(cudaMemcpy(d_dev_num_iter,
-															 &host_num_iter[0],
-															 dev_num_iter_size,
-															 cudaMemcpyHostToDevice));
+		cuda_memcpy_host_to_dev<int>(d_dev_num_iter, std::move(host_num_iter));
 	}
 }
 
@@ -95,7 +145,8 @@ EXTC DEV void gpumon_device_start(int thread) {
 }
 
 EXTC DEV void gpumon_device_end(int thread) {
-	dev_ttime[thread] = clock64() - dev_tstart[thread]; 
+	dev_ttime[thread] = clock64() - dev_tstart[thread];
+	dev_smids[thread] = get_smid();
 }
 
 EXTC GLOBAL void gpumon_kernel_test() {
@@ -105,6 +156,7 @@ EXTC GLOBAL void gpumon_kernel_test() {
 		gpumon_device_start(thread);
 		
 		volatile int number = 0;
+
 		for (int i = 0; i < dev_num_iter[thread]; ++i) {
 			number += i;
 		}
