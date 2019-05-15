@@ -10,9 +10,11 @@
 #ifdef __CUDACC__
 #define HOST __host__
 #define DEV __device__
+#define GLOBAL __global__
 #else
 #define HOST
 #define DEV
+#define GLOBAL
 #endif
 
 typedef long long int clock64_t;
@@ -20,9 +22,5 @@ typedef long long int clock64_t;
 EXTC HOST void gpumon_host_start(int num_threads);
 
 EXTC HOST void gpumon_host_end();
-	
-EXTC DEV void gpumon_device_start();
-
-EXTC DEV void gpumon_device_end();
 
 #endif //__GPUMON_H__

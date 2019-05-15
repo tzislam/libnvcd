@@ -5,7 +5,7 @@ CUDA_ARCH_SM ?= sm_37
 
 CUPTI := $(CUDA_HOME)/extras/CUPTI
 
-INCLUDE=-I$(CUPTI)/include
+INCLUDE=-I$(CUPTI)/include -I$(CUDA_HOME)/include
 
 CXX_FLAGS=-Wall -Werror -g -ggdb -std=c++11
 
@@ -32,14 +32,14 @@ FLAGS :=
 
 TARGET := perfmon
 
-$(TARGET): obj/gpumon.o obj/test.o
+$(TARGET): obj/gpumon.o obj/test.o obj/gpumon_cuda.o obj/util.o
 	$(CC) $(FLAGS) $(LIBS) $(ARCH) $^ -o bin/$(TARGET)
 
 obj/%.o: %.cpp objdep 
 	g++ $(FLAGS) $(INCLUDE) $(CXX_FLAGS) -c $< -o $@
 
 obj/%.o: %.cu objdep
-	$(CC) $(FLAGS) $(INCLUDE) $(ARCH) -c $< -o $@
+	$(CC) $(FLAGS) $(INCLUDE) $(CC_FLAGS) $(ARCH) -c $< -o $@
 
 objdep:
 	mkdir -p obj
