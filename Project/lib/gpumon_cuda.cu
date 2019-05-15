@@ -69,24 +69,6 @@ DEV uint get_smid() {
 	return ret;
 }
 
-struct kernel_invoke_data {
-	struct thread_slice_info {
-		unsigned smid;
-		std::vector<int> thread_indices;
-
-		thread_slice_info(unsigned smid_, std::vector<int> thread_indices_)
-			: smid(smid_),
-				thread_indices(std::move(thread_indices_))
-		{}
-	};
-	
-	using time_thread_map_t = std::unordered_map<clock64_t, thread_slice_info>;
-
-	time_thread_map_t time_to_thread_info;
-
-	
-};
-
 //-------------------------------------
 // public
 //-------------------------------------
