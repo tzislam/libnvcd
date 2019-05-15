@@ -1,17 +1,23 @@
 #include "gpumon.h"
+#include "gpumon.cuh"
 
 #include <vector>
 #include <memory>
+#include <stdio.h>
 
-static clock64_t* host_ttime = nullptr;
-
-static std::unique_ptr<int> mp(nullptr);
+static std::vector<clock64_t> host_ttime;
 
 EXTC HOST void gpumon_host_start(int num_threads) {
-	mp.reset(new int(5));
-  (void)host_ttime;
+	host_ttime.clear();
+	host_ttime.resize(num_threads, 0);
+
+	gpumon_init_device_mem(num_threads);
 }
 
 EXTC HOST void gpumon_host_end() {
+	gpumon_get_device_ttime(&host_ttime[0]);
 
+	for (size_t i = 0; i < host_ttime.size(); ++i) {
+		printf("[%lu] time = %lli \n", i, host_ttime.at(i));
+	}
 }
