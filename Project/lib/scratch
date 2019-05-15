@@ -1,0 +1,12 @@
+- unordered_map<int, vector<int>>
+  key -> time
+  value -> list of thread numbers associated with time
+
+- calc std deviation
+  - if any values >= mean + k * stddev (k is arbitrary, define a default for now) then we'll consider that load imbalance
+
+- output to hdf5
+
+- allow for slices in the device - arbitrary dynamic memory. need a gpu vector or something that can push slices of thread times,
+multiple times for a single kernel invocation
+
