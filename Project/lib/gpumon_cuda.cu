@@ -139,6 +139,13 @@ EXTC HOST void gpumon_get_device_ttime(clock64_t* out) {
 														 cudaMemcpyDeviceToHost));
 }
 
+EXTC HOST void gpumon_get_device_smids(unsigned* out) {
+	CUDA_RUNTIME_FN(cudaMemcpy(out,
+														 d_dev_smids,
+														 dev_smids_size,																			 
+														 cudaMemcpyDeviceToHost));
+
+}
 
 EXTC DEV void gpumon_device_start(int thread) {
 	dev_tstart[thread] = clock64(); 

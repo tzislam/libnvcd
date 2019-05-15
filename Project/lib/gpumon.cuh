@@ -10,6 +10,7 @@ EXTC HOST void gpumon_init_device_mem(int num_threads);
 EXTC HOST void gpumon_free_device_mem();
 
 EXTC HOST void gpumon_get_device_ttime(clock64_t* out);
+EXTC HOST void gpumon_get_device_smids(unsigned* out);
 
 EXTC GLOBAL void gpumon_kernel_test();
 
