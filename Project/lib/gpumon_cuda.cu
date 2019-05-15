@@ -66,7 +66,7 @@ EXTC HOST void gpumon_init_device_mem(int num_threads) {
 		
 		std::vector<int> host_num_iter(num_threads, 0);
 
-		int iter_min = 1000000;
+		int iter_min = 1000;
 		int iter_max = iter_min * 100;
 			
 		for (size_t i = 0; i < host_num_iter.size(); ++i) {
