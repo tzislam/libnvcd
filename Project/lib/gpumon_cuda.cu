@@ -24,6 +24,8 @@ static void* d_dev_ttime = nullptr;
 static void* d_dev_num_iter = nullptr;
 static void* d_dev_smids = nullptr;
 
+static volatile bool test_imbalance_detect = false;
+
 template <class T>
 static void* __cuda_zalloc_sym(size_t size, const T& sym, const char* ssym) {
 	void* address_of_sym = nullptr;
@@ -95,8 +97,7 @@ EXTC HOST void gpumon_init_device_mem(int num_threads) {
 		d_dev_smids = cuda_zalloc_sym(dev_smids_size, dev_smids);
 	}
 
-	// test code
-	{
+	if (test_imbalance_detect) {
 		dev_num_iter_size = sizeof(int) * static_cast<size_t>(num_threads);
 
 		d_dev_num_iter = cuda_zalloc_sym(dev_num_iter_size, dev_num_iter);
