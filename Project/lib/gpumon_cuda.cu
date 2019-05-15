@@ -37,7 +37,7 @@ EXTC HOST void gpumon_init_device_mem(int num_threads) {
 		
 		dev_num_iter_size = sizeof(int) * static_cast<size_t>(num_threads);
 
-		CUDA_RUNTIME_FN(cudaMalloc(&dev_num_iter, dev_num_iter_size));
+		CUDA_RUNTIME_FN(cudaMalloc(&dev_num_iter_addr, dev_num_iter_size));
 		
 		
 		std::vector<int> host_num_iter(num_threads, 0);
