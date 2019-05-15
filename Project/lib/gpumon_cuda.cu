@@ -97,10 +97,10 @@ EXTC DEV void gpumon_device_end(int thread) {
 	dev_ttime[thread] = clock64() - dev_tstart[thread]; 
 }
 
-EXTC GLOBAL void gpumon_kernel_test(int num_threads) {
+EXTC GLOBAL void gpumon_kernel_test() {
 	int thread = threadIdx.x;
-
-	if (thread < num_threads) {
+	
+	if (thread < blockDim.x) {
 		gpumon_device_start(thread);
 		
 		volatile int number = 0;
@@ -113,8 +113,5 @@ EXTC GLOBAL void gpumon_kernel_test(int num_threads) {
 }
 
 EXTC HOST void gpumon_kernel_test_call(int num_threads) {
-	dim3 block(num_threads, 1, 1);
-	dim3 grid(1, 1, 1);
-
-	gpumon_kernel_test<<<grid, block>>>(1024);
+	gpumon_kernel_test<<<1, num_threads>>>();
 }
