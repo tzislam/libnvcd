@@ -1,3 +1,3 @@
 #!/bin/bash
 
-make clean && make && sudo $OPTIRUN bin/perfmon
+make clean && make && $OPTIRUN bin/perfmon
