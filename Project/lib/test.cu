@@ -49,9 +49,10 @@ int main() {
 		printf("k[%i] = %i\n", i, k[i]);
 	}
 #else
-	gpumon_host_start(1024);
+	const int N = 1024 << 1;
+	gpumon_host_start(N);
 
-	gpumon_kernel_test_call(1024);
+	gpumon_kernel_test_call(N);
 	
 	gpumon_host_end();
 #endif
