@@ -7,11 +7,17 @@
 #include <iterator>
 #include <stdio.h>
 
+struct block {
+	int thread;
+	clock64_t time;
+};
+
 struct kernel_invoke_data {
+	std::vector<block> load_minor;
+	std::vector<block> load_major;
+	
 	std::vector<clock64_t> times;
 	std::vector<unsigned> smids;
-
-	std::vector<int> outlier_threads;
 	
 	double time_stddev;
 	double time_mean;
@@ -27,6 +33,35 @@ struct kernel_invoke_data {
 
 	~kernel_invoke_data()
 	{}
+
+	void fill_outliers(double bounds,
+										 double q1,
+										 double q3,
+										 const std::vector<block>& in,
+										 std::vector<block>& out) {
+		clock64_t max = static_cast<clock64_t>(q3)
+			+ static_cast<clock64_t>(bounds);
+
+		printf("{q1, q3, bounds, max} = {%f, %f, %f, %llu}\n",
+					 q1, q3, bounds, max);
+
+		for (const block& b: in) {
+			if (b.time > max) {
+				out.push_back(b);
+			}
+		}
+	}
+
+	void print_blockv(const char* name, const std::vector<block>& v) {
+		printf("=====%s=====\n", name);
+		
+		for (size_t i = 0; i < v.size(); ++i) {
+			printf("[%lu] time = %llu, thread = %i\n",
+						 i,
+						 v[i].time,
+						 v[i].thread);
+		}
+	}
 	
 	void write() {
 		for (size_t i = 0; i < num_threads; ++i) {
@@ -35,21 +70,41 @@ struct kernel_invoke_data {
 						 times[i],
 						 smids[i]);
 		}
-
-		#if 0
+		
 		{
-			double mean = 0.0;
+			std::vector<block> sorted;
+
+			for (size_t i = 0; i < num_threads; ++i) {
+				sorted.push_back(block{static_cast<int>(i), times[i]}); 
+			}
+			
+			std::sort(sorted.begin(), sorted.end(), [](const block& a, const block& b) -> bool {
+					return a.time < b.time;
+				});
+
+			print_blockv("sorted", sorted);
 
 			size_t qlen = num_threads >> 2;
 
-			std::vector<clock64_t> v;
-			std::copy(times.begin(), times.end(), std::back_inserter(v));
+			double q1 = static_cast<double>(sorted[qlen].time)
+				+ static_cast<double>(sorted[qlen - 1].time);
+			q1 = q1 * 0.5;
 
-			std::sort(v.begin(), v.end());
+			double q3 = static_cast<double>(sorted[qlen * 3].time)
+				+ static_cast<double>(sorted[(qlen * 3) - 1].time);
+			q3 = q3 * 0.5;
 
-			
+			double iqr = q3 - q1;
+
+			double minorb = iqr * 1.5;
+			fill_outliers(minorb, q1, q3, sorted, load_minor);
+
+			double majorb = iqr * 3.0;
+			fill_outliers(majorb, q1, q3, sorted, load_major);
 		}
-		#endif
+
+		print_blockv("load_minor", load_minor);
+		print_blockv("load_major", load_major);
 	}
 };
 
