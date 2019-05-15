@@ -12,6 +12,17 @@ multiple times for a single kernel invocation
 
 
 -----
+warpx
+-----
+
+- can't run on your machine, since it requires compute capability >= 6
+- need to use P100 on cluster
+- device functions are defined in WarpX source using the AMREX_GPU_DEVICE macro (e.g., see
+Source/FieldSolver/WarpXPushFieldsEM.cpp and Source/Particles/WarpXParticleContainer.cpp)
+
+- should be able to do some benchmarking here as long as it runs without any issues
+
+-----
 time slice - once per kernel
 -----
 
