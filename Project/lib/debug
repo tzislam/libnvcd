@@ -1,0 +1,3 @@
+#/bin/bash
+
+$OPTIRUN cuda-gdb bin/perfmon
