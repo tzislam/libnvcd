@@ -1,5 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+
 #include "mpi.h"
 #define MAXPROC 100    /* Max number of procsses */
 #define MAXITER 100000000
@@ -38,7 +40,6 @@ int main(int argc, char* argv[]) {
   
   // Get hostname
   //MPI_Get_processor_name --> myname, namelen
-
   
   MPI_Get_processor_name(myname, &namelen);
   myname[namelen] = '\0';
@@ -52,15 +53,35 @@ int main(int argc, char* argv[]) {
 	  MPI_Bcast(&rank, 1, MPI_INT, root, MPI_COMM_WORLD);
 	  
 	  /* Start non-blocking calls to receive messages from all other processes */
-      
-      /* Move on to computation*/
-      compute_something();
+		/* Move on to computation*/
+		compute_something();
     
     /* Wait for the receive calls to finish.
-     Iterate to receive messages from all other processes and print their hostnames*/
-	  for (int i = 0; i < nproc; ++i) {
-		  MPI_Irecv(hostname[i], MPI_MAX_PROCESSOR_NAME - 1, 
+			 MPI_Waitall
+			 Iterate to receive messages from all other processes and print their hostnames*/
+	  for (int i = 1; i < nproc; ++i) {
+		  MPI_Irecv(hostname[i],
+								MPI_MAX_PROCESSOR_NAME - 1,
+								MPI_CHAR,
+								i,
+								tag,
+								MPI_COMM_WORLD,
+								&recv_req[i]);
 	  }
+
+		for (int i = 1; i < nproc; ++i) {
+			int k = 0;
+			MPI_Status s;
+			
+			MPI_Waitany(nproc - 1,
+									&recv_req[1],
+									&k,
+									&s);
+			
+			printf("Irecv k = %i, hostname[k] = %s\n",
+						 k + 1,
+						 hostname[k + 1]);
+		}
   } 
   else { /* all other processes do this */
 	  int result = 0;
@@ -75,9 +96,9 @@ int main(int argc, char* argv[]) {
 	  MPI_Request r;
 	  MPI_Isend(myname, namelen, MPI_CHAR, root, tag, MPI_COMM_WORLD, &r);
 	  
-      // Then move on to computation
-      compute_something();
-      /* Wait for the MPI_Isent to finish by calling MPI Wait*/
+		// Then move on to computation
+		compute_something();
+		/* Wait for the MPI_Isent to finish by calling MPI Wait*/
 
 	  MPI_Status s;
 	  MPI_Wait(&r, &s);
