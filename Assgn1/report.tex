@@ -1,5 +1,5 @@
-\documentclass{article}
-
+\documentclass[8pt, a4paper, twoside, twoclumn, english]{extreport}
+\usepackage{lipsum, babel}
 \usepackage{listings}
 \usepackage{graphicx}
 \graphicspath{ {./images/} }
@@ -25,150 +25,62 @@ of the benchmark itself.}
 \includegraphics[width=\textwidth]{cluster}
 \end{figure}
 
-\begin{itemize}
-\item 2 Nodes
-\item Node Kind: NUMA
-\item 1 Socket per node
-\item Cores  
-  \begin{itemize}
-  \item Cores per socket: 6
-    \begin{itemize}
-    \item Processing units per core: 2
-    \end{itemize}
-  \item L3 cache
-    \begin{itemize}
-    \item Distribution: shared across socket
-    \item Size: 15MB
-    \end{itemize}
-  \item L2 cache
-    \begin{itemize}
-    \item Distribution: per core
-    \item Size: 256KB
-    \end{itemize}
-  \item L1-data cache
-    \begin{itemize}
-    \item Distribution: per core
-    \item Size: 32KB
-    \end{itemize}
-  \item L1-instruction cache
-    \begin{itemize}
-    \item Distribution: per core
-    \item Size: 32KB
-    \end{itemize}
-  \end{itemize}
-\end{itemize}
 
+\twocolumn
 \section {Thread Affinity}
 
 \paragraph {The first program which was ran was designed to spawn 12 threads (one thread per core), and for each thread,
 perform groups of computations, sequentially, on unique partitions of large amounts of data. The source code used follows.}
 
-\subsection{Open MP Source code used}
-
-\begin{lstlisting}[language=C]
-  #include <stdio.h>
-  #include <stdlib.h>
-  #include <omp.h>
-  int main(int argc, char **argv){
-    //Change the following 2 variables to change input parameter size
-    int nlocal = atol(argv[1]);//100000000;
-    int nsteps = atol(argv[2]);
-    // Allocating memory
-    double *in = (double*) malloc( (nlocal+2) * sizeof(double));
-    double *out = (double*) malloc(nlocal * sizeof(double));
-    for (int i=0; i<nlocal+2; i++)
-    in[i] = 1.0;
-    for (int i=0; i<nlocal; i++)
-    out[i] = 0.0;
-    double start_time, end_time;
-    for (int step=0; step < nsteps; step++) {
-      start_time = omp_get_wtime();
-      #pragma omp parallel for schedule(static)
-      for (int i=0; i < nlocal; i++) {
-        out[i] = ( in[i]+in[i+1]+in[i+2] )/3.;
-      }
-      #pragma omp parallel for schedule(static)
-      for (int i=0; i < nlocal; i++){
-        in[i+1] = out[i];
-      }
-      in[0] = 0;
-      in[nlocal+1] = 1;
-    }
-    end_time = omp_get_wtime();
-    printf("%lf\n", end_time - start_time);
-  }
-
-\end{lstlisting}
-
 \subsection{Results}
 
-\paragraph{The thread affinity program was ran 5 times consecutively. Each benchmark was recorded in seconds, and an average, minimum, and maximum amount were taken for each of them.}
+\paragraph{The thread affinity program was ran 5 times consecutively.
+  Each benchmark was recorded in seconds, and an average, minimum,
+  and maximum amount were taken for each of them. }
 
-\begin{figure}[h]
-\caption{Thread affinity times}
-\centering
-\includegraphics[width=\textwidth]{times_average}
-\includegraphics[width=\textwidth]{times_min}
-\includegraphics[width=\textwidth]{times_max}
-\end{figure}
-
-\paragraph{We used the 4 standard execution profiles provided by OpenMP, which are:}
+\paragraph{We used the 4 standard execution profiles provided by OpenMP. Out of all of them,
+  the profile which favored spreading threads throughout the cores (yet with the capability to still be spread to multiple sockets)
+  performed the best.}
 
 \begin{itemize}
-\item cores spread
-  \begin{itemize}
-    \item Average time: 0.012390 seconds
-    \item Description:
-
-      The idea behind this profile is to spread the amount of threads we allocate throughout multiple cores.
-      This allows for us to take advantage of multiple caches, which implies that we have potentially up to 8192 cached elements,
-      assuming that, for each core, the respective matrix being iterated over has address values which map into the physical
-      page table in such a manner that there is no conflict.
-    \end{itemize}
-  \item cores close
-    \begin{itemize}
-    \item Average time: 0.012407 seconds
-    \item Description:
-
-      The average listed here is slightly slower, but the difference is essentially negligable. The "close" binding method is designed to cluster threads closer to the same core. The potential for cache thrashing due to multiple threads contesting similar regions of memory is higher in this sense. That said, assuming the implementation associates thread groups contiguously, this is less of an issue, given that other threads are less likely to have conflicting memory regions.
-    \end{itemize}
-  \item sockets spread
-    \begin{itemize}
-    \item Average time: 0.012416 seconds
-    \item Description:
-
-      This is interesting, because it's more or less around the same amount of time as the previous two. That said, it also makes sense, considering that the memory accesses essentially have a one to one mapping with the thread the group of indices have been accounted for; we don't have iterations which are reaching out in order to fetch data that lies 300000 words away from the current offset that's represented for a given iteration; because of this, we're less likely to have to deal with cross socket memory accesses, which incur significant latency overhead.
-    \end{itemize}
-
-  \item sockets close
-    \begin{itemize}
-    \item Average time: 0.01241 seconds
-    \item Description:
-      In this profile, we're constraining the 12 threads into one socket, but whether or not the threads are spread throughout different cores (likely) is dependent on the implementation; the specification itself insinuates this [1, pg. 605]
-    \end{itemize}
+  \item Average time: 0.012390 seconds
+  \item Min time: 0.01235 seconds
+  \item Max time: 0.012454 seconds    
 \end{itemize}
-
 
 \subsection{Conclusion}
 
 \paragraph{It seems logical that the cores spread execution profile would run the fastest: we're using only one thread per core, and despite the NUMA architecture playing a pivotal role in memory access latency, the L1 caches themselves are also per-core, so any reaches out to main memory are few and far between. Furthermore, the way stride of the data for each thread is mapped reduces the need for out of socket memory reads/writes. Of course, it's worth while to consider factors such as how the NUMA architecture searches other out of socket L3 caches if the data it's searching for hasn't been found in its own L3 cache.}
 
-
 \section{Matrix Multiply}
 
-\paragraph{The speedup for the parallel version of the matrix gradually made its way to about 4x as the thread size increased; there are moments where a difference in the amount of threads used doesn't provide much of an increase in speedup, as is illustrated in the graph when the test is ran using between 8 and 10 threads. Apart from that, though, the speedup is fairly significant. The speedup was calculated by simply dividing the time of the serial version of the multiply against the time of the parallel version of the multiply.}
+\subsection{Thread Variance}
 
-\begin{figure}
+\paragraph{The relevant code we were using for this section of the assignment is as follows.}
+
+\paragraph{The speedup for the parallel version of the matrix gradually made its way to about 4x as the thread size increased; there are moments where a difference in the amount of threads used doesn't provide much of an increase in speedup, as is illustrated in the graph when the test is ran using between 8 and 10 threads. Apart from that, though, the speedup is fairly significant. The speedup was calculated by simply dividing the time of the serial version of the multiply against the time of the parallel version of the multiply.
+Initially, attempts were made to parallelize the outer most loop as opposed to the innermost loop. The end result was along the lines of 30 seconds, irrespective of the amount of threads used.}
+
+\begin{figure}[h]
 \caption{speedup as the amount of threads are increased for each run}
 \centering
-\includegraphics[width=\textwidth]{matrix_mul_speedup}
+\includegraphics[width=50mm,scale=0.5]{matrix_mul_speedup}
 \end{figure}
 
-\section{References}
+\subsection{Chunk and Schedule Policy variance}
 
-\begin {enumerate}
-\item The OpenMP Application Programming Interface, Version 5.0, The OpenMP Architectural Review Board, November 2018,
-  https://www.openmp.org/wp-content/uploads/OpenMP-API-Specification-5.0.pdf
-\end{enumerate}
+\begin{lstlisting}[language=Python]
+[
+  (9.326500,6.050310),  # STATIC-10
+  (9.221319,6.205454),  # STATIC-100
+  (9.214018,6.008883),  # STATIC-1000
+  (9.228346,5.947109),  # DYNAMIC-10
+  (9.191903,6.159095),  # DYNAMIC-100
+  (9.221951,6.116993),  # DYNAMIC-1000
+]
+\end{lstlisting}
+
+\paragraph{The first entry in each tuple shown above is the time for the serial execution. The second is of course the time for the parallel application.
+Interestingly enough, the best performance appears to be had from using the dynamic parallellization with a low chunk count. Speculatively, this would make sense considering that a single cache line can hold about 16 integers; assigning chunk sizes of 10 for the innermost loop allows for a flexible distribution of elements for each row. In general, we're more likely to have better latency and less cache conflicts, since loading and unloading cache lines will happen once for the execution of each thread (it's going to happen multiple times for sizes of the thousands or hundreds).}
 
 \end{document}

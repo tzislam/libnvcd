@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <cuda.h>
 
+
+
 /* 
  * template for taking the dot product of a vector with the row of a matrix 
  *
@@ -113,12 +115,12 @@ __host__ void gpu_test_matrix_vec_mul()
 	int* v = cuda_alloci(vsize);
 
 	/* serial q, u, v */
-	int* sq = (int*) alloc_or_die(msize * sizeof(int));
-	int* su = (int*) alloc_or_die(vsize * sizeof(int));
-	int* sv = (int*) alloc_or_die(vsize * sizeof(int));
+	int* sq = (int*) NOT_NULL(zalloc(msize * sizeof(int)));
+	int* su = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
+	int* sv = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
 
 	/* client-side device result */
-	int* hv = (int*) alloc_or_die(vsize * sizeof(int));
+	int* hv = (int*) NOT_NULL(zalloc(vsize * sizeof(int)));
 	
 	int rmin = 5;
 	int rmax = 50;
@@ -142,13 +144,13 @@ __host__ void gpu_test_matrix_vec_mul()
 
 	cpu_matrix_vec_mul(n, m, sq, su, sv);
 
-	bool_t equal = _True;
+	bool equal = true;
 	
-	for (size_t i = 0; i < vsize && equal == _True; ++i) {
+	for (size_t i = 0; i < vsize && equal == true; ++i) {
 		equal = hv[i] == sv[i];
 	}
 
-	if (equal == _True) {
+	if (equal == true) {
 		puts("gpu_test_matrix_vec_mul: success");
 	} else {
 		puts("gpu_test_matrix_vec_mul: failure");

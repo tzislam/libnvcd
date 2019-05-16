@@ -2,10 +2,13 @@
 #define __GPU_CUH__
 
 #include "commondef.h"
-
 #include <stdio.h>
 
 C_LINKAGE_START
+
+struct gpu_data {
+	size_t num_threads;
+};
 
 #define GPU_ASSERT(condition_expr) assert_cond_impl(condition_expr, #condition_expr, __LINE__) 
 
