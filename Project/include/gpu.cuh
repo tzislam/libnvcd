@@ -2,7 +2,6 @@
 #define __GPU_CUH__
 
 #include "commondef.h"
-#include <stddint.h>
 #include <stdio.h>
 
 C_LINKAGE_START

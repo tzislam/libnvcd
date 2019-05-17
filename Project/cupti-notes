@@ -1,0 +1,293 @@
+cupti activity records, buffers, and queues
+===
+
+"activity\_trace" samples
+
+- different kinds of activity records
+- different buffers are filled with activity records
+- different queues which the activity buffers
+are stored on
+- queue types: global, context, stream
+    - context and stream appear to be instanced based - i.e.,
+    multiple context and stream queues may exist.
+
+- global queue contains all activity records which aren't associated
+with a valid context.
+
+    - includes devices, context (assuming in a manner which differs from the "context" just mentioned), and API activity records.
+
+- context queues collect activity records not associated with a stream, be it specific or the default stream.
+
+- a stream queue will collect memcpy, memset, and kernel activity records which are associated with it
+
+cupti initialization
+======
+
+- must be initialized before cuda driver or runtime api calls are invoked
+- see initTrace function in activity\_trace sample; note the enqueue of a buffer
+into the global queue - this should initialize cupti.
+     - also shown in initTrace() is how device activity records are enabled
+
+- also important for correct activity API operation: enqeue at least one buffer
+in the context queue of each context as it is created.
+
+- activity records must be processed and/or saved. as such, the stream queues
+themselves can be useful for properly handling this. they can be flushed when
+synchronized.
+
+- see cuptiActivityEnqueueBuffer (after a buffer is passed to this function,
+i.e., enqueued reading and writing client side is illegal, since CUPTI
+now owns it).
+    - use cuptiActivityDequeueBuffer to regain ownership
+    - note that enqueuing and dequeuing can only be performed 
+      at various points (shown below) - enqueuing or dequeing
+      outside of these points is likely to result in buffer corruption
+
+- activity records will drop if not enough space exists in the buffer,
+so it's important to specify an appropriate size.
+
+- valid enqueue/dequeue areas
+  - to/from the global queue, BEFORE CUDA driver or runtime API is called.
+  - in synchronization or resource callbacks
+    - for context creation, destruction, or synchronization,
+      - buffers may be enqueued or dequeueto/from the corresponding
+        context queue, as well as from any stream queues associated
+        with streams acting in that context
+    - can be enqueued/dequeued to/from corresponding stream queue when that stream
+      queue is created, destroyed, synchronized. global queue can also be enqueued/dequeued
+      at this time.
+    
+  - after device synchronization
+    - i.e., after cudaDeviceReset or cudaDeviceSynchronize,
+      but BEFORE any subsequent cuda driver or runtime api call
+    
+    - buffers can be enqueued dequeued from ANY activity queue
+
+
+cupti callback api
+====
+
+example code snippet:
+
+```
+CUpti_SubscriberHandle  subscriber;
+MyDataStruct *my_data = ...;
+...
+cuptiSubscribe (&subscriber ,(CUpti_CallbackFunc)my_callback  , my_data);
+cuptiEnableDomain (1, subscriber ,CUPTI_CB_DOMAIN_RUNTIME_API);
+```
+
+cuptiEnableDomain call with the `CUPTI_CB_DOMAIN_RUNTIME_API`, with cuptiSubscribe,
+binds `my_callback` so that it is called upon entry of every runtime api function
+and just before exit of every runtime api function.
+
+```
+void CUPTIAPI my_callback(
+    void *userdata,
+    CUpti_CallbackDomain domain,
+    CUpti_CallbackId cbid,
+    const void *cbdata)
+{
+    const CUpti_CallbackData *cbInfo = (CUpti_CallbackData  *)cbdata;
+
+    MyDataStruct *my_data = (MyDataStruct  *) userdata;
+
+    if ((domain == CUPTI_CB_DOMAIN_RUNTIME_API) 
+        && (cbid == CUPTI_RUNTIME_TRACE_CBID_cudaMemcpy_v3020))   {
+        if (cbInfo ->callbackSite == CUPTI_API_ENTER) {
+            cudaMemcpy_v3020_params *funcParams =
+                (cudaMemcpy_v3020_params *)(cbInfo ->functionParams);
+            size_t count = funcParams ->count;
+            enum cudaMemcpyKind kind = funcParams ->kind;
+            ...
+        }
+...
+```
+
+Code above does this following:
+    
+    * checks to see if the domain is in the cuda runtime
+    * ensures that the callback id belongs to a specific version of memcpy
+    * checks to see if this is invoked on entry of mempcy and not exit of memcpy
+    
+From the document (page 7):
+
+```
+These parameter structures are contained in generated_cuda_runtime_api_meta.h,generated_cuda_meta.h, and a number of otherfiles. When possible these files are included for you bycupti.h
+```
+    
+See page 25 for a description of `callback_event` and `callback_timestamp` samples
+
+Callbacks can also be registered for synchronization and creation/destruction of resources.
+
+
+cupti event api
+=====
+
+- deals with event counters on a device
+
+- definitions:
+
+    - event: a countable activity, action, or occurrence on a device
+    - event id: unique to every event; different device families may have different
+    ids for the same named event. use `cuptiEventGetIdFromName`
+    - event category: `CUpti_EventCategory`. is the general type of activity, action, 
+    or occurrence
+    - event domain: represents a group of related events available on the given device.
+      - may have multiple instances of a domain.
+      - with multiple instances of a domain available, the device can simultaneously record
+      the instances of each event within that function.
+    - event group: a collection of events managed together.
+      - device limits specify the amount of events and the types that can be added to a group
+      - devices can be configured to count events from a limited number of event groups
+      - all events in a group must belong to the same domain
+    - event group set: a collection of event groups that can be enabled at the same time.
+      - event group sets are created by `cuptiEventGroupSetsCreate` and `cuptiMetricCreateEventGroupSets`.
+      
+- `cuptiSetEventcollectionMode` determines where events are counted
+  - `CUPTI_EVENT_COLLECTION_MODE_KERNEL` for kernel event counting
+  - `CUPTI_EVENT_COLLECTION_MODE_CONTINUOUS` for continuously sampling event counts - this
+  appears to maintain the counts across different kernel invocations (verify this).
+
+- events should be counted through enabling event groups that correspond to the events
+to count.
+    - note that there are limitations on the amount of event groups that can be simultaneously enabled. limitations are per device. if this is the case, different runs of the application
+    will be needed
+    
+    
+### event synchronization
+
+```
+static  void  CUPTIAPIgetEventValueCallback(
+    void *userdata, 
+    CUpti_CallbackDomain  domain, 
+    CUpti_CallbackId  cbid,
+    const  void *cbdata){
+        const CUpti_CallbackData *cbData = (CUpti_CallbackData  *) cbdata;
+        if (cbData ->callbackSite  ==  CUPTI_API_ENTER) {
+            cudaThreadSynchronize();
+            cuptiSetEventCollectionMode(
+                cbInfo->context, 
+                CUPTI_EVENT_COLLECTION_MODE_KERNEL);
+            cuptiEventGroupEnable(eventGroup);
+        }
+        
+        if (cbData ->callbackSite  ==  CUPTI_API_EXIT) {
+            cudaThreadSynchronize();
+            cuptiEventGroupReadEvent(
+                eventGroup, 
+                CUPTI_EVENT_READ_FLAG_ACCUMULATE, 
+                eventId, 
+                &bytesRead, 
+                &eventVal);
+            cuptiEventGroupDisable(eventGroup);
+        }
+    }
+```
+Quick note, on page 10:
+
+```
+if the application contains other threads that launch kernels, then
+additional thread-level synchronization must also be introduced to ensure that those
+threads do not launch kernels while the callback is collecting events
+```
+
+In the code above, the `cudaLaunch API` is entered before the kernel is launched on the device. 
+
+At this time, `cudaThreadSynchronize` waits until the GPU is idle.
+
+the `cudaLaunch API` is exited after the kernel has been queued for execution on the GPU.
+At this point, `cudaThreadSynchronize` is used to wait for the kernel to finish its execution.
+
+____
+
+Events can also be sampled _while_ the kernel or kernels are executing. See `event_sampling`
+sample.
+____
+
+## event types: SM, TPC, FB
+
+### SM event type
+  - SM = streaming multiprocessor
+  - an SM creates, manages, schedules and executes threads in groups of 32 threads
+    - i.e., it manages, schedules, and executes warps
+  - sm event values are usually per-warp and not per-thread
+  - inconsistent results can come into play with multiple launches of the application.
+   e From the text, page 11:
+   
+```
+For devices with compute capability greater than 2.0, 
+SM events from domain_d are counted for all SMs but for SM events from
+domain_a are counted for multiple but not all, SMs. 
+```
+
+As an aside, this bit makes less sense. Of course
+
+```
+To get the most consistent results inspite of these factors, it
+is best to have number of blocks for each kernel launched to be a multiple of the total
+number of SMs on a device. In other words, the grid configuration should be chosen such
+that the number of blocks launched on each SM is the same and also the amount of work
+of interest per block is the same.
+```
+
+In other words,
+    - for any kernel launched, the blocks must be a multiple of the total number of SMs on a device
+    - i.e., the work of interest per block is the same across all SMs, and
+    - the number of blocks launched on each SM is the same
+    - the grid configuration essentially influences this
+___
+
+### TPC Event Type
+
+- TPC = texture processing cluster
+
+- there are multiple TPCs.
+
+- SMs exist within TPCs
+
+- This event type is designed to focus only on SMs dealing within the device's 
+_first_ TPC (why this is the first is not listed).
+
+- Devices with compute capability < 1.3 have 2 SMs per TPC. Otherwise, they have
+3 SMs per TPC
+
+- Two noteworthy metrics measured by TPC events: incoherant vs coherant
+memory transactions:
+    - coherant = coalesced. is a memory access that occurs when a half warp executes: 
+      - a single global load or store, and
+      - that load or store can be accessed with a single memory transaction of 32, 64, or 128 
+      bytes.
+
+    - incoherant - non-coalesced.
+      - if the single global load or store cannot be accessed in a coalesced manner then
+        - separate memory transactions are issued
+        - each memory transaction issued is per-thread
+        - each thread in question resides within the corresponding half-warp
+    
+    - coherant access requirements are dependent on compute capability
+    
+### FB event type
+
+- covered in one sentence: collected for an action or activity occurring on a DRAM partition.
+
+- on the term "DRAM partitioning", [this forum post](https://devtalk.nvidia.com/default/topic/1019473/any-information-on-gpu-on-die-memory-architecture-/) appears to illustrate some details
+that shed further light here. Notably,
+    - for GPUS, DRAM is partitioned.
+    - each partition is handled by a separate memory controller.
+      - the logical linear memory space is translated to a map.
+      - this map defines the source of every byte, amounting to
+        - the partition
+        - the segment
+        - where the segment resides in the partition
+        - where the byte resides in the segment
+    
+    - the translation scheme itself doesn't appear to be published,
+      the specifics appear to vary from architecture to architecture
+    
+    - from a programmer's perspective:
+      - each byte (in the logical, linear address space) maps to a distinct partition
+      - L2 cache resides inside the memory controller
+      - The L2 cache inside the memory controller is only responsible for handling
+      L2 requests for data associated with said partition.
+      - a data item thus cannot belong to multiple L2 caches

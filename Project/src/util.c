@@ -6,15 +6,29 @@
 
 C_LINKAGE_START
 
-void* alloc_or_die(size_t size)
+void* zalloc(size_t sz)
 {
-	void* p = malloc(size);
+	void* p = malloc(sz);
 
-	if (p == NULL) {
-		perror("malloc failure");
-		exit(1);
+	if (p != NULL) {
+		memset(p, 0, sz);
+	} else {
+		puts("OOM");
 	}
 
+	/* set here for testing purposes; 
+	   should not be relied upon for any
+	   real production build */
+
+	return p;
+}
+
+void* assert_not_null_impl(void* p, const char* expr, const char* file, int line)
+{
+	if (p == NULL) {
+		assert_impl(false, expr, file, line);
+	}
+	
 	return p;
 }
 
@@ -75,6 +89,14 @@ void cupti_error_print_exit(CUptiResult status,
 			   error_string);
 			
 		exit(status);
+	}
+}
+
+void assert_impl(bool cond, const char* expr, const char* file, int line)
+{
+	if (!cond) {
+		printf("ASSERT failure: \"%s\" @ %s:%i\n", expr, file, line);
+		exit(1);
 	}
 }
 
