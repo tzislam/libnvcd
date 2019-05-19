@@ -3,10 +3,12 @@
 #include <mpi.h>
 #include <assert.h>
 
-typedef struct qnode {
+typedef struct qnode qnode_t;
+
+struct qnode {
 	qnode_t* next;
 	int value;
-} qnode_t;
+};
 
 typedef struct qbuf {
 	qnode_t* head;
@@ -26,8 +28,45 @@ qnode_t* qnode_make(int v) {
 	return qn;
 }
 
-void qbuf_free(qbuf_t* q) {
-	assert(q q
+void qbuf_free(qbuf_t** pq) {
+	qbuf_t* q = *pq;
+	assert(q != NULL);
+
+	qnode_t* h = q->head;
+	
+	while (h != NULL) {
+		if (h->next == NULL) {
+			assert(h == q->tail);
+		}
+
+		qnode_t* tmp = h->next;
+
+		free(h);
+
+		h = tmp;
+	}
+
+	free(q);
+	*pq = NULL;
+}
+
+int qbuf_deqeue(qbuf_t* q) {
+	assert(q != NULL);
+	assert(q->head != NULL
+				 && q->tail != NULL);
+	assert(q->count > 0);
+
+	int ret = q->head->value;
+
+	{
+		qnode_t* n = q->head;
+		q->head = q->head->next;
+		free(n);
+	}
+	
+	q->count--;
+	
+	return ret;
 }
 
 void qbuf_enqeue(qbuf_t* q, int v) {
@@ -61,6 +100,9 @@ qbuf_t* qbuf_make(int size) {
 
 void broker(int size, int rank) {
 	assert(rank == 0);
+
+	qbuf_t* job_q = qbuf_make(size);
+	qbuf_t* o_job_q = qbuf_make(size);
 
 	
 }
