@@ -207,7 +207,7 @@ MPI_Request send_int_nb(int* value, int dest) {
 	MPI_Isend(value,
 						1,
 						MPI_INT,
-						0,
+						dest,
 						TAG,
 						MPI_COMM_WORLD,
 						&req);
@@ -237,13 +237,17 @@ void broker(int size, int rank, time_t limit) {
 			int response = ACK;
 		
 			elapsed = get_time() - start;
-			if (elapsed >= limit) {
-				response = ABORT;
+			if (elapsed < limit) {
+				int response = ACK;
+				MPI_Request r = send_int_nb(&response, s.MPI_SOURCE);
 			}
 			printf("elapsed: %li\n", elapsed);
-
-			send_int_nb(&response, s.MPI_SOURCE);
 		}
+	}
+
+	for (int i = 1; i < size; ++i) {
+		int a = ABORT;
+		send_int_nb(&a, i);
 	}
 
 	puts("Time's up");
@@ -259,11 +263,13 @@ void producer(int size, int rank) {
 		int v = 233;
 		MPI_Request req = send_int_nb(&v, 0);
 
+		#if 0
 		{
 			MPI_Status s;
 			MPI_Wait(&req, &s);
-			_Assert(s
+			//_Assert(s
 		}
+#endif
 		{
 			MPI_Status s;
 			int ack;
