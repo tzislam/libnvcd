@@ -427,8 +427,6 @@ int main(int argc, char** argv) {
 
 	time_t limit = strtol(argv[1], NULL, 10);
 	//_Assert(limit == 1);
-
-	printf("limit: %li\n", limit);
 	
 	workpool(size, rank, limit);
 	
