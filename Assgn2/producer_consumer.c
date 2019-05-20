@@ -106,10 +106,9 @@ int dequeue_buffer(int* buffer, int size) {
 	
 	while (i < (size - 1)) {
 		buffer[i] = buffer[i + 1];
+		buffer[i + 1] = QNULL;
 		i++;
 	}
-
-	buffer[size - 1] = QNULL;
 
 	return b;
 }
