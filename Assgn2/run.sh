@@ -1,8 +1,27 @@
 #!/bin/bash
 
 rm -f *.log
+rm -rf sim*
 
-mpirun -n $1 ./producer_consumer $2 > pc_output_${1}_${2}.log
+t=120
 
-mkdir -p "log${1}"
-mv *.log "log${1}"
+for i in 1 2 3 4 5
+do
+    mkdir -p "pc_sim${i}"
+    
+    cd "pc_sim${i}"
+
+    echo "on sim ${i}"
+    
+    for k in 4 8 12 16
+    do
+        echo "\trunning with n=${k}"
+        
+        mpirun -n $k ../producer_consumer $t > ./pc_output_${k}_${t}.log
+
+        mkdir -p "pc_log${k}"
+        mv *.log "pc_log${k}"
+    done
+
+    cd ../
+done
