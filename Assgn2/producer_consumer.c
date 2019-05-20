@@ -232,29 +232,41 @@ int randv() {
 
 static int __rank = 0;
 
+#define WRITEFBUFLEN 4096
+
+static char __writef_buffer[WRITEFBUFLEN + 1024] = { 0 };
+static int __writef_counter = 0;
+
 void __writef(int rank, const char* func, int line, char* fmt, ...) {
-	char buffer[4096] = { 0 };
 	{
 		int64_t micro = get_time();
-		int k = sprintf(&buffer[0], "[%" PRId64 "]: %s %i|", micro, func, line);
+		int k = sprintf(&__writef_buffer[__writef_counter], "[%" PRId64 "]: %s %i|", micro, func, line);
 
+		__writef_counter += k;
+		
+		int l = 0;
 		{
 			va_list arg;
 			va_start(arg, fmt);
-			vsprintf(&buffer[k], fmt, arg);
+			l = vsprintf(&__writef_buffer[__writef_counter], fmt, arg);
 			va_end(arg);
 		}
+
+		__writef_counter += l;
 	}
-	
-	{
+
+	if (__writef_counter >= WRITEFBUFLEN) {
 		char fname[512] = { 0 };
 
 		sprintf(fname, "mpif_%i.log", rank);
 	
 		FILE* f = fopen(fname, "ab+");
 		_Assert(f != NULL);
-		fprintf(f, "%s\n", buffer);
+		fprintf(f, "%s\n", __writef_buffer);
 		fclose(f);
+
+		__writef_counter = 0;
+		memset(__writef_buffer, 0, sizeof(__writef_buffer));
 	}
 }
 
@@ -309,13 +321,22 @@ void broker(int size, int rank, time_t limit) {
 	
 	while (aborts_sent < size) {
 		writef("%s", "iteration start");
-		
+
+		volatile int k = 0;
 		// handle outstanding acks from outstanding queue
 		while (job_q->count < job_q->capacity
 					 && o_job_q->count > 0) {
+			
 			qnode_t* n = qbuf_dequeue(o_job_q);
 			qbuf_enqueue(job_q, n->value, n->rank);
+
+			writef("[%i] outstanding for (value, rank) = (%i, %i): sending ack\n",
+						 k,
+						 n->value,
+						 n->rank);
+			
 			send_int_nb(&RESPONSE_ACK, n->rank);
+
 			free(n);
 		}
 
@@ -324,6 +345,10 @@ void broker(int size, int rank, time_t limit) {
 		// process if we haven't toggled
 		// their recv flag off for this iteration
 		for (int i = 1; i < size; ++i) {
+			writef("may_recv_buf[%i] = %i\n",
+						 i,
+						 may_recv_buf[i]);
+			 
 			if (may_recv_buf[i]) {
 				if (request_buf[i] == MPI_REQUEST_NULL) {
 					MPICALL(MPI_Irecv(&result_buf[i],
