@@ -6,7 +6,7 @@
 #include <setjmp.h>
 #include <execinfo.h>
 #include <string.h>
-
+#include <stdint.h>
 #include <stdarg.h>
 #include <inttypes.h>
 
@@ -203,21 +203,31 @@ enum {
 	NO_WORK = 3,
 
 	RANDV_MIN = 16,
-	RANDV_MAX = 512
+	RANDV_MAX = 2048
 };
 
-time_t get_time() {
+int64_t get_time() {
+	struct timespec tms = {0};
+	
+	clock_gettime(CLOCK_REALTIME, &tms);
+
+	int64_t micro = tms.tv_sec * 1000000;
+	micro += tms.tv_nsec / 1000;
+
+	return micro;
+}
+
+time_t get_time_sec() {
 	return time(NULL);
 }
 
-
 static int __tmp = RANDV_MIN;
 int randv() {
-	//	srand(time(NULL));
-	//	return RANDV_MIN + rand() % (RANDV_MAX - RANDV_MIN);
-	int ret = __tmp;
-	__tmp++;
-	return ret;
+	uint32_t tt = (uint32_t)(get_time() & 0xFFFFFFFF);
+	
+	srand((unsigned int) tt);
+	
+	return RANDV_MIN + rand() % (RANDV_MAX - RANDV_MIN);
 }
 
 static int __rank = 0;
@@ -225,13 +235,7 @@ static int __rank = 0;
 void __writef(int rank, const char* func, int line, char* fmt, ...) {
 	char buffer[4096] = { 0 };
 	{
-		struct timespec tms = {0};
-	
-		clock_gettime(CLOCK_REALTIME, &tms);
-
-		int64_t micro = tms.tv_sec * 1000000;
-		micro += tms.tv_nsec / 1000;
-
+		int64_t micro = get_time();
 		int k = sprintf(&buffer[0], "[%" PRId64 "]: %s %i|", micro, func, line);
 
 		{
@@ -279,14 +283,15 @@ void broker(int size, int rank, time_t limit) {
 	qbuf_t* job_q = qbuf_make(size);
 	qbuf_t* o_job_q = qbuf_make(size);
 
-	time_t start = get_time();
-	time_t elapsed = get_time() - start;
+	time_t start = get_time_sec();
+	time_t elapsed = get_time_sec() - start;
 
 	int RESPONSE_ACK = ACK;
 
-	int iterating = 1;
+	// incremented each time when an abort is sent.
+	// once the amount is equal to size,
+	// the loop is finished.
 	int aborts_sent = 1;
-	int index = 0;
 
 	MPI_Request* request_buf = malloc(sizeof(*request_buf) * size);
 	int* result_buf = malloc(sizeof(*result_buf) * size);
@@ -302,17 +307,22 @@ void broker(int size, int rank, time_t limit) {
 		may_recv_buf[i] = 1;
 	}
 	
-	while (iterating) {
-		// TODO: fill job_q with o_job_q
-
+	while (aborts_sent < size) {
+		writef("%s", "iteration start");
+		
+		// handle outstanding acks from outstanding queue
 		while (job_q->count < job_q->capacity
 					 && o_job_q->count > 0) {
 			qnode_t* n = qbuf_dequeue(o_job_q);
 			qbuf_enqueue(job_q, n->value, n->rank);
-			send_int_nb(&n->value, n->rank);
+			send_int_nb(&RESPONSE_ACK, n->rank);
 			free(n);
 		}
-		
+
+		// handle recv calls; we only
+		// modify the receive buffer for the
+		// process if we haven't toggled
+		// their recv flag off for this iteration
 		for (int i = 1; i < size; ++i) {
 			if (may_recv_buf[i]) {
 				if (request_buf[i] == MPI_REQUEST_NULL) {
@@ -329,6 +339,10 @@ void broker(int size, int rank, time_t limit) {
 			}
 		}
 
+		// ensure that all flags are toggled on
+		// for next iteration (unless the next
+		// messaged received deems that one flag
+		// must be turned off)
 		for (int i = 1; i < size; ++i) {
 			may_recv_buf[i] = 1;
 		}
@@ -346,14 +360,15 @@ void broker(int size, int rank, time_t limit) {
 		_Assert(request_buf[source_rank] == MPI_REQUEST_NULL);
 		_Assert(source_rank != MPI_UNDEFINED);
 			
-		elapsed = get_time() - start;
+		elapsed = get_time_sec() - start;
 			
 		int result = result_buf[source_rank];
 		int response_type = elapsed >= limit ? ABORT : -1;
 			
 		writef("Got %i from %i\n", result, source_rank);
 
-		/* If we've received from a producer */
+		// Check to see if we've received anything
+		// from a producer
 		if (source_rank >= (size / 2)) {
 			_Assert(RANDV_MIN <= result && result < RANDV_MAX);
 					
@@ -363,23 +378,24 @@ void broker(int size, int rank, time_t limit) {
 			} else {
 				if (response_type == ABORT) {
 					send_int_nb(&response_type, source_rank);
-					aborts_sent++;
+					aborts_sent++; 
 				} else {
 					qbuf_enqueue(o_job_q, result, source_rank);
 				}
 			}
-			/* If we've received from a consumer */
+
+		// So we must have received something from a consumer
 		} else if (0 < source_rank && source_rank < (size / 2)) {
 			_Assert(result == REQ_WORK);
 
-			if (response_type == ABORT) {
+			if (response_type == ABORT) { // end state
 				send_int_nb(&response_type, source_rank);
 				aborts_sent++;
-			} else if (job_q->count > 0) {
+			} else if (job_q->count > 0) { // most frequent
 				qnode_t* n = qbuf_dequeue(job_q);
 				send_int_nb(&n->value, source_rank);
 				free(n);
-			} else {
+			} else { // no work available, toggle off for the next iteration
 				int v = NO_WORK;
 				send_int_nb(&v, source_rank);
 
@@ -389,9 +405,7 @@ void broker(int size, int rank, time_t limit) {
 			}
 		}
 						
-		writef("elapsed: %li\n", elapsed);
-
-		iterating = aborts_sent < size;
+		writef("aborts_sent: %i, elapsed: %li\n", aborts_sent, elapsed);
 	}
 }
 
@@ -437,6 +451,7 @@ void producer(int size, int rank) {
 				writef("[%i] abort\n", rank);
 				iterate = 0;
 			} else {
+				writef("[%i] unknown %i\n", rank, ack);
 				_Assert(0);
 			}
 		}
