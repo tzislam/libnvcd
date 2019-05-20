@@ -114,8 +114,6 @@ int dequeue_buffer(int* buffer, int size) {
 }
 
 void enqueue_buffer(int* buffer, int size, int length, int value) {
-	int i = 0;
-
 	_Assert(length < size);
 	buffer[length] = value;
 }
@@ -161,7 +159,7 @@ static int __rank = 0;
 static char __writef_buffer[WRITEFBUFLEN + 1024] = { 0 };
 static int __writef_counter = 0;
 
-void __writef(int rank, const char* func, int line, char* fmt, ...) {
+void __writef(int flush, int rank, const char* func, int line, char* fmt, ...) {
 	{
 		int64_t micro = get_time();
 	
@@ -191,7 +189,7 @@ void __writef(int rank, const char* func, int line, char* fmt, ...) {
 		}
 	}
 
-	if (__writef_counter >= WRITEFBUFLEN) {
+	if (__writef_counter >= WRITEFBUFLEN || flush) {
 		char fname[512] = { 0 };
 
 		sprintf(fname, "mpif_%i.log", rank);
@@ -206,7 +204,8 @@ void __writef(int rank, const char* func, int line, char* fmt, ...) {
 	}
 }
 
-#define writef(fmt, ...) __writef(__rank, __func__, __LINE__, fmt, __VA_ARGS__)
+#define writef(fmt, ...) __writef(0, __rank, __func__, __LINE__, fmt, __VA_ARGS__)
+#define writef_flush(fmt, ...) __writef(1, __rank, __func__, __LINE__, fmt, __VA_ARGS__)
 
 void send_int_nb(int* value, int dest) {
 	MPI_Request req;
@@ -559,7 +558,7 @@ void consumer(int size, int rank) {
 		} 
 	}
 
-	writef("Final consume count: %i\n", consume_count);
+	writef_flush("Final consume count: %i\n", consume_count);
 	
 	MPICALL(MPI_Gather(&consume_count,
 										 1,
