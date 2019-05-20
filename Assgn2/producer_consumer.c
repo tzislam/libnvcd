@@ -104,7 +104,7 @@ int dequeue_buffer(int* buffer, int size) {
 	int b = buffer[0];
 	int i = 0;
 	
-	while (i < size - 1) {
+	while (i < size) {
 		buffer[i] = buffer[i + 1];
 		i++;
 	}
@@ -114,15 +114,11 @@ int dequeue_buffer(int* buffer, int size) {
 	return b;
 }
 
-void enqueue_buffer(int* buffer, int size, int value) {
-	int i = size - 1;
-	
-	while (i >= 1) {
-		buffer[i] = buffer[i - 1];
-		i--;
-	}
+void enqueue_buffer(int* buffer, int size, int length, int value) {
+	int i = 0;
 
-	buffer[0] = value;
+	_Assert(length < size);
+	buffer[length] = value;
 }
 
 enum {
@@ -161,7 +157,7 @@ int randv() {
 
 static int __rank = 0;
 
-#define WRITEFBUFLEN 4096
+#define WRITEFBUFLEN 1024
 
 static char __writef_buffer[WRITEFBUFLEN + 1024] = { 0 };
 static int __writef_counter = 0;
@@ -169,6 +165,7 @@ static int __writef_counter = 0;
 void __writef(int rank, const char* func, int line, char* fmt, ...) {
 	{
 		int64_t micro = get_time();
+	
 		
 		int k = sprintf(&__writef_buffer[__writef_counter],
 										"[%" PRId64 "]: %s %i|",
@@ -186,12 +183,13 @@ void __writef(int rank, const char* func, int line, char* fmt, ...) {
 			l = vsprintf(&__writef_buffer[__writef_counter], fmt, arg);
 			va_end(arg);
 		}
+		
+		__writef_counter += l;
 
 		if (__writef_counter < WRITEFBUFLEN) {
 			strcat(__writef_buffer, "\n");
+			__writef_counter++;
 		}
-		
-		__writef_counter += l;
 	}
 
 	if (__writef_counter >= WRITEFBUFLEN) {
@@ -239,7 +237,9 @@ void broker(int size, int rank, time_t limit) {
 	// once the amount is equal to size,
 	// the loop is finished.
 	int aborts_sent = 1;
-
+	int consumer_aborts_sent = 0;
+	int num_consumers = (size / 2) - 1;
+	
 	MPI_Request* request_buf = malloc(sizeof(*request_buf) * size);
 	int* result_buf = malloc(sizeof(*result_buf) * size);
 	int* may_recv_buf = malloc(sizeof(*may_recv_buf) * size);
@@ -273,7 +273,7 @@ void broker(int size, int rank, time_t limit) {
 			while (job_q_len < size && overflow_q_len > 0) {
 				int v = dequeue_buffer(overflow_q, size);
 				
-				enqueue_buffer(job_q, size, v);
+				enqueue_buffer(job_q, size, job_q_len, v);
 				job_q_len++;
 
 				overflow_q_len--;
@@ -303,14 +303,6 @@ void broker(int size, int rank, time_t limit) {
 				request_buf[i] = MPI_REQUEST_NULL;
 			}
 		}
-
-		// ensure that all flags are toggled on
-		// for next iteration (unless the next
-		// messaged received deems that one flag
-		// must be turned off)
-		for (int i = 1; i < size; ++i) {
-			may_recv_buf[i] = 1;
-		}
 		
 		int source_rank = -1;
 						
@@ -324,7 +316,15 @@ void broker(int size, int rank, time_t limit) {
 		
 		_Assert(request_buf[source_rank] == MPI_REQUEST_NULL);
 		_Assert(source_rank != MPI_UNDEFINED);
-			
+
+		// ensure that all flags are toggled on
+		// for next iteration (unless the next
+		// messaged received deems that one flag
+		// must be turned off)
+		for (int i = 1; i < size; ++i) {
+			may_recv_buf[i] = 1;
+		}
+		
 		elapsed = get_time_sec() - start;
 			
 		int result = result_buf[source_rank];
@@ -338,7 +338,7 @@ void broker(int size, int rank, time_t limit) {
 			_Assert(RANDV_MIN <= result && result < RANDV_MAX);
 					
 			if (job_q_len < size) {
-				enqueue_buffer(job_q, size, result);
+				enqueue_buffer(job_q, size, job_q_len, result);
 				job_q_len++;
 				
 				send_int_nb(&RESPONSE_ACK, source_rank);
@@ -347,31 +347,34 @@ void broker(int size, int rank, time_t limit) {
 					send_int_nb(&response_type, source_rank);
 					aborts_sent++; 
 				} else {
-					_Assert(overflow_q_len < size);
-					
-					enqueue_buffer(overflow_q, size, result);
-					overflow_q_len++;
+					//_Assert(overflow_q_len < size);
+
+					if (overflow_q_len < size) {
+						enqueue_buffer(overflow_q, size, overflow_q_len, result);
+						overflow_q_len++;
+					}
 
 					needs_ack[source_rank] = 1;
 				}
 			}
-
 		// So we must have received something from a consumer
 		} else if (0 < source_rank && source_rank < (size / 2)) {
 			_Assert(result == REQ_WORK);
 
 			if (response_type == ABORT) { // end state
-				send_int_nb(&response_type, source_rank);
+				send_int_nb(&response_type,
+										source_rank);
 				aborts_sent++;
 			} else if (job_q_len > 0) { // most frequent
 				int v = dequeue_buffer(job_q, size);
-				send_int_nb(&v, source_rank);
+				send_int_nb(&v,
+										source_rank);
 				job_q_len--;
 
 				// handle any outstanding acks
 				for (int i = 1; i < size; ++i) {
 					if (needs_ack[i]) {
-						send_int_nb(&RESPONSE_ACK, source_rank);
+						send_int_nb(&RESPONSE_ACK, i);
 						needs_ack[i] = 0;
 					}
 				}
@@ -379,9 +382,19 @@ void broker(int size, int rank, time_t limit) {
 				int v = NO_WORK;
 				send_int_nb(&v, source_rank);
 
-				for (int i = 1; i < (size / 2); ++i) {
-					may_recv_buf[i] = 0;
-				} 
+				may_recv_buf[source_rank] = 0;
+			}
+		}
+
+		// we won't hit outstanding acks if
+		// all the consumers are gone,
+		// which means there won't be anymore aborts
+		if (consumer_aborts_sent == num_consumers) {
+			for (int i = 1; i < size; ++i) {
+				if (needs_ack[i]) {
+					send_int_nb(&RESPONSE_ACK, i);
+					needs_ack[i] = 0;
+				}
 			}
 		}
 						
@@ -397,20 +410,24 @@ void producer(int size, int rank) {
 	while (iterate) {
 		int v = randv();
 
-		MPI_Request req;
-		MPICALL(MPI_Isend(&v,
-											1,
-											MPI_INT,
-											0,
-											TAG,
-											MPI_COMM_WORLD,
-											&req));
+		{
+			MPI_Request req = MPI_REQUEST_NULL;
 
-		MPICALL(MPI_Wait(&req,
-										 MPI_STATUS_IGNORE));
+			MPICALL(MPI_Isend(&v,
+												1,
+												MPI_INT,
+												0,
+												TAG,
+												MPI_COMM_WORLD,
+												&req));
+
+			MPICALL(MPI_Wait(&req,
+											 MPI_STATUS_IGNORE));
+		}
 		
 		{
 			int ack;
+			MPI_Request req = MPI_REQUEST_NULL;
 			
 			MPICALL(MPI_Irecv(&ack,
 												1,
@@ -423,7 +440,6 @@ void producer(int size, int rank) {
 			MPICALL(MPI_Wait(&req, MPI_STATUS_IGNORE));
 
 			_Assert(req == MPI_REQUEST_NULL);
-
 			
 			if (ack == ACK) {
 				writef("[%i] ack\n", rank);
@@ -446,11 +462,11 @@ void consumer(int size, int rank) {
 	int QUERY = REQ_WORK;
 	
 	while (iterate) {
-		MPI_Request req = MPI_REQUEST_NULL;
-		MPI_Status stat = { 0 };
 		int result = 0;
 		
 		{
+			MPI_Request req = MPI_REQUEST_NULL;
+			
 			MPICALL(MPI_Isend(&QUERY,
 												1,
 												MPI_INT,
@@ -459,10 +475,12 @@ void consumer(int size, int rank) {
 												MPI_COMM_WORLD,
 												&req));
 
-			MPICALL(MPI_Wait(&req, &stat));
+			MPICALL(MPI_Wait(&req, MPI_STATUS_IGNORE));
 		}
 		
 		{
+			MPI_Request req = MPI_REQUEST_NULL;
+			
 			MPICALL(MPI_Irecv(&result,
 												1,
 												MPI_INT,
@@ -471,7 +489,7 @@ void consumer(int size, int rank) {
 												MPI_COMM_WORLD,
 												&req));
 			
-			MPICALL(MPI_Wait(&req, &stat));
+			MPICALL(MPI_Wait(&req, MPI_STATUS_IGNORE));
 
 			_Assert(req == MPI_REQUEST_NULL);
 		}
