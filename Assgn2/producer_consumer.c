@@ -10,54 +10,19 @@
 #include <stdarg.h>
 #include <inttypes.h>
 
-#define ST_PRINT_BUF_SZ 4096
+// NOTE
+//
+// There's a fair amount of calls to things like "writef",
+// or printf calls. writef writes out to its own file, is buffered,
+// and is a macro that's stubbed out by default.
+//
+// The user will only see the single desired message indicating the number
+// of processes captured, or fatal error messages.
+//
 
-#define TAG 123
-
-static void stacktrace() {
-#ifdef __linux__
-	void* buffer[10] = { NULL };
-	int num_written = backtrace(buffer, 10);
-
-	if (num_written > 0) {
-		char** syms = backtrace_symbols(buffer, num_written);
-		if (syms != NULL) {
-			char buffer[ST_PRINT_BUF_SZ] = {0};
-			size_t chars_written = 0;
-
-			for (int i = 0; i < num_written; ++i) {
-				char tmp[256] = {0};
-
-				chars_written += (size_t) snprintf(
-						tmp, 
-						sizeof(tmp), 
-						"[%i] %s\n", 
-						i, 
-						syms[i]
-						);
-
-				if (chars_written < ST_PRINT_BUF_SZ) {
-					strcat(buffer, tmp);
-				}
-			}
-
-			printf("STACKTRACE\n====\n%s\n====\n", buffer); 
-
-			free(syms);
-		} else {
-			perror("backtrace_symbols");
-		}
-	} else {
-		/*  
-		 * these may be useless: man pages are 
-		 * a bit vague wrt backtrace errors 
-		 */
-		perror("backtrace");
-	}
-#endif
-}
-
-static jmp_buf _jmp_buf;
+//
+// Error checking
+//
 
 void assert_impl(int cond, const char* expr, const char* file, int line) {
 	if (!cond) {
@@ -98,7 +63,26 @@ void mpicall_impl(int error_code, const char* expr, int line) {
 
 #define MPICALL(expr) mpicall_impl(expr, #expr, __LINE__)
 
+//
+// Constants
+//
+
+#define TAG 123
 #define QNULL -1
+
+enum {
+	ABORT = 0,
+	ACK = 1,
+	REQ_WORK = 2,
+	NO_WORK = 3,
+
+	RANDV_MIN = 16,
+	RANDV_MAX = 2048
+};
+
+//
+// Queue
+//
 
 int dequeue_buffer(int* buffer, int size) {
 	int b = buffer[0];
@@ -118,15 +102,9 @@ void enqueue_buffer(int* buffer, int size, int length, int value) {
 	buffer[length] = value;
 }
 
-enum {
-	ABORT = 0,
-	ACK = 1,
-	REQ_WORK = 2,
-	NO_WORK = 3,
-
-	RANDV_MIN = 16,
-	RANDV_MAX = 2048
-};
+//
+// Misc util
+//
 
 int64_t get_time() {
 	struct timespec tms = {0};
@@ -143,7 +121,6 @@ time_t get_time_sec() {
 	return time(NULL);
 }
 
-static int __tmp = RANDV_MIN;
 int randv() {
 	uint32_t tt = (uint32_t)(get_time() & 0xFFFFFFFF);
 	
@@ -151,6 +128,29 @@ int randv() {
 	
 	return RANDV_MIN + rand() % (RANDV_MAX - RANDV_MIN);
 }
+
+void send_int_nb(int* value, int dest) {
+	MPI_Request req;
+
+	MPICALL(MPI_Isend(value,
+										1,
+										MPI_INT,
+										dest,
+										TAG,
+										MPI_COMM_WORLD,
+										&req));
+
+	MPICALL(MPI_Wait(&req,
+									 MPI_STATUS_IGNORE));
+	
+	_Assert(req == MPI_REQUEST_NULL);
+}
+
+//
+// Used for debugging
+//
+
+#ifdef LOG_INFO
 
 static int __rank = 0;
 
@@ -207,23 +207,20 @@ void __writef(int flush, int rank, const char* func, int line, char* fmt, ...) {
 #define writef(fmt, ...) __writef(0, __rank, __func__, __LINE__, fmt, __VA_ARGS__)
 #define writef_flush(fmt, ...) __writef(1, __rank, __func__, __LINE__, fmt, __VA_ARGS__)
 
-void send_int_nb(int* value, int dest) {
-	MPI_Request req;
+#else
 
-	MPICALL(MPI_Isend(value,
-										1,
-										MPI_INT,
-										dest,
-										TAG,
-										MPI_COMM_WORLD,
-										&req));
+#define writef(fmt, ...) 
+#define writef_flush(fmt, ...)
 
-	MPICALL(MPI_Wait(&req,
-									 MPI_STATUS_IGNORE));
-	
-	_Assert(req == MPI_REQUEST_NULL);
-}
+#endif // LOG_INFO
 
+
+// If this were 1998 the code
+// would be considered acceptable
+// as far as the amount of lines
+// this function takes up.
+// Apologies, been a long week.
+// Is commented.
 void broker(int size, int rank, time_t limit) {
 	_Assert(rank == 0);
 	time_t start = get_time_sec();
@@ -237,12 +234,13 @@ void broker(int size, int rank, time_t limit) {
 	int aborts_sent = 1;
 	int consumer_aborts_sent = 0;
 	int num_consumers = (size / 2) - 1;
-	
+
+	// All heap allocated memory is here (that's used in the main loop)
 	MPI_Request* request_buf = malloc(sizeof(*request_buf) * size);
 	int* result_buf = malloc(sizeof(*result_buf) * size);
 	int* may_recv_buf = malloc(sizeof(*may_recv_buf) * size);
 	int* needs_ack = malloc(sizeof(*needs_ack) * size);
-	int* job_q = malloc(sizeof(*job_q) * size);
+	int* job_q = malloc(sizeof(*job_q) * size); 
 	int* overflow_q = malloc(sizeof(*overflow_q) * size);
 	
 	_Assert(request_buf != NULL);
@@ -252,9 +250,11 @@ void broker(int size, int rank, time_t limit) {
 	_Assert(job_q != NULL);
 	_Assert(overflow_q != NULL);
 
+	// needed to ensure we don't overflow
 	int job_q_len = 0;
 	int overflow_q_len = 0;
-	
+
+	// initialization data
 	for (int i = 1; i < size; ++i) {
 		request_buf[i] = MPI_REQUEST_NULL;
 		result_buf[i] = -1;
@@ -265,6 +265,9 @@ void broker(int size, int rank, time_t limit) {
 	}
 	
 	while (aborts_sent < size) {
+		// Uses buffered output and writes to a
+		// separate file - this won't print to
+		// stdout
 		writef("%s", "iteration start");
 
 		// Assuming our job_q isn't full,
@@ -313,7 +316,9 @@ void broker(int size, int rank, time_t limit) {
 												&source_rank,
 												MPI_STATUS_IGNORE));
 
-		// add one to offset the difference
+		// add one to offset the difference,
+		// since we don't care about the root's 
+		// index for these buffers
 		source_rank++;
 		
 		_Assert(request_buf[source_rank] == MPI_REQUEST_NULL);
@@ -419,6 +424,7 @@ void broker(int size, int rank, time_t limit) {
 	// Handle count report
 	{
 		int dummy = 0;
+		
 		int* consumed_counts = calloc(size, sizeof(*consumed_counts));
 		_Assert(consumed_counts != NULL);
 		
@@ -438,6 +444,7 @@ void broker(int size, int rank, time_t limit) {
 		
 		free(consumed_counts);
 
+		// The only message the user sees (unless there's an error)
 		printf("Total number of messages consumed: %i\n", total);
 	}
 }
@@ -494,6 +501,11 @@ void producer(int size, int rank) {
 		}
 	}
 
+	// It's thought that MPI_Gather uses an implicit
+	// barrier, hence why we ensure all processes
+	// call it, even if they have no useful information to send -
+	// I'm sure the spec itself has more information, but
+	// time is of the essence.
 	{
 		int dummy = 0;
 
@@ -562,6 +574,10 @@ void consumer(int size, int rank) {
 
 	writef_flush("Final consume count: %i\n", consume_count);
 
+	// Dump each consumer process result
+	// and compare the sum with stdout (the comparison
+	// is performed manually, this just makes the data
+	// easier to access)
 	{
 		char buffer[256] = { 0 };
 		sprintf(buffer, "%i\n", consume_count);
@@ -576,7 +592,8 @@ void consumer(int size, int rank) {
 
 		fclose(f);
 	}
-	
+
+	// Gather consume count
 	MPICALL(MPI_Gather(&consume_count,
 										 1,
 										 MPI_INT,
@@ -599,7 +616,9 @@ int main(int argc, char** argv) {
 
 	writef("size: %i", size);
 
+#ifdef LOG_INFO
 	__rank = rank;
+#endif
 	
 	_Assert(size == 4 ||
 					size == 8 ||
