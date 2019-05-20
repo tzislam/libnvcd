@@ -98,102 +98,31 @@ void mpicall_impl(int error_code, const char* expr, int line) {
 
 #define MPICALL(expr) mpicall_impl(expr, #expr, __LINE__)
 
-typedef struct qnode qnode_t;
+#define QNULL -1
 
-struct qnode {
-	qnode_t* next;
-	int value;
-	int rank;
-};
-
-typedef struct qbuf {
-	qnode_t* head;
-	qnode_t* tail;
-
-	int count;
-	int capacity;
-} qbuf_t;
-
-qnode_t* qnode_make(int v, int r) {
-	qnode_t* qn = malloc(sizeof(qnode_t));
-	_Assert(qn != NULL);
-
-	qn->value = v;
-	qn->rank = r;
-	qn->next = NULL;
+int dequeue_buffer(int* buffer, int size) {
+	int b = buffer[0];
+	int i = 0;
 	
-	return qn;
-}
-
-void qbuf_free(qbuf_t** pq) {
-	qbuf_t* q = *pq;
-	_Assert(q != NULL);
-
-	qnode_t* h = q->head;
-	
-	while (h != NULL) {
-		if (h->next == NULL) {
-			_Assert(h == q->tail);
-		}
-
-		qnode_t* tmp = h->next;
-
-		free(h);
-
-		h = tmp;
+	while (i < size - 1) {
+		buffer[i] = buffer[i + 1];
+		i++;
 	}
 
-	free(q);
-	*pq = NULL;
+	buffer[size - 1] = QNULL;
+
+	return b;
 }
 
-qnode_t* qbuf_dequeue(qbuf_t* q) {
-	_Assert(q != NULL);
-	_Assert(q->head != NULL
-				 && q->tail != NULL);
-	_Assert(q->count > 0);
-
-	qnode_t* n = q->head;
-	q->head = q->head->next;
-
-	if (q->head == NULL) {
-		q->tail = NULL;
-	}
+void enqueue_buffer(int* buffer, int size, int value) {
+	int i = size - 1;
 	
-	n->next = NULL;
-	
-	q->count--;
-	
-	return n;
-}
-
-void qbuf_enqueue(qbuf_t* q, int v, int r) {
-	_Assert(q != NULL);
-	_Assert(q->count < q->capacity);
-	
-	qnode_t* t = qnode_make(v, r);
-	
-	if (q->head == NULL || q->tail == NULL) {
-		_Assert(q->head == NULL && q->tail == NULL);
-
-		q->head = q->tail = t;
-	} else {
-		q->tail->next = t;
-		q->tail = t;
+	while (i >= 1) {
+		buffer[i] = buffer[i - 1];
+		i--;
 	}
 
-	q->count++;
-}
-
-qbuf_t* qbuf_make(int size) {
-	qbuf_t* q = malloc(sizeof(qbuf_t));
-	_Assert(q != NULL);
-
-	q->head = NULL;
-	q->tail = NULL;
-	
-	q->capacity = size;
-	q->count = 0;
+	buffer[0] = value;
 }
 
 enum {
@@ -240,11 +169,17 @@ static int __writef_counter = 0;
 void __writef(int rank, const char* func, int line, char* fmt, ...) {
 	{
 		int64_t micro = get_time();
-		int k = sprintf(&__writef_buffer[__writef_counter], "[%" PRId64 "]: %s %i|", micro, func, line);
+		
+		int k = sprintf(&__writef_buffer[__writef_counter],
+										"[%" PRId64 "]: %s %i|",
+										micro,
+										func,
+										line);
 
 		__writef_counter += k;
 		
 		int l = 0;
+
 		{
 			va_list arg;
 			va_start(arg, fmt);
@@ -252,6 +187,10 @@ void __writef(int rank, const char* func, int line, char* fmt, ...) {
 			va_end(arg);
 		}
 
+		if (__writef_counter < WRITEFBUFLEN) {
+			strcat(__writef_buffer, "\n");
+		}
+		
 		__writef_counter += l;
 	}
 
@@ -291,10 +230,6 @@ void send_int_nb(int* value, int dest) {
 
 void broker(int size, int rank, time_t limit) {
 	_Assert(rank == 0);
-
-	qbuf_t* job_q = qbuf_make(size);
-	qbuf_t* o_job_q = qbuf_make(size);
-
 	time_t start = get_time_sec();
 	time_t elapsed = get_time_sec() - start;
 
@@ -308,38 +243,43 @@ void broker(int size, int rank, time_t limit) {
 	MPI_Request* request_buf = malloc(sizeof(*request_buf) * size);
 	int* result_buf = malloc(sizeof(*result_buf) * size);
 	int* may_recv_buf = malloc(sizeof(*may_recv_buf) * size);
+	int* needs_ack = malloc(sizeof(*needs_ack) * size);
+	int* job_q = malloc(sizeof(*job_q) * size);
+	int* overflow_q = malloc(sizeof(*overflow_q) * size);
 	
 	_Assert(request_buf != NULL);
 	_Assert(result_buf != NULL);
 	_Assert(may_recv_buf != NULL);
- 
+	_Assert(needs_ack != NULL);
+	_Assert(job_q != NULL);
+	_Assert(overflow_q != NULL);
+
+	int job_q_len = 0;
+	int overflow_q_len = 0;
+	
 	for (int i = 1; i < size; ++i) {
 		request_buf[i] = MPI_REQUEST_NULL;
 		result_buf[i] = -1;
 		may_recv_buf[i] = 1;
+		needs_ack[i] = 0;
+		job_q[i] = QNULL;
+		overflow_q[i] = QNULL;
 	}
 	
 	while (aborts_sent < size) {
 		writef("%s", "iteration start");
 
-		volatile int k = 0;
-		// handle outstanding acks from outstanding queue
-		while (job_q->count < job_q->capacity
-					 && o_job_q->count > 0) {
-			
-			qnode_t* n = qbuf_dequeue(o_job_q);
-			qbuf_enqueue(job_q, n->value, n->rank);
+		if (job_q_len < size) {
+			while (job_q_len < size && overflow_q_len > 0) {
+				int v = dequeue_buffer(overflow_q, size);
+				
+				enqueue_buffer(job_q, size, v);
+				job_q_len++;
 
-			writef("[%i] outstanding for (value, rank) = (%i, %i): sending ack\n",
-						 k,
-						 n->value,
-						 n->rank);
-			
-			send_int_nb(&RESPONSE_ACK, n->rank);
-
-			free(n);
+				overflow_q_len--;
+			}
 		}
-
+		
 		// handle recv calls; we only
 		// modify the receive buffer for the
 		// process if we haven't toggled
@@ -397,15 +337,22 @@ void broker(int size, int rank, time_t limit) {
 		if (source_rank >= (size / 2)) {
 			_Assert(RANDV_MIN <= result && result < RANDV_MAX);
 					
-			if (job_q->count < job_q->capacity) {
-				qbuf_enqueue(job_q, result, source_rank);
+			if (job_q_len < size) {
+				enqueue_buffer(job_q, size, result);
+				job_q_len++;
+				
 				send_int_nb(&RESPONSE_ACK, source_rank);
 			} else {
 				if (response_type == ABORT) {
 					send_int_nb(&response_type, source_rank);
 					aborts_sent++; 
 				} else {
-					qbuf_enqueue(o_job_q, result, source_rank);
+					_Assert(overflow_q_len < size);
+					
+					enqueue_buffer(overflow_q, size, result);
+					overflow_q_len++;
+
+					needs_ack[source_rank] = 1;
 				}
 			}
 
@@ -416,10 +363,18 @@ void broker(int size, int rank, time_t limit) {
 			if (response_type == ABORT) { // end state
 				send_int_nb(&response_type, source_rank);
 				aborts_sent++;
-			} else if (job_q->count > 0) { // most frequent
-				qnode_t* n = qbuf_dequeue(job_q);
-				send_int_nb(&n->value, source_rank);
-				free(n);
+			} else if (job_q_len > 0) { // most frequent
+				int v = dequeue_buffer(job_q, size);
+				send_int_nb(&v, source_rank);
+				job_q_len--;
+
+				// handle any outstanding acks
+				for (int i = 1; i < size; ++i) {
+					if (needs_ack[i]) {
+						send_int_nb(&RESPONSE_ACK, source_rank);
+						needs_ack[i] = 0;
+					}
+				}
 			} else { // no work available, toggle off for the next iteration
 				int v = NO_WORK;
 				send_int_nb(&v, source_rank);
