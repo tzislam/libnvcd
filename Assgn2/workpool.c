@@ -244,13 +244,22 @@ void __writef(int flush, int rank, const char* func, int line, char* fmt, ...) {
 
 void workpool(int size, int rank, time_t limit) {
 	time_t start = get_time_sec();
-	time_t elapsed = start;
+	time_t elapsed = 0;
 
 	int consumed_counter = 0;
 
 	const int RANK_ROOT = 0;
+
+	writef_flush("size: %i, rank: %i, limit: %li\n",
+							 size,
+							 rank,
+							 limit);
+
+	int abort = 0;
 	
-	while (elapsed < limit) {
+	while (elapsed < limit && !abort) {
+		writef_flush("[%i] iteration start. elapsed: %li\n", rank, elapsed);
+		
 		int v = randv();
 		
 		int dest = rank;
@@ -272,10 +281,17 @@ void workpool(int size, int rank, time_t limit) {
 												&req));
 
 			MPICALL(MPI_Wait(&req, MPI_STATUS_IGNORE));
+
+			writef_flush("[%i] sending %i to %i\n",
+						 rank,
+						 v,
+						 dest);
 		}
 
 		int ack_received = 0;
 		while (!ack_received) {
+			writef_flush("[%i] ack iteration start\n", rank);
+			
 			int result = -1;
 			MPI_Status status = { 0 };
 			
@@ -296,8 +312,14 @@ void workpool(int size, int rank, time_t limit) {
 			}
 
 			switch (result) {
+			case ABORT:
+				abort = 1;
+				ack_received = 1; // ensure we leave the loop
+				break;
+				
 			case ACK:
 				ack_received = 1;
+				writef_flush("[%i] ack received\n", rank);
 				break;
 			default: {
 				_Assert(RANDV_MIN <= result && result < RANDV_MAX);
@@ -318,11 +340,32 @@ void workpool(int size, int rank, time_t limit) {
 				_Assert(req == MPI_REQUEST_NULL);
 
 				consumed_counter++;
+
+				writef_flush("[%i] counter: %i\n", rank, consumed_counter);
 			}
 			}
 		}
 		
 		elapsed = get_time_sec() - start;
+	}
+
+	// ensure all other processes know it's time to abort
+	{
+		int msg = ABORT;
+	
+		for (int i = 0; i < size; ++i) {
+			MPI_Request req = MPI_REQUEST_NULL;
+			
+			MPICALL(MPI_Isend(&msg,
+												1,
+												MPI_INT,
+												i,
+												TAG,
+												MPI_COMM_WORLD,
+												&req));
+
+			MPICALL(MPI_Wait(&req, MPI_STATUS_IGNORE));
+		}
 	}
 
 	// used for sum verification
@@ -371,7 +414,7 @@ int main(int argc, char** argv) {
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
-	writef("size: %i", size);
+	writef_flush("size: %i", size);
 
 #ifdef LOG_INFO
 	__rank = rank;
@@ -385,9 +428,11 @@ int main(int argc, char** argv) {
 	time_t limit = strtol(argv[1], NULL, 10);
 	//_Assert(limit == 1);
 
+	printf("limit: %li\n", limit);
+	
 	workpool(size, rank, limit);
 	
-	writef("%s", "hit barrier");
+	writef_flush("%s", "hit barrier");
 	
 	MPI_Barrier(MPI_COMM_WORLD);
 	
