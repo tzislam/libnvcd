@@ -1,7 +1,6 @@
 #!/bin/bash
 
 rm -f *.log
-rm -rf sim*
 
 t=120
 
