@@ -14,7 +14,8 @@
 //
 // There's a fair amount of calls to things like "writef",
 // or printf calls. writef writes out to its own file, is buffered,
-// and is a macro that's stubbed out by default.
+// and is a macro that's stubbed out by default (unless LOG_INFO is defined,
+//                                               nothing will happen).
 //
 // The user will only see the single desired message indicating the number
 // of processes captured, or fatal error messages.
