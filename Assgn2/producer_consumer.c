@@ -268,6 +268,9 @@ void broker(int size, int rank, time_t limit) {
 	while (aborts_sent < size) {
 		writef("%s", "iteration start");
 
+		// Assuming our job_q isn't full,
+		// check the overflow_q and transfer
+		// any values over
 		if (job_q_len < size) {
 			while (job_q_len < size && overflow_q_len > 0) {
 				int v = dequeue_buffer(overflow_q, size);
@@ -356,7 +359,7 @@ void broker(int size, int rank, time_t limit) {
 					needs_ack[source_rank] = 1;
 				}
 			}
-		// So we must have received something from a consumer
+		// No, so we must have received something from a consumer
 		} else if (0 < source_rank && source_rank < (size / 2)) {
 			_Assert(result == REQ_WORK);
 
@@ -388,7 +391,9 @@ void broker(int size, int rank, time_t limit) {
 
 		// we won't hit outstanding acks if
 		// all the consumers are gone,
-		// which means there won't be anymore aborts
+		// which means there won't be anymore aborts,
+		// so we ensure that in this event that
+		// we clean things up...
 		if (consumer_aborts_sent == num_consumers) {
 			for (int i = 1; i < size; ++i) {
 				if (needs_ack[i]) {
@@ -399,6 +404,41 @@ void broker(int size, int rank, time_t limit) {
 		}
 						
 		writef("aborts_sent: %i, elapsed: %li\n", aborts_sent, elapsed);
+	}
+
+	// Free main heap memory
+	{
+		free(request_buf);
+		free(result_buf);
+		free(may_recv_buf);
+		free(needs_ack);
+		free(job_q);
+		free(overflow_q);
+	}
+	
+	// Handle count report
+	{
+		int dummy = 0;
+		int* consumed_counts = calloc(size, sizeof(*consumed_counts));
+		_Assert(consumed_counts != NULL);
+		
+		MPICALL(MPI_Gather(&dummy,
+											 1,
+											 MPI_INT,
+											 consumed_counts,
+											 1,
+											 MPI_INT,
+											 0,
+											 MPI_COMM_WORLD));
+
+		int total = 0;
+		for (int i = 0; i < size; ++i) {
+			total += consumed_counts[i];
+		}
+		
+		free(consumed_counts);
+
+		printf("Total number of messages consumed: %i\n", total);
 	}
 }
 
@@ -451,6 +491,19 @@ void producer(int size, int rank) {
 				_Assert(0);
 			}
 		}
+	}
+
+	{
+		int dummy = 0;
+
+		MPICALL(MPI_Gather(&dummy,
+											 1,
+											 MPI_INT,
+											 NULL,
+											 1,
+											 MPI_INT,
+											 0,
+											 MPI_COMM_WORLD));
 	}
 }
 
@@ -505,6 +558,17 @@ void consumer(int size, int rank) {
 			consume_count++;
 		} 
 	}
+
+	writef("Final consume count: %i\n", consume_count);
+	
+	MPICALL(MPI_Gather(&consume_count,
+										 1,
+										 MPI_INT,
+										 NULL,
+										 1,
+										 MPI_INT,
+										 0,
+										 MPI_COMM_WORLD));
 }
 
 int main(int argc, char** argv) {
