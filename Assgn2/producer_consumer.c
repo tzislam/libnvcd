@@ -559,6 +559,21 @@ void consumer(int size, int rank) {
 	}
 
 	writef_flush("Final consume count: %i\n", consume_count);
+
+	{
+		char buffer[256] = { 0 };
+		sprintf(buffer, "%i\n", consume_count);
+
+		char fname[64] = { 0 };
+		sprintf(fname, "./rank_%i.log", rank);
+
+		FILE* f = fopen(fname, "wb");
+		_Assert(f != NULL);
+
+		fprintf(f, "%s", buffer);
+
+		fclose(f);
+	}
 	
 	MPICALL(MPI_Gather(&consume_count,
 										 1,
