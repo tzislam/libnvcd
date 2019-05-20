@@ -1,0 +1,4 @@
+For n = 4: 65048 messages per second
+For n = 8: 110444 messages per second
+For n = 12: 146851 messages per second
+For n = 16: 103162 messages per second
