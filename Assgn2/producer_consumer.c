@@ -501,11 +501,11 @@ void consumer(int size, int rank) {
 					 consume_count,
 					 result);
 
-		if (result != NO_WORK) {
-			consume_count++;
-		} else if (result == ABORT) {
+		if (result == ABORT) {
 			iterate = 0;
-		}
+		} else if (result != NO_WORK) {
+			consume_count++;
+		} 
 	}
 }
 
@@ -519,6 +519,8 @@ int main(int argc, char** argv) {
 	MPI_Comm_size(MPI_COMM_WORLD, &size);
 	MPI_Comm_rank(MPI_COMM_WORLD, &rank);
 
+	writef("size: %i", size);
+
 	__rank = rank;
 	
 	_Assert(size == 4 ||
@@ -527,7 +529,7 @@ int main(int argc, char** argv) {
 					size == 16);
 
 	time_t limit = strtol(argv[1], NULL, 10);
-	_Assert(limit == 1);
+	//_Assert(limit == 1);
 
 	if (rank == 0) {
 		broker(size, rank, limit);
@@ -536,6 +538,8 @@ int main(int argc, char** argv) {
 	} else {
 		consumer(size, rank);
 	}
+
+	writef("%s", "hit barrier");
 	
 	MPI_Barrier(MPI_COMM_WORLD);
 	
