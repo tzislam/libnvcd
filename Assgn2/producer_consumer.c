@@ -6,6 +6,7 @@
 #include <setjmp.h>
 #include <execinfo.h>
 #include <string.h>
+
 #include <stdarg.h>
 #include <inttypes.h>
 
@@ -209,6 +210,7 @@ time_t get_time() {
 	return time(NULL);
 }
 
+
 static int __tmp = RANDV_MIN;
 int randv() {
 	//	srand(time(NULL));
@@ -222,31 +224,37 @@ static int __rank = 0;
 
 void __writef(int rank, const char* func, int line, char* fmt, ...) {
 	char buffer[4096] = { 0 };
-	struct timespec tms = {0};
+	{
+		struct timespec tms = {0};
 	
-	clock_gettime(CLOCK_REALTIME, &tms);
+		clock_gettime(CLOCK_REALTIME, &tms);
 
-	int64_t micro = tv.sec * 1000000;
-	micro += tv.n_sec / 1000;
+		int64_t micro = tms.tv_sec * 1000000;
+		micro += tms.tv_nsec / 1000;
 
-	int k = sprintf("[%" PRId64 "]:%s:%i|", micro, func, line);
+		int k = sprintf(&buffer[0], "[%" PRId64 "]: %s %i|", micro, func, line);
 
-	va_list arg;
-	va_start(arg, fmt);
-	vsprintf(&buffer[k], fmt, arg);
-	va_end(arg);
+		{
+			va_list arg;
+			va_start(arg, fmt);
+			vsprintf(&buffer[k], fmt, arg);
+			va_end(arg);
+		}
+	}
 	
-	char fname[512] = { 0 };
+	{
+		char fname[512] = { 0 };
 
-	sprintf(fname, "mpif_%i.log", rank);
+		sprintf(fname, "mpif_%i.log", rank);
 	
-	FILE* f = fopen(fname);
-	_Assert(f != NULL);
-	fprintf(f, "%s\n", buffer);
-	fclose(f);
+		FILE* f = fopen(fname, "ab+");
+		_Assert(f != NULL);
+		fprintf(f, "%s\n", buffer);
+		fclose(f);
+	}
 }
 
-#define writef(fmt, ...) __writef(__rank, __FUNC__, __LINE__, fmt, __VA_ARGS__)
+#define writef(fmt, ...) __writef(__rank, __func__, __LINE__, fmt, __VA_ARGS__)
 
 void send_int_nb(int* value, int dest) {
 	MPI_Request req;
@@ -439,7 +447,6 @@ void consumer(int size, int rank) {
 	_Assert(0 < rank && rank < (size / 2));
 
 	int consume_count = 0;
-
 	int iterate = 1;
 	int QUERY = REQ_WORK;
 	
