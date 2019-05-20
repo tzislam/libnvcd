@@ -1,9 +1,12 @@
 import os
+import sys
 
 counts = [4, 8, 12, 16]
 sims = 5
 time = 120
-prefix = 'wp'
+prefix = sys.stdin.read().strip()
+
+print('prefix: %s' % prefix)
 
 avgs = []
 
