@@ -365,6 +365,7 @@ void broker(int size, int rank, time_t limit) {
 				send_int_nb(&response_type,
 										source_rank);
 				aborts_sent++;
+				consumer_aborts_sent++;
 			} else if (job_q_len > 0) { // most frequent
 				int v = dequeue_buffer(job_q, size);
 				send_int_nb(&v,
