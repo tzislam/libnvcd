@@ -1,7 +1,6 @@
 #!/bin/bash
 
 rm -f *.log
-rm -rf sim*
 
 t=120
 
@@ -25,3 +24,6 @@ do
 
     cd ../
 done
+
+echo "pc" | python3 minmax.py > pc_minmax
+echo "pc" | python3 average.py > pc_avg
