@@ -21,7 +21,7 @@ bx <- barplot(m, beside=T, ylim=c(0, 150000),
         xlab="Number of processes", ylab="Messages per second",
         main="Average, min, and max")
 
-legend("topleft", c("pc","wp"), pch=20, 
+legend("topleft", c("producer, consumer","workpool"), pch=20, 
        col=c("cyan","red"), 
        bty="n")
 
