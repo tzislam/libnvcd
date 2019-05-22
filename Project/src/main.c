@@ -9,6 +9,8 @@
 #include <cuda_runtime.h>
 #include <sys/time.h>
 
+#include <inttypes.h>
+
 #ifndef ENV_PREFIX
 #define ENV_PREFIX "BENCH_"
 #endif
@@ -30,6 +32,7 @@ static cupti_event_data_t g_cupti_events_2x = {
 	.event_id_buffer = NULL, // event_id_buffer
 	NULL, // event_counter_buffer
 	NULL, // num_events_per_group
+	.num_events_read_per_group = NULL,
 	NULL, // num_instances_per_group
 	NULL, // event_counter_buffer_offsets
 	NULL, // event_id_buffer_offsets
@@ -72,6 +75,11 @@ void collect_group_events(cupti_event_data_t* e) {
 																					&ib_size,
 																					&e->event_id_buffer[ib_offset],
 																					&ids_read));
+
+		printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
+					 i,
+					 ids_read,
+					 (size_t) e->num_events_per_group[i]);
 	}
 }
 
@@ -115,12 +123,7 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 			CUPTI_FN(cuptiDeviceGetTimestamp(event_data->context,
 																			 &event_data->stage_time_nsec_end));
 			
-			uint32_t num_instances = 0;
-			size_t value_size = sizeof(num_instances);
-			CUPTI_FN(cuptiEventGroupGetAttribute(event_data->context,
-																					 CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
-																					 &value_size, &num_instances));
-			
+			collect_group_events(event_data);			
 			
 		} break;
 
@@ -278,6 +281,9 @@ void init_cupti_event_data(CUcontext ctx,
 	{
 		e->num_events_per_group = zallocNN(sizeof(e->num_events_per_group[0]) *
 																			 e->num_event_groups);
+
+		e->num_events_read_per_group = zallocNN(sizeof(e->num_events_read_per_group[0]) *
+																						e->num_event_groups);
 		
 		e->num_instances_per_group = zallocNN(sizeof(e->num_instances_per_group[0]) *
 																					e->num_event_groups);
@@ -383,7 +389,6 @@ void free_cupti_event_data(cupti_event_data_t* e) {
 	// initialized in the .data section,
 	// or a subset. Should add a flag to determine
 	// whether or not the data needs to be freed.
-	
 	memset(e, 0, sizeof(*e));
 }
 
@@ -407,7 +412,7 @@ CUcontext cuda_get_context() {
 	if (g_cuda_context == NULL) {
 		CUDA_DRIVER_FN(cuCtxCreate(&g_cuda_context, 0, cuda_get_device()));
 	}
-
+	
 	return g_cuda_context;
 }
 
@@ -554,7 +559,7 @@ void env_var_list_scan(const char* var,
 }
 
 char** env_var_list_read(const char* env_var_value, size_t* count) {
-	struct env_var_list_scan_ctx ctx = {0};
+	struct env_var_list_scan_ctx ctx = { 0 };
 	
 	env_var_list_scan(env_var_value,
 										env_var_list_count_entry,
@@ -728,11 +733,6 @@ void cupti_benchmark_start() {
 }
 
 void cupti_benchmark_end() {
-	profile_data_t* data = default_profile_data();
-	
-	data->time = profile_time() - data->start;
-
-	printf("time taken: %" PTIME_FMT ".\n", data->time);	
 }
 
 void cleanup() {
@@ -752,12 +752,12 @@ int main() {
 
 	int threads = 1024;
 	
-	//	cupti_benchmark_start(threads);
+	cupti_benchmark_start();
 
 	clock64_t* thread_times = zallocNN(sizeof(thread_times[0]) * threads);
 	gpu_test_matrix_vec_mul(threads, thread_times);
 	
-	//	gpu_test();
+	gpu_test();
 	
 	CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
@@ -765,9 +765,9 @@ int main() {
 		printf("[%i] time: %llu\n", i, thread_times[i]);
 	}
 	
-	//cupti_benchmark_end();
+	cupti_benchmark_end();
 
-	//cleanup();
+	cleanup();
 	
 	return 0;
 }

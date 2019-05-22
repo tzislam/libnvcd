@@ -20,6 +20,7 @@ typedef struct cupti_event_data {
 
 	// indexed strictly per group, constant size
 	uint32_t* num_events_per_group;
+	uint32_t* num_events_read_per_group;
 	uint32_t* num_instances_per_group;
 	uint32_t* event_counter_buffer_offsets;
 	uint32_t* event_id_buffer_offsets;
