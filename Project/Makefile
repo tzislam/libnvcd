@@ -7,7 +7,7 @@ CUPTI := $(CUDA_HOME)/extras/CUPTI
 
 INCLUDE=-I./include -I$(CUPTI)/include
 
-CC_FLAGS=--compiler-options "-Wall -Werror -g -ggdb -std=c99"
+CC_FLAGS=--compiler-options "-Wall -Werror -g -ggdb -std=gnu99"
 
 ARCH=-arch=$(CUDA_ARCH_SM)
 #ARCH=-arch=sm_60
