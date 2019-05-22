@@ -312,7 +312,7 @@ void cupti_name_map_free() {
 										self);
 }
 
-void cupti_map_event_name_to_id(char* event_name, CUpti_EventID event_id) {
+void cupti_map_event_name_to_id(const char* event_name, CUpti_EventID event_id) {
 	if (cupti_find_event_name_from_id(event_id) == NULL) {
 		cupti_name_map_t* node = mallocNN(sizeof(cupti_name_map_t));
 
@@ -346,4 +346,15 @@ const char* cupti_find_event_name_from_id(CUpti_EventID id) {
 	}
 
 	return ret;
+}
+
+static void print_event_group(cupti_event_data_t* e, uint32_t group) {
+	uint32_t offset = e->event_id_buffer_offsets[group];
+	(void) offset;
+}
+
+void cupti_report_event_data(cupti_event_data_t* e) {
+	for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+		print_event_group(e, i);
+	}
 }

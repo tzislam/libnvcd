@@ -29,57 +29,86 @@ static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
 #define NUM_CUPTI_RUNTIME_CBIDS (sizeof(g_cupti_runtime_cbids) / sizeof(g_cupti_runtime_cbids[0]))
 
 static cupti_event_data_t g_cupti_events_2x = {
-	.event_id_buffer = NULL, // event_id_buffer
-	NULL, // event_counter_buffer
-	NULL, // num_events_per_group
+	.event_id_buffer = NULL, 
+	.event_counter_buffer =NULL, 
+
+	.num_events_per_group = NULL, 
 	.num_events_read_per_group = NULL,
-	NULL, // num_instances_per_group
-	NULL, // event_counter_buffer_offsets
-	NULL, // event_id_buffer_offsets
-	NULL, // kernel_times_nsec_start
-	NULL, // kernel_times_nsec_end
-	NULL, // event_groups
-	&g_cupti_event_names_2x[0], // event_names
-	0, // stage_time_nsec_start
-	0, // stage_time_nsec_end
-	NULL, // context
-	NUM_CUPTI_EVENTS_2X, // num_events
-	0, // num_event_groups
-	0, // num_kernel_times
-	0, // event_counter_buffer_length
-	0, // event_id_buffer_length
-	0 // kernel_times_nsec_buffer_length
+	.num_instances_per_group = NULL,
+
+	.event_counter_buffer_offsets = NULL,
+	.event_id_buffer_offsets = NULL,
+	.event_groups_read = NULL,
+
+	.kernel_times_nsec_start = NULL,
+	.kernel_times_nsec_end = NULL,
+
+	.event_groups = NULL,
+
+	.event_names = &g_cupti_event_names_2x[0],
+
+	.stage_time_nsec_start = 0,
+	.stage_time_nsec_end = 0,
+
+	.context = NULL,
+
+	.num_events = NUM_CUPTI_EVENTS_2X,
+	.num_event_groups = 0,
+	.num_kernel_times = 0,
+
+	.count_event_groups_read = 0,
+	
+	.event_counter_buffer_length = 0,
+	.event_id_buffer_length = 0,
+	.kernel_times_nsec_buffer_length = 10 // default; will increase as necessary at runtime
 };
 
 static CUpti_SubscriberHandle g_cupti_subscriber = NULL;
 
 void collect_group_events(cupti_event_data_t* e) {
 	for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-
-		size_t cb_size =
-			e->num_events_per_group[i] *
-			e->num_instances_per_group[i] *
-			sizeof(uint64_t);
+		if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+			
+			size_t cb_size =
+				e->num_events_per_group[i] *
+				e->num_instances_per_group[i] *
+				sizeof(uint64_t);
 		
-		size_t cb_offset = e->event_counter_buffer_offsets[i];
+			size_t cb_offset = e->event_counter_buffer_offsets[i];
 
-		size_t ib_size = e->num_events_per_group[i] * sizeof(CUpti_EventID);
-		size_t ib_offset = e->event_id_buffer_offsets[i];
+			size_t ib_size = e->num_events_per_group[i] * sizeof(CUpti_EventID);
+			size_t ib_offset = e->event_id_buffer_offsets[i];
 
-		size_t ids_read = 0;
+			size_t ids_read = 0;
 		
-		CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[i],
-																					CUPTI_EVENT_READ_FLAG_NONE,
-																					&cb_size,
-																					&e->event_counter_buffer[cb_offset],
-																					&ib_size,
-																					&e->event_id_buffer[ib_offset],
-																					&ids_read));
+			CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[i],
+																						CUPTI_EVENT_READ_FLAG_NONE,
+																						&cb_size,
+																						&e->event_counter_buffer[cb_offset],
+																						&ib_size,
+																						&e->event_id_buffer[ib_offset],
+																						&ids_read));
 
-		printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
-					 i,
-					 ids_read,
-					 (size_t) e->num_events_per_group[i]);
+			printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
+						 i,
+						 ids_read,
+						 (size_t) e->num_events_per_group[i]);
+		}
+	}
+
+	for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+		if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+			e->event_groups_read[i] = CED_EVENT_GROUP_READ;
+			e->count_event_groups_read++;
+			
+			CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
+		}
+	}
+
+	for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+		if (e->event_groups_read[i] == CED_EVENT_GROUP_DONT_READ) {
+			e->event_groups_read[i] = CED_EVENT_GROUP_UNREAD;
+		}
 	}
 }
 
@@ -108,19 +137,44 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 
 			CUPTI_FN(cuptiSetEventCollectionMode(callback_info->context,
 																					 CUPTI_EVENT_COLLECTION_MODE_KERNEL));
-			
-			for (size_t i = 0; i < event_data->num_event_groups; ++i) {
-				CUPTI_FN(cuptiEventGroupEnable(event_data->event_groups[i]));
+
+			//
+			// We can get all of the event groups we wish to read,
+			// but not necessarily at the same time.
+			// In this case, it's necessary to repeatedly call the same kernel
+			// until
+			//           event_data->count_event_groups_read == event_data->num_event_groups
+			// is true.
+			// The state tracking is handled in this loop,
+			// as well as in collect_group_events()
+			//
+			for (uint32_t i = 0; i < event_data->num_event_groups; ++i) {
+				if (event_data->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+					CUptiResult err = cuptiEventGroupEnable(event_data->event_groups[i]);
+
+					if (err != CUPTI_SUCCESS) {
+						if (err == CUPTI_ERROR_NOT_COMPATIBLE) {
+							printf("Warning: group %" PRId32 " out of "
+										 "%" PRId32 " considered not compatible\n",
+										 i,
+										 event_data->num_event_groups);
+
+							event_data->event_groups_read[i] = CED_EVENT_GROUP_DONT_READ;
+						} else {
+							CUPTI_FN(err);
+						}
+					}
+				}
 			}
 
-			CUPTI_FN(cuptiDeviceGetTimestamp(event_data->context,
+			CUPTI_FN(cuptiDeviceGetTimestamp(callback_info->context,
 																			 &event_data->stage_time_nsec_start));
 		} break;
 
 		case CUPTI_API_EXIT: {
 			CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
-			CUPTI_FN(cuptiDeviceGetTimestamp(event_data->context,
+			CUPTI_FN(cuptiDeviceGetTimestamp(callback_info->context,
 																			 &event_data->stage_time_nsec_end));
 			
 			collect_group_events(event_data);			
@@ -193,6 +247,10 @@ void init_cupti_event_groups(CUcontext ctx,
 				// looked at
 				CUPTI_FN(err);
 			}
+		} else {
+			// in the future we'll only have ids,
+			// so we may as well map them now for output.
+			cupti_map_event_name_to_id(e->event_names[i], event_id);
 		}
 		
 		uint32_t event_group = 0;
@@ -260,7 +318,8 @@ void init_cupti_event_groups(CUcontext ctx,
 	{
 		e->num_event_groups = num_egs;
 		e->event_groups = zallocNN(sizeof(e->event_groups[0]) * e->num_event_groups);
-
+		e->event_groups_read = zallocNN(sizeof(e->event_groups_read[0]) * e->num_event_groups);
+		
 		for (uint32_t i = 0; i < e->num_event_groups; ++i) {
 			ASSERT(local_eg_assign[i] != NULL);
 			
@@ -370,12 +429,15 @@ void free_cupti_event_data(cupti_event_data_t* e) {
 	
 	safe_free_v(e->num_events_per_group);
 	safe_free_v(e->num_instances_per_group);
+	safe_free_v(e->num_events_read_per_group);
+	
 	safe_free_v(e->event_counter_buffer_offsets);
 	safe_free_v(e->event_id_buffer_offsets);
+	safe_free_v(e->event_groups_read);
 
 	safe_free_v(e->kernel_times_nsec_start);
 	safe_free_v(e->kernel_times_nsec_end);
-
+	
 	for (size_t i = 0; i < e->num_event_groups; ++i) { 
 		if (e->event_groups[i] != NULL) {
 			CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i]));
@@ -692,7 +754,6 @@ void profile_data_print(profile_data_t* data) {
 					 data->device_names[i]);
 	}
 }
- 
 
 void cupti_benchmark_start() {
 	profile_data_t* data = default_profile_data();
@@ -753,17 +814,21 @@ int main() {
 	int threads = 1024;
 	
 	cupti_benchmark_start();
-
+	
 	clock64_t* thread_times = zallocNN(sizeof(thread_times[0]) * threads);
-	gpu_test_matrix_vec_mul(threads, thread_times);
-	
-	gpu_test();
-	
-	CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
+	while (g_cupti_events_2x.count_event_groups_read
+				 < g_cupti_events_2x.num_event_groups) {
+		
+		gpu_test_matrix_vec_mul(threads, thread_times);
+		CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+	}
+	
 	for (int i = 0; i < threads; ++i) {
 		printf("[%i] time: %llu\n", i, thread_times[i]);
 	}
+
+	cupti_report_event_data(&g_cupti_events_2x);
 	
 	cupti_benchmark_end();
 
