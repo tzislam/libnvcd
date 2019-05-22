@@ -31,9 +31,12 @@ void* double_buffer_size(void* buffer,
 
 		size_t half_sz = elem_size * (*current_length);
 
-		// zero out uninitialized memory
-		memset((void*)(&bptr[half_sz]), 0, half_sz);
-
+		if (half_sz < new_length) {
+			ASSERT(half_sz == new_length >> 1);
+			// zero out uninitialized memory
+			memset((void*)(&bptr[half_sz]), 0, half_sz);
+		}
+		
 		*current_length = new_length;
 	} else {
 		printf("WARNING: realloc failure for\n"

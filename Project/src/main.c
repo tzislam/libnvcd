@@ -50,23 +50,29 @@ static cupti_event_data_t g_cupti_events_2x = {
 
 static CUpti_SubscriberHandle g_cupti_subscriber = NULL;
 
-void collect_group_events(cupti_event_data_t* event_data, uint32_t group_index) {
-	uint32_t num_instances = 0;
-	uint64_t* values = NULL;
-	size_t value_size = sizeof(num_instances);
+void collect_group_events(cupti_event_data_t* e) {
+	for (uint32_t i = 0; i < e->num_event_groups; ++i) {
 
-	CUPTI_FN(cuptiEventGroupGetAttribute(event_data->event_groups[group_index],
-																			 CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
-																			 &value_size,
-																			 &num_instances));
+		size_t cb_size =
+			e->num_events_per_group[i] *
+			e->num_instances_per_group[i] *
+			sizeof(uint64_t);
+		
+		size_t cb_offset = e->event_counter_buffer_offsets[i];
 
-	values = zallocNN(sizeof(uint64_t) * num_instances);
-	
-	free(values);
-}
+		size_t ib_size = e->num_events_per_group[i] * sizeof(CUpti_EventID);
+		size_t ib_offset = e->event_id_buffer_offsets[i];
 
-void cupti_event_allocate_counter_buffer(cupti_event_data_t* event_data) {
-	
+		size_t ids_read = 0;
+		
+		CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[i],
+																					CUPTI_EVENT_READ_FLAG_NONE,
+																					&cb_size,
+																					&e->event_counter_buffer[cb_offset],
+																					&ib_size,
+																					&e->event_id_buffer[ib_offset],
+																					&ids_read));
+	}
 }
 
 void CUPTIAPI cupti_event_callback(void* userdata,
@@ -113,7 +119,9 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 			size_t value_size = sizeof(num_instances);
 			CUPTI_FN(cuptiEventGroupGetAttribute(event_data->context,
 																					 CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
-																					 &value_size, &num_instances)); 
+																					 &value_size, &num_instances));
+			
+			
 		} break;
 
 		default:
@@ -270,7 +278,7 @@ void init_cupti_event_data(CUcontext ctx,
 	{
 		e->num_events_per_group = zallocNN(sizeof(e->num_events_per_group[0]) *
 																			 e->num_event_groups);
-
+		
 		e->num_instances_per_group = zallocNN(sizeof(e->num_instances_per_group[0]) *
 																					e->num_event_groups);
 
@@ -299,7 +307,7 @@ void init_cupti_event_data(CUcontext ctx,
 			}
 		}																					 
 	}
-
+	
 	// compute offsets for the event id buffer,
 	// and allocate the memory.
 	// for all groups
@@ -336,12 +344,12 @@ void init_cupti_event_data(CUcontext ctx,
 			
 			e->event_counter_buffer_offsets[i] = accum;
 		}
-
+		
 		for (uint32_t i = 0; i < e->num_event_groups; ++i) {
 			e->event_counter_buffer_length +=
 				e->num_events_per_group[i] * e->num_instances_per_group[i];
 		}
-
+		
 		e->event_counter_buffer =
 			zallocNN(sizeof(e->event_counter_buffer[0]) * e->event_counter_buffer_length);	
 	}
@@ -371,9 +379,11 @@ void free_cupti_event_data(cupti_event_data_t* e) {
 	
 	safe_free_v(e->event_groups);
 	
-	// NOTE:
-	// e->event_names should come from a buffer initialized in *.data,
-	// so no need to free
+	// TODO: event names may be either a subset of a static buffer
+	// initialized in the .data section,
+	// or a subset. Should add a flag to determine
+	// whether or not the data needs to be freed.
+	
 	memset(e, 0, sizeof(*e));
 }
 
@@ -410,6 +420,7 @@ void free_cuda_data() {
 
 void free_cupti_data() {
 	free_cupti_event_data(&g_cupti_events_2x);
+	cupti_name_map_free();
 }
 
 /*
@@ -633,32 +644,8 @@ profile_time_t profile_time() {
 }
 
 typedef char string_micro_t[64];
-#if 0
- void profile_timelist_push(cupti_elist_node_t** root, profile_time_t start, profile_time_t end) {
-	 ASSERT(root != NULL);
-
-	cupti_elist_node_t* new_node = NOT_NULL(malloc(sizeof(*new_node)));
-
-	new_node->self.next = NULL;
-	new_node->event_id = event_id;
-	new_node->event_name_index = event_name_index;
-
-		
-	list_push_fn_impl(root, new_node, cupti_elist_node_t, self);
-}
-
-void cupti_eventlist_free_node(cupti_elist_node_t* n) {
-	n->event_id = V_UNSET;
-	n->event_name_index = V_UNSET;
-}
-
-void cupti_eventlist_free(cupti_elist_node_t* root) {
-	list_free_fn_impl(root, cupti_elist_node_t, cupti_eventlist_free_node, self);
-}
- #endif
  
-typedef struct profile_data {
-	
+typedef struct profile_data {	
 	string_micro_t* device_names;
 	CUdevice* device_ids; 
 	
@@ -693,8 +680,6 @@ profile_data_t* default_profile_data() {
 }
 
 void profile_data_print(profile_data_t* data) {
-
-	
 	for (int i = 0; i < data->num_devices; ++i) {
 		printf("device: %i. device id: 0x%x. name: \"%s\"\n",
 					 i,

@@ -3,7 +3,6 @@
 
 #include "commondef.h"
 #include <cupti.h>
-#include "list.h"
 
 C_LINKAGE_START
 
@@ -52,6 +51,12 @@ typedef struct cupti_event_data {
 #define NUM_CUPTI_METRICS_3X 127
 
 extern const char* g_cupti_metrics_3x[NUM_CUPTI_METRICS_3X];
+
+void cupti_map_event_name_to_id(char* event_name, CUpti_EventID event_id);
+
+const char* cupti_find_event_name_from_id(CUpti_EventID id);
+
+void cupti_name_map_free();
 
 C_LINKAGE_END
 #endif //__CUPTI_LOOKUP_H__

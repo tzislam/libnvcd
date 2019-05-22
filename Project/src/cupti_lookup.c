@@ -1,4 +1,7 @@
 #include "cupti_lookup.h"
+#include <string.h>
+#include "util.h"
+#include "list.h"
 
 /*
  * List of event strings as listed in the CUPTI event documentation
@@ -281,3 +284,66 @@ const char* g_cupti_metrics_3x[NUM_CUPTI_METRICS_3X] = {
 	"warp_execution_efficiency",
 	"warp_nonpred_execution_efficiency"
 };
+
+typedef struct cupti_name_map {
+	list_t self;
+	char* name;
+	CUpti_EventID id;
+} cupti_name_map_t;
+
+static cupti_name_map_t* g_name_map_list = NULL;
+
+static void cupti_name_map_push(cupti_name_map_t* node) {
+	list_push_fn_impl(&g_name_map_list,
+										node,
+										cupti_name_map_t,
+										self);
+}
+
+static void cupti_name_map_free_node(cupti_name_map_t* n) {
+	free(n->name);
+	n->name = NULL;
+}
+
+void cupti_name_map_free() {
+	list_free_fn_impl(g_name_map_list,
+										cupti_name_map_t,
+										cupti_name_map_free_node,
+										self);
+}
+
+void cupti_map_event_name_to_id(char* event_name, CUpti_EventID event_id) {
+	if (cupti_find_event_name_from_id(event_id) == NULL) {
+		cupti_name_map_t* node = mallocNN(sizeof(cupti_name_map_t));
+
+		node->name = strdup(event_name);
+
+		NOT_NULL(node->name);
+		
+		node->id = event_id;
+		node->self.next = NULL;
+
+		cupti_name_map_push(node);
+	}
+}
+
+const char* cupti_find_event_name_from_id(CUpti_EventID id) {
+	const char* ret = NULL;
+
+	list_t* n = list_node(g_name_map_list,
+												cupti_name_map_t,
+												self);
+
+	while (n != NULL && ret == NULL) {
+		cupti_name_map_t* nm = list_base(n,
+																		 cupti_name_map_t,
+																		 self);
+		if (nm->id == id) {
+			ret = nm->name;
+		}
+		
+		n = n->next;
+	}
+
+	return ret;
+}
