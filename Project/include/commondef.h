@@ -27,6 +27,14 @@
 
 #define MEMSET_NULL(p, sz) memset((p), (uintptr_t)NULL, (sz))
 
+#define zallocNN(sz) NOT_NULL(zalloc((sz)))
+	
+#define mallocNN(sz) NOT_NULL(malloc((sz)))
+
+#define double_buffNN(p, elem_sz, l) NOT_NULL(double_buffer_size((p), (elem_sz), (l))))
+
+#define safe_free_v(p) safe_free((void**) &(p))
+
 #define V_UNSET (-1)
 
 typedef long long int clock64_t;

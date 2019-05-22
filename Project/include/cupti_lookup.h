@@ -11,31 +11,41 @@ C_LINKAGE_START
 
 extern const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X];
 
-typedef uint64_t cupti_uint_t;
-typedef int16_t cupti_index_t; 
-
-typedef struct cupti_timelist_node {
-	list_t self;
-	
-} cupti_tlist_node_t;
-
-typedef struct cupti_eventlist_node {
-	list_t self;
-	CUpti_EventID event_id;
-	cupti_index_t event_name_index;
-} cupti_elist_node_t;
-
-#define cupti_elist_node_iter(x) list_node(x, cupti_elist_node_t, self)
-#define cupti_elist_node_car(x) list_base(x, cupti_elist_node_t, self)
-
 typedef struct cupti_event_data {
-	cupti_uint_t* counter_buffer;
+	// one large contiguous buffer,
+	// for all groups, constant size.
+	// Offsets of these are sent to
+	// cuptiEventGroupReadAllEvents()
+	CUpti_EventID* 	event_id_buffer;
+	uint64_t* event_counter_buffer;
+
+	// indexed strictly per group, constant size
+	uint32_t* num_events_per_group;
+	uint32_t* num_instances_per_group;
+	uint32_t* event_counter_buffer_offsets;
+	uint32_t* event_id_buffer_offsets;
+
+	// arbitrary, has a max size which can grow
+	uint64_t* kernel_times_nsec_start;
+	uint64_t* kernel_times_nsec_end;
+	
 	CUpti_EventGroup* event_groups;
-	cupti_elist_node_t** event_group_id_lists;
+	
 	const char** event_names;
-  size_t num_threads;
-  size_t num_events;
-	size_t num_event_groups;
+
+	uint64_t stage_time_nsec_start;
+	uint64_t stage_time_nsec_end;
+	
+	CUcontext context;
+	
+  uint32_t num_events;
+	uint32_t num_event_groups;
+	uint32_t num_kernel_times;
+
+	uint32_t event_counter_buffer_length;
+	uint32_t event_id_buffer_length;
+	uint32_t kernel_times_nsec_buffer_length;
+	
 } cupti_event_data_t;
 
 

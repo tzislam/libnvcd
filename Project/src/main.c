@@ -27,13 +27,25 @@ static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
 #define NUM_CUPTI_RUNTIME_CBIDS (sizeof(g_cupti_runtime_cbids) / sizeof(g_cupti_runtime_cbids[0]))
 
 static cupti_event_data_t g_cupti_events_2x = {
-	NULL,
-	NULL,
-	NULL,
-	&g_cupti_event_names_2x[0],
-	0,
-	NUM_CUPTI_EVENTS_2X,
-	0
+	.event_id_buffer = NULL, // event_id_buffer
+	NULL, // event_counter_buffer
+	NULL, // num_events_per_group
+	NULL, // num_instances_per_group
+	NULL, // event_counter_buffer_offsets
+	NULL, // event_id_buffer_offsets
+	NULL, // kernel_times_nsec_start
+	NULL, // kernel_times_nsec_end
+	NULL, // event_groups
+	&g_cupti_event_names_2x[0], // event_names
+	0, // stage_time_nsec_start
+	0, // stage_time_nsec_end
+	NULL, // context
+	NUM_CUPTI_EVENTS_2X, // num_events
+	0, // num_event_groups
+	0, // num_kernel_times
+	0, // event_counter_buffer_length
+	0, // event_id_buffer_length
+	0 // kernel_times_nsec_buffer_length
 };
 
 static CUpti_SubscriberHandle g_cupti_subscriber = NULL;
@@ -43,17 +55,18 @@ void collect_group_events(cupti_event_data_t* event_data, uint32_t group_index) 
 	uint64_t* values = NULL;
 	size_t value_size = sizeof(num_instances);
 
-
 	CUPTI_FN(cuptiEventGroupGetAttribute(event_data->event_groups[group_index],
 																			 CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
 																			 &value_size,
 																			 &num_instances));
 
-	values = NOT_NULL(zalloc(sizeof(uint64_t) * num_instances));
-
-	
+	values = zallocNN(sizeof(uint64_t) * num_instances);
 	
 	free(values);
+}
+
+void cupti_event_allocate_counter_buffer(cupti_event_data_t* event_data) {
+	
 }
 
 void CUPTIAPI cupti_event_callback(void* userdata,
@@ -85,12 +98,22 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 			for (size_t i = 0; i < event_data->num_event_groups; ++i) {
 				CUPTI_FN(cuptiEventGroupEnable(event_data->event_groups[i]));
 			}
-			// TODO: start global (per-cupti_event_data_t) timer
+
+			CUPTI_FN(cuptiDeviceGetTimestamp(event_data->context,
+																			 &event_data->stage_time_nsec_start));
 		} break;
 
 		case CUPTI_API_EXIT: {
 			CUDA_RUNTIME_FN(cudaDeviceSynchronize());
-			// TODO: stop global (per-cupti_event_data_t) timer here
+
+			CUPTI_FN(cuptiDeviceGetTimestamp(event_data->context,
+																			 &event_data->stage_time_nsec_end));
+			
+			uint32_t num_instances = 0;
+			size_t value_size = sizeof(num_instances);
+			CUPTI_FN(cuptiEventGroupGetAttribute(event_data->context,
+																					 CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
+																					 &value_size, &num_instances)); 
 		} break;
 
 		default:
@@ -101,7 +124,9 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 }
 
 void cupti_subscribe() {
-	CUPTI_FN(cuptiSubscribe(&g_cupti_subscriber, (CUpti_CallbackFunc)cupti_event_callback, &g_cupti_events_2x));
+	CUPTI_FN(cuptiSubscribe(&g_cupti_subscriber,
+													(CUpti_CallbackFunc)cupti_event_callback,
+													&g_cupti_events_2x));
 
 	for (uint32_t i = 0; i < NUM_CUPTI_RUNTIME_CBIDS; ++i) {
 		CUPTI_FN(cuptiEnableCallback(1,
@@ -115,140 +140,242 @@ void cupti_unsubscribe() {
 	CUPTI_FN(cuptiUnsubscribe(g_cupti_subscriber));
 }
 
-void cupti_eventlist_push(cupti_elist_node_t** root, cupti_index_t event_name_index, CUpti_EventID event_id) {
-	ASSERT(root != NULL);
+void init_cupti_event_groups(CUcontext ctx,
+														 CUdevice dev,
+														 cupti_event_data_t* e) {
+#define MAX_EGS 30
+	// static default; increase if more groups become necessary
+	uint32_t max_egs = MAX_EGS; 
+	uint32_t num_egs = 0;
 
-	cupti_elist_node_t* new_node = NOT_NULL(malloc(sizeof(*new_node)));
+	// we use a local buffer with an estimate,
+	// so when we store the memory we aren't using
+	// more than we need
+	CUpti_EventGroup local_eg_assign[MAX_EGS];
 
-	new_node->self.next = NULL;
-	new_node->event_id = event_id;
-	new_node->event_name_index = event_name_index;
-
-	#if 0
-	{
-		ASSERT((size_t)event_name_index < g_cupti_events_2x.num_events);
+	// CUpti_EventGroup is just a typedef for a pointer
+	for (uint32_t i = 0; i < max_egs; ++i)
+		local_eg_assign[i] = NULL;
 		
-		printf("Adding Node: %s @ [%i]:0x%x |",
-					 g_cupti_events_2x.event_names[new_node->event_name_index],
-					 new_node->event_name_index,
-					 new_node->event_id);
-	}
-	#endif
+#undef MAX_EGS
 	
-	list_push_fn_impl(root, new_node, cupti_elist_node_t, self);
-}
-
-void cupti_eventlist_free_node(cupti_elist_node_t* n) {
-	n->event_id = V_UNSET;
-	n->event_name_index = V_UNSET;
-}
-
-void cupti_eventlist_free(cupti_elist_node_t* root) {
-	list_free_fn_impl(root, cupti_elist_node_t, cupti_eventlist_free_node, self);
-}
-
-void init_cupti_event_data(CUcontext ctx, CUdevice dev, cupti_event_data_t* e, size_t num_threads) {
-	ASSERT(ctx != NULL);
-	ASSERT(dev >= 0);
-
-	e->num_event_groups = 24; /* statically allocate this for now; can make more sophisticated later */
-	e->num_threads = num_threads;
-	
-	e->counter_buffer = NOT_NULL(zalloc(sizeof(e->counter_buffer[0]) * e->num_events * e->num_threads));
-
-	e->event_groups = NOT_NULL(malloc(sizeof(e->event_groups[0]) * e->num_event_groups));
-	e->event_group_id_lists = NOT_NULL(malloc(sizeof(e->event_group_id_lists[0]) * e->num_event_groups));
-	
-	MEMSET_NULL(e->event_groups, sizeof(e->event_groups[0]) * e->num_event_groups);
-	MEMSET_NULL(e->event_group_id_lists, sizeof(e->event_group_id_lists[0]) * e->num_event_groups);
-	
-	for (size_t i = 0; i < e->num_events; ++i) {
+	for (uint32_t i = 0; i < e->num_events; ++i) {
 		CUpti_EventID event_id = V_UNSET;
 		
 		CUptiResult err = cuptiEventGetIdFromName(dev,
 																							e->event_names[i],
 																							&event_id);
 
+		// even if the compute capability being targeted
+		// is technically larger than the capability of the
+		// set of events queried against, there is still variation between
+		// cards. Some events simply won't be available for that
+		// card.
 		bool available = true;
-			
+		
 		if (err != CUPTI_SUCCESS) {
 			if (err == CUPTI_ERROR_INVALID_EVENT_NAME) {
 				available = false;
 			} else {
-				/* trigger exit */
+				// force an exit, since
+				// something else needs to be
+				// looked at
 				CUPTI_FN(err);
 			}
 		}
-
-		size_t event_group = 0;
+		
+		uint32_t event_group = 0;
 		
 		if (available) {
-			size_t j = 0;
+			uint32_t j = 0;
 			err = CUPTI_ERROR_NOT_COMPATIBLE;
 
-			bool iterating = j < e->num_event_groups;
-			
+			//
+			// find a suitable group
+			// for this event
+			//
+			bool iterating = j < max_egs;
+			bool error_valid = false;
+
 			while (iterating) {
-				if (e->event_groups[j] == NULL) {
-					CUPTI_FN(cuptiEventGroupCreate(ctx, &e->event_groups[j], 0));
+				if (local_eg_assign[j] == NULL) {
+					CUPTI_FN(cuptiEventGroupCreate(ctx,
+																				 &local_eg_assign[j],
+																				 0));
+					num_egs++;
 				}
 
-				err = cuptiEventGroupAddEvent(e->event_groups[j], event_id);
+				err = cuptiEventGroupAddEvent(local_eg_assign[j],
+																			event_id);
 				
 				event_group = j;
 				j++;
 
-				if (j == e->num_event_groups
-						|| !(err == CUPTI_ERROR_MAX_LIMIT_REACHED
-								 || err == CUPTI_ERROR_NOT_COMPATIBLE)) {
+				// event groups cannot have
+				// events from different domains;
+				// in these cases we just find another group.
+				error_valid =
+					!(err == CUPTI_ERROR_MAX_LIMIT_REACHED
+						|| err == CUPTI_ERROR_NOT_COMPATIBLE);
+
+				if (error_valid) {
+					error_valid = err == CUPTI_SUCCESS;
+				}
+				
+				if (j == max_egs || error_valid) {
 					iterating = false;
 				}
 			}
 
-			ASSERT(j <= e->num_event_groups);
+			ASSERT(j <= max_egs);
 			
-			/* trigger exit if we still error out */
+			// trigger exit if we still error out:
+			// something not taken into account
+			// needs to be looked at
 			CUPTI_FN(err);
-			
-			if (j < e->num_event_groups) {
-				cupti_eventlist_push(&e->event_group_id_lists[event_group],
-														 (cupti_index_t) i,
-														 event_id);
-			}
 		}
 
-		printf("(%s) index %lu, group_index %lu => %s:0x%x\n",
+		printf("(%s) index %u, group_index %u => %s:0x%x\n",
 					 available ? "available" : "unavailable",
 					 i,
 					 event_group,
 					 e->event_names[i],
 					 event_id);
 	}
+
+	ASSERT(num_egs <= max_egs /* see the declaration of max_egs if this fails */);
+
+	// fill our event groups buffer
+	{
+		e->num_event_groups = num_egs;
+		e->event_groups = zallocNN(sizeof(e->event_groups[0]) * e->num_event_groups);
+
+		for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+			ASSERT(local_eg_assign[i] != NULL);
+			
+			e->event_groups[i] = local_eg_assign[i];
+		}
+	}
+}
+
+void init_cupti_event_data(CUcontext ctx,
+													 CUdevice dev,
+													 cupti_event_data_t* e) {
+	ASSERT(ctx != NULL);
+	ASSERT(dev >= 0);
+
+	init_cupti_event_groups(ctx, dev, e);
+
+	// get instance and event counts for each group
+	{
+		e->num_events_per_group = zallocNN(sizeof(e->num_events_per_group[0]) *
+																			 e->num_event_groups);
+
+		e->num_instances_per_group = zallocNN(sizeof(e->num_instances_per_group[0]) *
+																					e->num_event_groups);
+
+		for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+			// instance count
+			{
+				uint32_t inst = 0;
+				size_t instsz = sizeof(inst);
+				CUPTI_FN(cuptiEventGroupGetAttribute(e->event_groups[i],
+																						 CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
+																						 &instsz,
+																						 &inst));
+
+				e->num_instances_per_group[i] = inst;
+			}
+
+			// event count
+			{
+				uint32_t event = 0;
+				size_t eventsz = sizeof(event);
+				CUPTI_FN(cuptiEventGroupGetAttribute(e->event_groups[i],
+																						 CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS,
+																						 &eventsz,
+																						 &event));
+				e->num_events_per_group[i] = event;
+			}
+		}																					 
+	}
+
+	// compute offsets for the event id buffer,
+	// and allocate the memory.
+	// for all groups
+	{
+		e->event_id_buffer_offsets = mallocNN(sizeof(e->event_id_buffer_offsets[0]) *
+																					e->num_event_groups);
+		
+		e->event_id_buffer_length = 0;
+		
+		for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+			e->event_id_buffer_offsets[i] = e->event_id_buffer_length;
+			e->event_id_buffer_length += e->num_events_per_group[i];
+		}
+
+		e->event_id_buffer = zallocNN(sizeof(e->event_id_buffer[0]) *
+																	e->event_id_buffer_length);
+		
+	}
+	
+	// compute offset indices for the event counter buffer,
+	// and allocate the memory.
+	// for all groups
+	{
+		e->event_counter_buffer_offsets =
+			mallocNN(sizeof(e->event_counter_buffer_offsets[0]) * e->num_event_groups);
+		
+		e->event_counter_buffer_length = 0;
+		
+		for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+			uint32_t accum = 0;
+			for (uint32_t j = 0; j < i; ++j) {
+				accum += e->num_events_per_group[j] * e->num_instances_per_group[j];
+			}
+			
+			e->event_counter_buffer_offsets[i] = accum;
+		}
+
+		for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+			e->event_counter_buffer_length +=
+				e->num_events_per_group[i] * e->num_instances_per_group[i];
+		}
+
+		e->event_counter_buffer =
+			zallocNN(sizeof(e->event_counter_buffer[0]) * e->event_counter_buffer_length);	
+	}
+
 }
 
 void free_cupti_event_data(cupti_event_data_t* e) {
 	ASSERT(e != NULL);
-	ASSERT(e->event_groups != NULL);
 	
+  safe_free_v(e->event_id_buffer);
+	safe_free_v(e->event_counter_buffer);
+	
+	safe_free_v(e->num_events_per_group);
+	safe_free_v(e->num_instances_per_group);
+	safe_free_v(e->event_counter_buffer_offsets);
+	safe_free_v(e->event_id_buffer_offsets);
+
+	safe_free_v(e->kernel_times_nsec_start);
+	safe_free_v(e->kernel_times_nsec_end);
+
 	for (size_t i = 0; i < e->num_event_groups; ++i) { 
 		if (e->event_groups[i] != NULL) {
 			CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i]));
 			CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i]));
-
-			ASSERT(e->event_group_id_lists[i] != NULL);
-			cupti_eventlist_free(e->event_group_id_lists[i]);
-		}
+ 		}
 	}
 	
-	free(e->event_groups);
-
-	ASSERT(e->counter_buffer != NULL);
-	free(e->counter_buffer);
-
+	safe_free_v(e->event_groups);
+	
+	// NOTE:
+	// e->event_names should come from a buffer initialized in *.data,
+	// so no need to free
 	memset(e, 0, sizeof(*e));
 }
-
-
 
 /*
  * CUDA
@@ -577,7 +704,7 @@ void profile_data_print(profile_data_t* data) {
 }
  
 
-void cupti_benchmark_start(size_t num_threads) {
+void cupti_benchmark_start() {
 	profile_data_t* data = default_profile_data();
 
 	if (data->needs_init) {
@@ -587,10 +714,10 @@ void cupti_benchmark_start(size_t num_threads) {
 			CUDA_RUNTIME_FN(cudaGetDeviceCount(&data->num_devices));
 
 			data->device_ids =
-				NOT_NULL(zalloc(sizeof(*(data->device_ids)) * data->num_devices));
+				zallocNN(sizeof(*(data->device_ids)) * data->num_devices);
 
 			data->device_names =
-				NOT_NULL(zalloc(sizeof(*(data->device_names)) * data->num_devices));
+				zallocNN(sizeof(*(data->device_names)) * data->num_devices);
 		
 			for (int i = 0; i < data->num_devices; ++i) {
 				CUDA_DRIVER_FN(cuDeviceGet(&data->device_ids[i], i));
@@ -603,7 +730,7 @@ void cupti_benchmark_start(size_t num_threads) {
 			cuda_set_device(data->device_ids[0]);
 		}
 
-		init_cupti_event_data(cuda_get_context(), cuda_get_device(), &g_cupti_events_2x, num_threads);
+		init_cupti_event_data(cuda_get_context(), cuda_get_device(), &g_cupti_events_2x);
 
 		cupti_subscribe();
 		
@@ -642,7 +769,7 @@ int main() {
 	
 	//	cupti_benchmark_start(threads);
 
-	clock64_t* thread_times = NOT_NULL(zalloc(sizeof(thread_times[0]) * threads));
+	clock64_t* thread_times = zallocNN(sizeof(thread_times[0]) * threads);
 	gpu_test_matrix_vec_mul(threads, thread_times);
 	
 	//	gpu_test();
