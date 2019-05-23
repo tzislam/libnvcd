@@ -8,8 +8,16 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <sys/time.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <errno.h>
 
 #include <inttypes.h>
+#include <pthread.h>
+
+static pthread_t _thread_main;
+static pthread_t _thread_callback;
 
 #ifndef ENV_PREFIX
 #define ENV_PREFIX "BENCH_"
@@ -128,6 +136,10 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 		ASSERT(found);
 	}
 
+	_thread_callback = pthread_self();
+
+	printf("EQULAL THREADS: %i\n", pthread_equal(_thread_callback, _thread_main));
+
 	{
 		cupti_event_data_t* event_data = (cupti_event_data_t*) userdata;
 		
@@ -154,8 +166,8 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 
 					if (err != CUPTI_SUCCESS) {
 						if (err == CUPTI_ERROR_NOT_COMPATIBLE) {
-							printf("Warning: group %" PRId32 " out of "
-										 "%" PRId32 " considered not compatible\n",
+							printf("Group %" PRIu32 " out of "
+										 "%" PRIu32 " considered not compatible with the current set of enabled groups\n",
 										 i,
 										 event_data->num_event_groups);
 
@@ -163,6 +175,8 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 						} else {
 							CUPTI_FN(err);
 						}
+					} else {
+						printf("Group %" PRIu32 " enabled.\n", i);
 					}
 				}
 			}
@@ -417,7 +431,7 @@ void init_cupti_event_data(CUcontext ctx,
 		
 		e->event_counter_buffer =
 			zallocNN(sizeof(e->event_counter_buffer[0]) * e->event_counter_buffer_length);	
-	}
+	} 
 
 }
 
@@ -562,7 +576,7 @@ void env_var_list_count_entry_error(void* user) {
 	ASSERT(user != NULL);
 
 	size_t* count = (size_t*) user;
-	 *count = 0;
+	*count = 0;
 }
 
 int env_var_list_insert_entry(const char* entry, size_t entry_len, void* user) {
@@ -811,6 +825,8 @@ int main() {
 	(void)g_cupti_subscriber;
 	(void)g_cupti_runtime_cbids;
 
+	_thread_main = pthread_self();
+	
 	int threads = 1024;
 	
 	cupti_benchmark_start();
@@ -833,6 +849,10 @@ int main() {
 	cupti_benchmark_end();
 
 	cleanup();
+
+	volatile int x = 0;
+
+	(void)x;
 	
 	return 0;
 }

@@ -7,7 +7,7 @@ CUPTI := $(CUDA_HOME)/extras/CUPTI
 
 INCLUDE=-I./include -I$(CUPTI)/include
 
-CC_FLAGS=--compiler-options "-Wall -Werror -g -ggdb -std=gnu99"
+CC_FLAGS=--compiler-options "-Wall -lpthread -Werror -g -ggdb -std=gnu99"
 
 ARCH=-arch=$(CUDA_ARCH_SM)
 #ARCH=-arch=sm_60
@@ -40,6 +40,7 @@ obj/%.o: src/%.c objdep
 
 obj/%.o: src/%.cu objdep
 	$(CC) $(FLAGS) $(INCLUDE) $(ARCH) -c $< -o $@
+	$(CC) --ptx $(FLAGS) $(INCLUDE) $(ARCH) -c $< -o $@.ptx
 
 objdep:
 	mkdir -p obj
