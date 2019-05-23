@@ -23,9 +23,10 @@ static pthread_t _thread_callback;
 #define ENV_PREFIX "BENCH_"
 #endif
 
+#define ENV_EVENTS ENV_PREFIX "EVENTS"
+
 #define ENV_DELIM ':'
 #define ENV_ALL_EVENTS "ALL"
-
 
 /*
  * cupti event
@@ -123,6 +124,8 @@ void collect_group_events(cupti_event_data_t* e) {
   }
 }
 
+static bool _message_reported = false;
+
 void CUPTIAPI cupti_event_callback(void* userdata,
                                    CUpti_CallbackDomain domain,
                                    CUpti_CallbackId callback_id,
@@ -139,10 +142,29 @@ void CUPTIAPI cupti_event_callback(void* userdata,
     ASSERT(found);
   }
 
-  _thread_callback = pthread_self();
+  // For now it appears that the threads are the same between the main thread
+  // and the thread this callback is installed in. The check is important though
+  // since this could technically change. Some might consider this pedantic, but non-thread-safe
+  // event handlers with user pointer data are a thing, and device synchronization waits
+  // can obviously happen across multiple threads.
+  {
+    _thread_callback = pthread_self();
+    
+    volatile int threads_eq = pthread_equal(_thread_callback, _thread_main);
 
-  printf("EQULAL THREADS: %i\n", pthread_equal(_thread_callback, _thread_main));
-
+    if (threads_eq != 0) {
+      if (!_message_reported) {
+        fprintf(stderr, "%s is launched on the same thread as the main thread (this is good)\n", __FUNC__);
+        _message_reported = true;
+      }
+    } else {
+      exit_msg(stderr,
+               ERACE_CONDITION,
+               "Race condition detected in %s. "
+               "Synchronization primitives will be needed for "
+               "main thread wait loop and this callback\n", __FUNC__);
+    }
+  }
   {
     cupti_event_data_t* event_data = (cupti_event_data_t*) userdata;
     
@@ -332,7 +354,8 @@ void init_cupti_event_groups(CUcontext ctx,
   ASSERT(num_egs <= max_egs /* see the declaration of max_egs if this fails */);
 
   if (num_egs == 0) {
-    exit_msg(EUNSUPPORTED_EVENTS,
+    exit_msg(stderr,
+             EUNSUPPORTED_EVENTS,
              "%s",
              "No supported events found within given list. "
              "Support can vary between device and compute capability.");
@@ -779,8 +802,69 @@ void profile_data_print(profile_data_t* data) {
   }
 }
 
+void build_event_list(cupti_event_data_t* e) {
+  char* env_string = getenv(ENV_EVENTS);
+
+  FILE* stream = stderr;
+  
+  if (env_string != NULL) { 
+    size_t count = 0;
+    char* const* list = env_var_list_read(env_string, &count);
+
+    // Sanity check
+    ASSERT(count < 0x1FF);
+
+    if (list != NULL) {
+      size_t i = 0;
+
+      bool scanning = i < count;
+      bool using_all = false;
+    
+      while (scanning) {
+        if (strcmp(list[i], ENV_ALL_EVENTS) == 0) {
+          fprintf(stream,
+            "(%s) Found %s in list. All event counters will be used.\n",
+            ENV_EVENTS,
+            ENV_ALL_EVENTS);
+          
+          e->event_names = &g_cupti_event_names_2x[0];
+          e->event_names_buffer_length = g_cupti_event_names_2x_length;
+
+          scanning = false;
+          using_all = true;
+        } else {
+          fprintf(stream, "(%s) [%" PRIu64 "] Found %s\n", ENV_EVENTS, i, list[i]);
+          i++;
+          scanning = i < count;
+        }
+      }
+
+      if (!using_all) {
+        e->event_names = list;
+        e->event_names_buffer_length = (uint32_t)count;
+      }
+    } else {
+      exit_msg(stream,
+               EBAD_INPUT,
+               "(%s) %s",
+               ENV_EVENTS,
+               "Could not parse the environment list.");
+    }
+  } else {
+    fprintf(stream,
+            "%s undefined; defaulting to all event counters.\n",
+            ENV_EVENTS);
+    
+    e->event_names = &g_cupti_event_names_2x[0];
+    e->event_names_buffer_length = g_cupti_event_names_2x_length;
+  }
+}
+
+
 void cupti_benchmark_start(cupti_event_data_t* event_data) {
   ASSERT(event_data != NULL);
+
+  build_event_list(event_data);
   
   profile_data_t* data = default_profile_data();
 
@@ -829,36 +913,6 @@ void cleanup() {
   cupti_unsubscribe();
 }
 
-void build_event_list(cupti_event_data_t* e) {
-  size_t count = 0;
-  char** list = env_var_list_read(str, &count);
-
-  if (list != NULL) {
-    size_t i = 0;
-
-    bool scanning = i < count;
-    bool using_all = false;
-    
-    while (scanning) {
-      if (strcmp(list[i], ENV_ALL_EVENTS) == 0) {
-        e->event_names = &g_cupti_event_names_2x[0];
-        e->event_names_buffer_length = g_cupti_event_names_2x_length;
-        scanning = false;
-        using_all = true;
-      } else {
-        i++;
-        scanning = i < count;
-      }
-    }
-
-    if (!using_all) {
-      
-    }
-  } else {
-    exit_msg(EBAD_INPUT, "%s", "Could not parse the environment list.");
-  }
-}
-
 int main() {
   if (g_test_params.run) {
     test_env_parse();
@@ -868,7 +922,7 @@ int main() {
   (void)g_cupti_runtime_cbids;
 
   _thread_main = pthread_self();
-  
+
   int threads = 1024;
   
   cupti_benchmark_start(&g_event_data);
@@ -891,10 +945,6 @@ int main() {
   cupti_benchmark_end();
 
   cleanup();
-
-  volatile int x = 0;
-
-  (void)x;
   
   return 0;
 }

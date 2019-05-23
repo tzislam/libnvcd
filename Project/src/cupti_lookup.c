@@ -9,7 +9,7 @@
  * for CUDA toolkit v9.2
  */
 
-const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X] = {
+char* g_cupti_event_names_2x[] = {
   // events from 1.x
 
   "tex_cache_hit",
@@ -163,7 +163,7 @@ const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X] = {
   "thread_inst_executed_1"
 };
 
-const uint32_t g_cupti_event_names_2x_length = ARRAY_LENGTH(g_cupti_event_names_2x_length);
+const uint32_t g_cupti_event_names_2x_length = ARRAY_LENGTH(g_cupti_event_names_2x);
 
 /*
  * List of event metrics as listed in the CUPTI event documentation

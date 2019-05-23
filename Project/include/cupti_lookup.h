@@ -7,11 +7,9 @@
 
 C_LINKAGE_START
 
-#define NUM_CUPTI_EVENTS_2X 71
-
 extern const uint32_t g_cupti_event_names_2x_length;
 
-extern const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X];
+extern char* g_cupti_event_names_2x[];
 
 typedef struct cupti_event_data {
   // one large contiguous buffer,
@@ -36,7 +34,7 @@ typedef struct cupti_event_data {
   
   CUpti_EventGroup* event_groups;
   
-  const char** event_names;
+  char*const * event_names;
 
   uint64_t stage_time_nsec_start;
   uint64_t stage_time_nsec_end;

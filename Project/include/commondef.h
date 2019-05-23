@@ -39,6 +39,8 @@
 
 typedef long long int clock64_t;
 
+#define __FUNC__ __func__
+
 enum {
   ENO_ERROR = 0,
   EUNSUPPORTED_EVENTS,
@@ -46,7 +48,8 @@ enum {
   EASSERT,
   ECUDA_DRIVER,
   ECUDA_RUNTIME,
-  ECUPTI
+  ECUPTI,
+  ERACE_CONDITION
 };
 
 #ifdef __cplusplus
