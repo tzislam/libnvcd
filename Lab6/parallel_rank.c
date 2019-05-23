@@ -14,33 +14,33 @@
 
 
 int main(int argc, char** argv) {
-	//TODO: Initialize MPI
-	MPI_Init(&argc, &argv);
-	
-	int world_rank;
-	int world_size;
+  //TODO: Initialize MPI
+  MPI_Init(&argc, &argv);
+  
+  int world_rank;
+  int world_size;
 
-	MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
-	MPI_Comm_size(MPI_COMM_WORLD, &world_size);
-	// TODO: Get rank and size of the communicator
-	
-	// Seed the random number generator to get different results each time
-	srand(time(NULL) * world_rank);
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+  // TODO: Get rank and size of the communicator
+  
+  // Seed the random number generator to get different results each time
+  srand(time(NULL) * world_rank);
 
-	int rand_num = rand();
-	int rank;
+  int rand_num = rand();
+  int rank;
 
-	printf("world_rank: %i, rand_num: %i\n", world_rank, rand_num);
+  printf("world_rank: %i, rand_num: %i\n", world_rank, rand_num);
 
-	TMPI_Rank(&rand_num, &rank, MPI_INT, MPI_COMM_WORLD);
+  TMPI_Rank(&rand_num, &rank, MPI_INT, MPI_COMM_WORLD);
 
-	printf("Rank for %i on process %i - %i\n", rand_num, world_rank, rank);
+  printf("Rank for %i on process %i - %i\n", rand_num, world_rank, rank);
 
-	MPI_Barrier(MPI_COMM_WORLD);
-	// TODO: Use a barrier t make sure all processes come here before finishing.
-	// TODO: Finalize
+  MPI_Barrier(MPI_COMM_WORLD);
+  // TODO: Use a barrier t make sure all processes come here before finishing.
+  // TODO: Finalize
 
-	MPI_Finalize();
+  MPI_Finalize();
 
-	return 0;
+  return 0;
 }

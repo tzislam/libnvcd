@@ -10,8 +10,8 @@
 #define __PARALLEL_RANK_H 1
 
 typedef struct CommRankNumber_ {
-	int i;
-	int rank;
+  int i;
+  int rank;
 } CommRankNumber;
 
 int TMPI_Rank(void *send_data, void *recv_data, MPI_Datatype datatype, MPI_Comm comm);

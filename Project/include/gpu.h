@@ -15,11 +15,11 @@ __host__ void gpu_test();
 
 
 __global__ void gpu_kernel_matrix_vec_mul_int(int n,
-																							int m,
-																							int* q,
-																							int* u,
-																							int* v,
-																						  clock64_t* d_times);
+                                              int m,
+                                              int* q,
+                                              int* u,
+                                              int* v,
+                                              clock64_t* d_times);
 
 __host__ void gpu_test_matrix_vec_mul(int num_threads, clock64_t* h_exec_times);
 

@@ -21,11 +21,11 @@ __device__ bool assert_cond_impl(bool condition, const char* message, int line);
  */
 
 __global__ void gpu_kernel_matrix_vec_mul_int(int n,
-																							int m,
-																							int* q,
-																							int* u,
-																							int* v,
-																						  clock64_t* d_times);
+                                                                                                                                                                                        int m,
+                                                                                                                                                                                        int* q,
+                                                                                                                                                                                        int* u,
+                                                                                                                                                                                        int* v,
+                                                                                                                                                                                  clock64_t* d_times);
 
 
 C_LINKAGE_END

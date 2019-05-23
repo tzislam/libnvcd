@@ -60,16 +60,16 @@ int *get_ranks(void *gathered_numbers, int gathered_number_count, MPI_Datatype d
   CommRankNumber *comm_rank_numbers = malloc(gathered_number_count * sizeof(CommRankNumber));
   
   for (int i = 0; i < gathered_number_count; ++i) {
-	  comm_rank_numbers[i].i = ((int*)gathered_numbers)[i];
-	  comm_rank_numbers[i].rank = i;
+    comm_rank_numbers[i].i = ((int*)gathered_numbers)[i];
+    comm_rank_numbers[i].rank = i;
   }
   
   // TODO: Sort the comm rank numbers based on the datatype
   qsort(
-		comm_rank_numbers,
-		gathered_number_count,
-		sizeof(CommRankNumber),
-		compare_int_comm_rank_number);
+    comm_rank_numbers,
+    gathered_number_count,
+    sizeof(CommRankNumber),
+    compare_int_comm_rank_number);
   
   // Now that the comm_rank_numbers are sorted, create an array of rank values for each process. The ith
   // element of this array contains the rank value for the number sent by process i.
@@ -77,7 +77,7 @@ int *get_ranks(void *gathered_numbers, int gathered_number_count, MPI_Datatype d
   // TODO: Put ranks in the correct order into the ranks array.
 
   for (int order = 0; order < gathered_number_count; order++) {
-	  ranks[comm_rank_numbers[order].rank] = order;
+    ranks[comm_rank_numbers[order].rank] = order;
   }
   
   // Clean up and return the rank array
@@ -109,10 +109,10 @@ int TMPI_Rank(void *send_data, void *recv_data, MPI_Datatype datatype, MPI_Comm 
   }
   
   MPI_Scatter(ranks,
-				1,
-				datatype,
-				recv_data,
-				1, datatype, 0, comm);
+        1,
+        datatype,
+        recv_data,
+        1, datatype, 0, comm);
 
   //MPI_Scatter(ranks, comm_size, datatype, gathered_numbers, comm_size, datatype, 0, comm);
 

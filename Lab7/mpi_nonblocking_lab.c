@@ -48,60 +48,60 @@ int main(int argc, char* argv[]) {
 
   /* Terminate received buffer with null byte */
   if (rank == 0) {    /* Process 0 does this */
-	  
+    
     /* Send a broadcast message containing its rank to all other processes */
-	  MPI_Bcast(&rank, 1, MPI_INT, root, MPI_COMM_WORLD);
-	  
-	  /* Start non-blocking calls to receive messages from all other processes */
-		/* Move on to computation*/
-		compute_something();
+    MPI_Bcast(&rank, 1, MPI_INT, root, MPI_COMM_WORLD);
+    
+    /* Start non-blocking calls to receive messages from all other processes */
+    /* Move on to computation*/
+    compute_something();
     
     /* Wait for the receive calls to finish.
-			 MPI_Waitall
-			 Iterate to receive messages from all other processes and print their hostnames*/
-	  for (int i = 1; i < nproc; ++i) {
-		  MPI_Irecv(hostname[i],
-								MPI_MAX_PROCESSOR_NAME - 1,
-								MPI_CHAR,
-								i,
-								tag,
-								MPI_COMM_WORLD,
-								&recv_req[i]);
-	  }
+       MPI_Waitall
+       Iterate to receive messages from all other processes and print their hostnames*/
+    for (int i = 1; i < nproc; ++i) {
+      MPI_Irecv(hostname[i],
+                MPI_MAX_PROCESSOR_NAME - 1,
+                MPI_CHAR,
+                i,
+                tag,
+                MPI_COMM_WORLD,
+                &recv_req[i]);
+    }
 
-		for (int i = 1; i < nproc; ++i) {
-			int k = 0;
-			MPI_Status s;
-			
-			MPI_Waitany(nproc - 1,
-									&recv_req[1],
-									&k,
-									&s);
-			
-			printf("Irecv k = %i, hostname[k] = %s\n",
-						 k + 1,
-						 hostname[k + 1]);
-		}
+    for (int i = 1; i < nproc; ++i) {
+      int k = 0;
+      MPI_Status s;
+      
+      MPI_Waitany(nproc - 1,
+                  &recv_req[1],
+                  &k,
+                  &s);
+      
+      printf("Irecv k = %i, hostname[k] = %s\n",
+             k + 1,
+             hostname[k + 1]);
+    }
   } 
   else { /* all other processes do this */
-	  int result = 0;
-	  MPI_Bcast(&result, 1, MPI_INT, root, MPI_COMM_WORLD);
+    int result = 0;
+    MPI_Bcast(&result, 1, MPI_INT, root, MPI_COMM_WORLD);
 
-	  printf("[Rank = %i] Received %i\n", rank, result);
+    printf("[Rank = %i] Received %i\n", rank, result);
 
-	  
+    
     /* Receive the broadcasted message from process 0 using a blocking call */
       
     /* Send local hostname to process 0 using a non blocking send */
-	  MPI_Request r;
-	  MPI_Isend(myname, namelen, MPI_CHAR, root, tag, MPI_COMM_WORLD, &r);
-	  
-		// Then move on to computation
-		compute_something();
-		/* Wait for the MPI_Isent to finish by calling MPI Wait*/
+    MPI_Request r;
+    MPI_Isend(myname, namelen, MPI_CHAR, root, tag, MPI_COMM_WORLD, &r);
+    
+    // Then move on to computation
+    compute_something();
+    /* Wait for the MPI_Isent to finish by calling MPI Wait*/
 
-	  MPI_Status s;
-	  MPI_Wait(&r, &s);
+    MPI_Status s;
+    MPI_Wait(&r, &s);
   }
 
  // Finish by finalizing the MPI library

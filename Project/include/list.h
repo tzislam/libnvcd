@@ -21,7 +21,7 @@ typedef struct list {
  * Plus, this works with both void* and type*.
  */
 
-#define list_node(ptr, type, name)												\
+#define list_node(ptr, type, name)                        \
   (list_t*)((uint8_t*)(ptr) + offsetof(type, name))
 
 /* List Base
@@ -31,7 +31,7 @@ typedef struct list {
  *
  * We get a pointer to the base of the memory layout "type", from "node_ptr".
  */
-#define list_base(node_ptr, type, name)											\
+#define list_base(node_ptr, type, name)                     \
   (type*)((uint8_t*)(node_ptr) - offsetof(type, name))
 
 /* List Push Function Implementation
@@ -43,12 +43,12 @@ typedef struct list {
  * This is a subroutine which is designed to be embedded
  * in an arbitrary function with a parameter list of (type** pproot, type* pn)
  */
-#define list_push_fn_impl(pproot, pn, type, name)				\
+#define list_push_fn_impl(pproot, pn, type, name)       \
   do {                                                  \
-    if (*(pproot) == NULL) {														\
+    if (*(pproot) == NULL) {                            \
       *(pproot) = (pn);                                 \
     } else {                                            \
-      list_t* rlist = list_node(*(pproot), type, name);	\
+      list_t* rlist = list_node(*(pproot), type, name); \
       list_t* end = list_end(rlist);                    \
       end->next = &(pn)->self;                          \
     }                                                   \
@@ -62,7 +62,7 @@ typedef struct list {
  */
 #define list_free_fn_node(pnode, type, free_func, name) \
   do {                                             \
-    if ((pnode) != NULL) {													 \
+    if ((pnode) != NULL) {                           \
       type* ptype = list_base(pnode, type, name);        \
       (free_func)(ptype);                          \
       free(ptype);                                 \
@@ -89,7 +89,7 @@ typedef struct list {
     list_t* n = NULL;                                                   \
     list_t* start = list_node(proot, type, name);                             \
     for (list_t* piter = start; piter != NULL; piter = piter->next) {   \
-      list_free_fn_node(n, type, free_func, name);											\
+      list_free_fn_node(n, type, free_func, name);                      \
       n = piter;                                                        \
     }                                                                   \
     list_free_fn_node(n, type, free_func, name);                              \

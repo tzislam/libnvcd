@@ -14,55 +14,55 @@ extern const uint32_t g_cupti_event_names_2x_length;
 extern const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X];
 
 typedef struct cupti_event_data {
-	// one large contiguous buffer,
-	// for all groups, constant size.
-	// Offsets of these are sent to
-	// cuptiEventGroupReadAllEvents()
-	CUpti_EventID* 	event_id_buffer;
-	uint64_t* event_counter_buffer;
+  // one large contiguous buffer,
+  // for all groups, constant size.
+  // Offsets of these are sent to
+  // cuptiEventGroupReadAllEvents()
+  CUpti_EventID*  event_id_buffer;
+  uint64_t* event_counter_buffer;
 
-	// indexed strictly per group, constant size
-	uint32_t* num_events_per_group;
-	uint32_t* num_events_read_per_group;
-	uint32_t* num_instances_per_group;
+  // indexed strictly per group, constant size
+  uint32_t* num_events_per_group;
+  uint32_t* num_events_read_per_group;
+  uint32_t* num_instances_per_group;
 
-	uint32_t* event_counter_buffer_offsets;
-	uint32_t* event_id_buffer_offsets;
-	uint32_t* event_groups_read; // not all event groups can be read simultaneously
+  uint32_t* event_counter_buffer_offsets;
+  uint32_t* event_id_buffer_offsets;
+  uint32_t* event_groups_read; // not all event groups can be read simultaneously
 
-	// arbitrary, has a max size which can grow
-	uint64_t* kernel_times_nsec_start;
-	uint64_t* kernel_times_nsec_end;
-	
-	CUpti_EventGroup* event_groups;
-	
-	const char** event_names;
+  // arbitrary, has a max size which can grow
+  uint64_t* kernel_times_nsec_start;
+  uint64_t* kernel_times_nsec_end;
+  
+  CUpti_EventGroup* event_groups;
+  
+  const char** event_names;
 
-	uint64_t stage_time_nsec_start;
-	uint64_t stage_time_nsec_end;
-	
-	CUcontext context;
-	 
-	uint32_t num_event_groups; 
-	uint32_t num_kernel_times;
+  uint64_t stage_time_nsec_start;
+  uint64_t stage_time_nsec_end;
+  
+  CUcontext context;
+   
+  uint32_t num_event_groups; 
+  uint32_t num_kernel_times;
 
-	//
-	// event_groups_read length == num_event_groups;
-	// once count_event_groups_read == num_event_groups,
-	// we've finished a benchmark for one
-	// run.
-	//
-	uint32_t count_event_groups_read;
-	
-	uint32_t event_counter_buffer_length;
-	uint32_t event_id_buffer_length;
-	uint32_t kernel_times_nsec_buffer_length;
+  //
+  // event_groups_read length == num_event_groups;
+  // once count_event_groups_read == num_event_groups,
+  // we've finished a benchmark for one
+  // run.
+  //
+  uint32_t count_event_groups_read;
+  
+  uint32_t event_counter_buffer_length;
+  uint32_t event_id_buffer_length;
+  uint32_t kernel_times_nsec_buffer_length;
 
-	// may not be the amount of events actually used;
-	// dependent on target device/compute capability
-	// support.
-	uint32_t event_names_buffer_length; 
-	
+  // may not be the amount of events actually used;
+  // dependent on target device/compute capability
+  // support.
+  uint32_t event_names_buffer_length; 
+  
 } cupti_event_data_t;
 
 // unread -> can be read, unless an attempt to enable the event group
@@ -77,9 +77,9 @@ typedef struct cupti_event_data {
 //              have been processed, so it can then be enabled on an attempt
 //              in the future.
 enum {
-	CED_EVENT_GROUP_UNREAD = 0,
-	CED_EVENT_GROUP_READ = 1, 
-	CED_EVENT_GROUP_DONT_READ = 2,
+  CED_EVENT_GROUP_UNREAD = 0,
+  CED_EVENT_GROUP_READ = 1, 
+  CED_EVENT_GROUP_DONT_READ = 2,
 };
 
 #define NUM_CUPTI_METRICS_3X 127
