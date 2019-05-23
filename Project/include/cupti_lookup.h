@@ -1,3 +1,4 @@
+
 #ifndef __CUPTI_LOOKUP_H__
 #define __CUPTI_LOOKUP_H__
 
@@ -7,6 +8,8 @@
 C_LINKAGE_START
 
 #define NUM_CUPTI_EVENTS_2X 71
+
+extern const uint32_t g_cupti_event_names_2x_length;
 
 extern const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X];
 
@@ -39,8 +42,7 @@ typedef struct cupti_event_data {
 	uint64_t stage_time_nsec_end;
 	
 	CUcontext context;
-	
-  uint32_t num_events;
+	 
 	uint32_t num_event_groups; 
 	uint32_t num_kernel_times;
 
@@ -55,6 +57,11 @@ typedef struct cupti_event_data {
 	uint32_t event_counter_buffer_length;
 	uint32_t event_id_buffer_length;
 	uint32_t kernel_times_nsec_buffer_length;
+
+	// may not be the amount of events actually used;
+	// dependent on target device/compute capability
+	// support.
+	uint32_t event_names_buffer_length; 
 	
 } cupti_event_data_t;
 

@@ -25,7 +25,7 @@
 
 #define NOT_NULL(p_expr) assert_not_null_impl((p_expr), #p_expr, __FILE__, __LINE__) 
 
-#define MEMSET_NULL(p, sz) memset((p), (uintptr_t)NULL, (sz))
+#define ARRAY_LENGTH(x) (sizeof((x)) / sizeof((x)[0]))
 
 #define zallocNN(sz) NOT_NULL(zalloc((sz)))
 	
@@ -38,6 +38,16 @@
 #define V_UNSET (-1)
 
 typedef long long int clock64_t;
+
+enum {
+	ENO_ERROR = 0,
+	EUNSUPPORTED_EVENTS,
+	EBAD_INPUT,
+	EASSERT,
+	ECUDA_DRIVER,
+	ECUDA_RUNTIME,
+	ECUPTI
+};
 
 #ifdef __cplusplus
 #define C_LINKAGE_START extern "C" {

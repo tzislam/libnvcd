@@ -4,8 +4,22 @@
 #include <time.h>
 #include <stdlib.h>
 #include <inttypes.h>
+#include <stdarg.h>
 
 C_LINKAGE_START
+
+void exit_msg(FILE* out, int error, const char* message, ...) {
+	char* buffer = calloc(strlen(message) + 128, sizeof(char));
+	
+	va_list ap;
+	va_start(ap, message);
+	vsprintf(buffer, message, ap);
+	va_end(ap);
+
+	fprintf(out, "EXIT TRIGGERED. Reason: \"%s\". Code: 0x%x\n", buffer, error);
+	
+	exit(error);
+}
 
 #define SANITY_CHECK_TOTAL_SIZE 0x07FFFFFF
 #define SANITY_CHECK_ELEM (16 << 6)
@@ -100,7 +114,7 @@ void cuda_runtime_error_print_exit(cudaError_t status,
 			   cudaGetErrorName(status),
 			   cudaGetErrorString(status));
 			
-		exit(status);
+		exit(ECUDA_RUNTIME);
 	}
 }
 
@@ -115,7 +129,7 @@ void cuda_driver_error_print_exit(CUresult status,
 			   expr,
 			   status);
 			
-		exit(status);
+		exit(ECUDA_DRIVER);
 	}
 }
 	
@@ -134,14 +148,14 @@ void cupti_error_print_exit(CUptiResult status,
 			   expr,
 			   error_string);
 			
-		exit(status);
+		exit(ECUPTI);
 	}
 }
 
 void assert_impl(bool cond, const char* expr, const char* file, int line) {
 	if (!cond) {
 		printf("ASSERT failure: \"%s\" @ %s:%i\n", expr, file, line);
-		exit(1);
+		exit(EASSERT);
 	}
 }
 

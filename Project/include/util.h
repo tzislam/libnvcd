@@ -12,6 +12,10 @@
 
 C_LINKAGE_START
 
+
+
+void exit_msg(FILE* out, int error, const char* message, ...);
+
 // Reallocates a buffer of size
 // elem_size * (*current_length)
 // to

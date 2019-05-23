@@ -10,6 +10,44 @@
  */
 
 const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X] = {
+	// events from 1.x
+
+	"tex_cache_hit",
+	"tex_cache_miss",
+	
+	"branch",
+	"divergent_branch",
+	"instructions",
+	"warp_serialize",
+	
+	"gld_incoherent",
+	"gld_coherent",
+	"gld_32b",
+	"gld_64b",
+	"gld_128b",
+
+	"gst_incoherent",
+	"gst_coherent",
+	"gst_32b",
+	"gst_64b",
+	"gst_128b",
+
+	"local_load",
+	"local_store",
+
+	"cta_launched",
+	"sm_cta_launched",
+
+	"prof_trigger_00",
+	"prof_trigger_01",
+	"prof_trigger_02",
+	"prof_trigger_03",
+	"prof_trigger_04",
+	"prof_trigger_05",
+	"prof_trigger_06",
+	"prof_trigger_07",
+	
+	// events from 2.x
 	/* 
 	 * domain_a 
    */
@@ -124,6 +162,8 @@ const char* g_cupti_event_names_2x[NUM_CUPTI_EVENTS_2X] = {
 	"thread_inst_executed_0",
 	"thread_inst_executed_1"
 };
+
+const uint32_t g_cupti_event_names_2x_length = ARRAY_LENGTH(g_cupti_event_names_2x_length);
 
 /*
  * List of event metrics as listed in the CUPTI event documentation
@@ -353,7 +393,7 @@ static char _peg_buffer[1 << 13] = { 0 };
 
 static void print_event_group(cupti_event_data_t* e, uint32_t group) {
 	// used for iterative bounds checking
-#define peg_buffer_length (sizeof(_peg_buffer) / sizeof(_peg_buffer[0])) - 1
+#define peg_buffer_length ARRAY_LENGTH(_peg_buffer) - 1
 	
 	memset(&_peg_buffer[0], 0, sizeof(_peg_buffer));
 	
