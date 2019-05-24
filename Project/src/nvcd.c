@@ -158,6 +158,12 @@ void cleanup() {
   }
 }
 
+NVCD_EXPORT void nvcd_report() {
+  ASSERT(g_event_data.initialized == true);
+  
+  cupti_report_event_data(&g_event_data);
+}
+
 NVCD_EXPORT void nvcd_init() {
   nvcd_init_cuda(&g_nvcd);
 }

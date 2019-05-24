@@ -10,6 +10,8 @@
 
 C_LINKAGE_START
 
+NVCD_EXPORT void nvcd_report();
+
 NVCD_EXPORT void nvcd_init();
 
 NVCD_EXPORT void nvcd_host_begin();
