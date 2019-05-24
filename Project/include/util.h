@@ -25,36 +25,36 @@ void exit_msg(FILE* out, int error, const char* message, ...);
 //
 // Performs sanity checks on input.
 void* double_buffer_size(void* buffer,
-												 size_t elem_size,
-												 size_t* current_length);
+                         size_t elem_size,
+                         size_t* current_length);
 
-void* zalloc(size_t sz);
+NVCD_EXPORT void* zalloc(size_t sz);
 
-void safe_free(void** p); // safer, but not "safe"
+NVCD_EXPORT void safe_free(void** p); // safer, but not "safe"
 
-int random_nexti(int rmin, int rmax);
+NVCD_EXPORT int random_nexti(int rmin, int rmax);
 
-void cuda_runtime_error_print_exit(cudaError_t status,
-																	 int line,
-																	 const char* file,
-																	 const char* expr);
+NVCD_EXPORT void cuda_runtime_error_print_exit(cudaError_t status,
+                                               int line,
+                                               const char* file,
+                                               const char* expr);
 
-void cuda_driver_error_print_exit(CUresult status,
-																	int line,
-																	const char* file,
-																	const char* expr);
-	
-void cupti_error_print_exit(CUptiResult status,
-														int line,
-														const char* file,
-														const char* expr);
+NVCD_EXPORT void cuda_driver_error_print_exit(CUresult status,
+                                              int line,
+                                              const char* file,
+                                              const char* expr);
+  
+NVCD_EXPORT void cupti_error_print_exit(CUptiResult status,
+                                        int line,
+                                        const char* file,
+                                        const char* expr);
 
-void assert_impl(bool cond,
-								 const char* expr,
-								 const char* file,
-								 int line);
+NVCD_EXPORT void assert_impl(bool cond,
+                             const char* expr,
+                             const char* file,
+                             int line);
 
-void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
+NVCD_EXPORT void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
 
 
 C_LINKAGE_END
