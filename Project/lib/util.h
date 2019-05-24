@@ -13,31 +13,31 @@
 extern "C" {
 #endif
 
-void* zalloc(size_t sz);
+  void* zalloc(size_t sz);
 
-int random_nexti(int rmin, int rmax);
+  int random_nexti(int rmin, int rmax);
 
-void cuda_runtime_error_print_exit(cudaError_t status,
-                                   int line,
-                                   const char* file,
-                                   const char* expr);
+  void cuda_runtime_error_print_exit(cudaError_t status,
+                                     int line,
+                                     const char* file,
+                                     const char* expr);
 
-void cuda_driver_error_print_exit(CUresult status,
-                                  int line,
-                                  const char* file,
-                                  const char* expr);
+  void cuda_driver_error_print_exit(CUresult status,
+                                    int line,
+                                    const char* file,
+                                    const char* expr);
   
-void cupti_error_print_exit(CUptiResult status,
-                            int line,
-                            const char* file,
-                            const char* expr);
+  void cupti_error_print_exit(CUptiResult status,
+                              int line,
+                              const char* file,
+                              const char* expr);
 
-void assert_impl(bool cond,
-                 const char* expr,
-                 const char* file,
-                 int line);
+  void assert_impl(bool cond,
+                   const char* expr,
+                   const char* file,
+                   int line);
 
-void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
+  void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
 
 #ifdef __cplusplus
 }

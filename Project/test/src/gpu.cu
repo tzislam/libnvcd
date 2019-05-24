@@ -35,15 +35,15 @@
 
 #define cuda_alloc_tmpl(tmplType, in_tmplN, out_tmplMemory) \
   do {                                                      \
-      void* memory = NULL;                                  \
-      size_t memorysz = (in_tmplN) * sizeof(tmplType);      \
+    void* memory = NULL;                                    \
+    size_t memorysz = (in_tmplN) * sizeof(tmplType);        \
                                                             \
-      CUDA_RUNTIME_FN(cudaMalloc(&memory, memorysz));       \
-      ASSERT(memory != NULL);                               \
-      CUDA_RUNTIME_FN(cudaMemset(memory, 0, memorysz));     \
+    CUDA_RUNTIME_FN(cudaMalloc(&memory, memorysz));         \
+    ASSERT(memory != NULL);                                 \
+    CUDA_RUNTIME_FN(cudaMemset(memory, 0, memorysz));       \
                                                             \
-      (out_tmplMemory) = (tmplType*) memory;                \
-      } while (0)
+    (out_tmplMemory) = (tmplType*) memory;                  \
+  } while (0)
 
 C_LINKAGE_START 
 

@@ -18,22 +18,22 @@
 
 #define DRIVER_API_CALL(apiFuncCall)                                    \
   do {                                                                  \
-      CUresult _status = apiFuncCall;                                   \
-      if (_status != CUDA_SUCCESS) {                                    \
-        fprintf(stderr, "%s:%d: error: function %s failed with error %d.\n", \
-                __FILE__, __LINE__, #apiFuncCall, _status);             \
-        exit(-1);                                                       \
-      }                                                                 \
+    CUresult _status = apiFuncCall;                                     \
+    if (_status != CUDA_SUCCESS) {                                      \
+      fprintf(stderr, "%s:%d: error: function %s failed with error %d.\n", \
+              __FILE__, __LINE__, #apiFuncCall, _status);               \
+      exit(-1);                                                         \
+    }                                                                   \
   } while (0)
 
 #define RUNTIME_API_CALL(apiFuncCall)                                   \
   do {                                                                  \
-      cudaError_t _status = apiFuncCall;                                \
-      if (_status != cudaSuccess) {                                     \
-        fprintf(stderr, "%s:%d: error: function %s failed with error %s.\n", \
-                __FILE__, __LINE__, #apiFuncCall, cudaGetErrorString(_status)); \
-        exit(-1);                                                       \
-      }                                                                 \
+    cudaError_t _status = apiFuncCall;                                  \
+    if (_status != cudaSuccess) {                                       \
+      fprintf(stderr, "%s:%d: error: function %s failed with error %s.\n", \
+              __FILE__, __LINE__, #apiFuncCall, cudaGetErrorString(_status)); \
+      exit(-1);                                                         \
+    }                                                                   \
   } while (0)
 
 typedef char cuptiAttrString_t[256];

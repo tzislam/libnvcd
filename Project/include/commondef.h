@@ -35,7 +35,7 @@
 #define ARRAY_LENGTH(x) (sizeof((x)) / sizeof((x)[0]))
 
 #define zallocNN(sz) NOT_NULL(zalloc((sz)))
-	
+  
 #define mallocNN(sz) NOT_NULL(malloc((sz)))
 
 #define double_buffNN(p, elem_sz, l) NOT_NULL(double_buffer_size((p), (elem_sz), (l))))
@@ -50,14 +50,14 @@ typedef uint32_t bool32_t; // alignment and portability
 #define __FUNC__ __func__
 
 enum {
-	ENO_ERROR = 0,
-	EUNSUPPORTED_EVENTS,
-	EBAD_INPUT,
-	EASSERT,
-	ECUDA_DRIVER,
-	ECUDA_RUNTIME,
-	ECUPTI,
-	ERACE_CONDITION
+  ENO_ERROR = 0,
+  EUNSUPPORTED_EVENTS,
+  EBAD_INPUT,
+  EASSERT,
+  ECUDA_DRIVER,
+  ECUDA_RUNTIME,
+  ECUPTI,
+  ERACE_CONDITION
 };
 
 #ifdef __cplusplus
