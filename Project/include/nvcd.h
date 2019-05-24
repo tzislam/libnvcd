@@ -16,7 +16,7 @@ NVCD_EXPORT void nvcd_host_begin();
 
 NVCD_EXPORT bool nvcd_host_finished();
 
-NVCD_EXPORT void nvcd_host_finalize();
+NVCD_EXPORT void nvcd_host_end();
 
 NVCD_EXPORT void nvcd_terminate();
 

@@ -1,8 +1,7 @@
-#include "nvci.h"
+#include "nvcd.h"
 #include <stdio.h>
 
 #include "commondef.h"
-#include "gpu.h"
 #include "cupti_lookup.h"
 #include "list.h"
 #include "env_var.h"
@@ -182,7 +181,7 @@ NVCD_EXPORT bool nvcd_host_finished() {
 		== g_event_data.num_event_groups; 
 }
 
-NVCD_EXPORT void nvcd_host_finalize() {
+NVCD_EXPORT void nvcd_host_end() {
 	cupti_event_data_end(&g_event_data);
 }
 
