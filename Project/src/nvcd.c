@@ -163,19 +163,26 @@ NVCD_EXPORT void nvcd_init() {
 	nvcd_init_cuda(&g_nvcd);
 }
 
-NVCD_EXPORT void nvcd_host_begin(nvcd_host_exec_fn_t callback, void* userdata) {
-	(void)callback;
-	(void)userdata;
-	
+NVCD_EXPORT void nvcd_host_begin() {	
 	g_event_data.cuda_context = g_nvcd.contexts[0];
 	g_event_data.cuda_device = g_nvcd.devices[0];
+
+	g_event_data.thread_host_begin = pthread_self();
 	
 	cupti_event_data_init(&g_event_data);
-	
 	cupti_event_data_begin(&g_event_data);
 }
 
-NVCD_EXPORT void nvcd_host_end() {
+NVCD_EXPORT bool nvcd_host_finished() {
+	
+	ASSERT(g_event_data.count_event_groups_read
+				 <= g_event_data.num_event_groups /* serious problem if this fails */);
+	
+	return g_event_data.count_event_groups_read
+		== g_event_data.num_event_groups; 
+}
+
+NVCD_EXPORT void nvcd_host_finalize() {
 	cupti_event_data_end(&g_event_data);
 }
 

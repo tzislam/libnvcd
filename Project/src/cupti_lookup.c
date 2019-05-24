@@ -1011,8 +1011,6 @@ void cupti_event_data_free(cupti_event_data_t* e) {
 
 void cupti_event_data_begin(cupti_event_data_t* e) {
 	ASSERT(e != NULL);
-	
-	e->thread_host_begin = pthread_self();
 
 	cupti_event_data_subscribe(e);
 }
