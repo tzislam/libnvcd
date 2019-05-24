@@ -1,8 +1,9 @@
 #ifndef __GPU_H__
 #define __GPU_H__
 
-#include "commondef.h"
-#include "util.h"
+#include <commondef.h>
+#include <util.h>
+
 #include <stdio.h>
 
 C_LINKAGE_START

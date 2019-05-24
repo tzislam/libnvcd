@@ -1,10 +1,10 @@
-#include "commondef.h"
-#include "gpu.cuh"
-#include "util.h"
+#include <commondef.h>
+#include <util.h>
 
 #include <stdio.h>
 #include <cuda.h>
 
+#include "gpu.cuh"
 
 
 /* 
