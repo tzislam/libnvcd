@@ -23,22 +23,27 @@ typedef struct nvcd {
   CUdevice* devices;
   CUcontext* contexts;
   int num_devices;
+  bool32_t initialized;
 } nvcd_t;
 
 static void nvcd_init_cuda(nvcd_t* nvcd) {
-  CUDA_DRIVER_FN(cuInit(0));
+  if (!nvcd->initialized) {
+    CUDA_DRIVER_FN(cuInit(0));
   
-  CUDA_RUNTIME_FN(cudaGetDeviceCount(&nvcd->num_devices));
+    CUDA_RUNTIME_FN(cudaGetDeviceCount(&nvcd->num_devices));
 
-  nvcd->devices =
-    zallocNN(sizeof(*(nvcd->devices)) * nvcd->num_devices);
+    nvcd->devices =
+      zallocNN(sizeof(*(nvcd->devices)) * nvcd->num_devices);
 
-  nvcd->contexts =
-    zallocNN(sizeof(*(nvcd->contexts)) * nvcd->num_devices);
+    nvcd->contexts =
+      zallocNN(sizeof(*(nvcd->contexts)) * nvcd->num_devices);
   
-  for (int i = 0; i < nvcd->num_devices; ++i) {
-    CUDA_DRIVER_FN(cuDeviceGet(&nvcd->devices[i], i));
-    CUDA_DRIVER_FN(cuCtxCreate(&nvcd->contexts[i], 0, nvcd->devices[i]));
+    for (int i = 0; i < nvcd->num_devices; ++i) {
+      CUDA_DRIVER_FN(cuDeviceGet(&nvcd->devices[i], i));
+      CUDA_DRIVER_FN(cuCtxCreate(&nvcd->contexts[i], 0, nvcd->devices[i]));
+    }
+
+    nvcd->initialized = true;
   }
 }
 
@@ -90,7 +95,8 @@ static cupti_event_data_t g_event_data = {
 static nvcd_t g_nvcd = {
   .devices = NULL,
   .contexts = NULL,
-  .num_devices = 0
+  .num_devices = 0,
+  .initialized = false
 };
 
 /*
@@ -169,6 +175,8 @@ NVCD_EXPORT void nvcd_init() {
 }
 
 NVCD_EXPORT void nvcd_host_begin() {  
+  ASSERT(g_nvcd.initialized == true);
+
   g_event_data.cuda_context = g_nvcd.contexts[0];
   g_event_data.cuda_device = g_nvcd.devices[0];
 
