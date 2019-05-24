@@ -26,14 +26,14 @@ TOBJ := $(OBJ_C) $(OBJ_CU)
 OBJDIR := obj
 SRCDIR := src
 
-FLAGS := --compiler-options "-fPIC"
+FLAGS := --compiler-options "-fPIC -fvisibility=hidden -Wno-unused-function"
 
 OBJ := $(subst $(SRCDIR), $(OBJDIR), $(TOBJ))
 
-LIB := gpudump.so
+LIB := libnvcd.so
 
 $(LIB): $(OBJ)
-	$(CC) $(FLAGS) $(LD_FLAGS) $(LIBS) $(ARCH) $(OBJ) -o bin/$(TARGET)
+	$(CC) $(FLAGS) $(LD_FLAGS) $(LIBS) $(ARCH) $(OBJ) -o bin/$(LIB)
 
 obj/%.o: src/%.c objdep 
 	$(CC) $(FLAGS) $(INCLUDE) $(CC_FLAGS) $(ARCH) -c $< -o $@

@@ -21,6 +21,13 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#ifdef __GNUC__
+#define NVCD_EXPORT __attribute__ ((visibility("default")))
+#else
+#warning "Only GCC is officially supported."
+#define NVCD_EXPORT
+#endif
+
 #define ASSERT(cond) assert_impl((cond), #cond, __FILE__, __LINE__)
 
 #define NOT_NULL(p_expr) assert_not_null_impl((p_expr), #p_expr, __FILE__, __LINE__) 
@@ -28,7 +35,7 @@
 #define ARRAY_LENGTH(x) (sizeof((x)) / sizeof((x)[0]))
 
 #define zallocNN(sz) NOT_NULL(zalloc((sz)))
-  
+	
 #define mallocNN(sz) NOT_NULL(malloc((sz)))
 
 #define double_buffNN(p, elem_sz, l) NOT_NULL(double_buffer_size((p), (elem_sz), (l))))
@@ -38,18 +45,19 @@
 #define V_UNSET (-1)
 
 typedef long long int clock64_t;
+typedef uint32_t bool32_t; // alignment and portability
 
 #define __FUNC__ __func__
 
 enum {
-  ENO_ERROR = 0,
-  EUNSUPPORTED_EVENTS,
-  EBAD_INPUT,
-  EASSERT,
-  ECUDA_DRIVER,
-  ECUDA_RUNTIME,
-  ECUPTI,
-  ERACE_CONDITION
+	ENO_ERROR = 0,
+	EUNSUPPORTED_EVENTS,
+	EBAD_INPUT,
+	EASSERT,
+	ECUDA_DRIVER,
+	ECUDA_RUNTIME,
+	ECUPTI,
+	ERACE_CONDITION
 };
 
 #ifdef __cplusplus
