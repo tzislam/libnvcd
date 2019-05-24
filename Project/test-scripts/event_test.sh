@@ -22,6 +22,9 @@ case $1 in
     # k80, 3.7: should succeed, with all events reported.
     5) export BENCH_EVENTS="l1_local_load_hit:l1_global_load_hit:l1_local_load_miss:l1_global_load_miss:ALL"
        ;;
+
+    6) export BENCH_EVENTS="ALL"
+	;;
     *)
         echo "Invalid argument specified"
         exit 1
