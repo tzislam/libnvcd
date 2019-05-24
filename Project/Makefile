@@ -9,13 +9,13 @@ INCLUDE=-I./include -I$(CUPTI)/include
 
 CC_FLAGS=--compiler-options "-Wall -lpthread -Werror -g -ggdb -std=gnu99"
 
+LD_FLAGS=--compiler-options "-shared"
+
 ARCH=-arch=$(CUDA_ARCH_SM)
 #ARCH=-arch=sm_60
 
 SRC_C := $(wildcard src/*.c)
 OBJ_C := $(SRC_C:.c=.o)
-
-#-lnvidia-ml
 
 LIBS=-L/usr/lib/x86_64-linux-gnu -L$(CUPTI)/lib64 -L$(CUDA_HOME)/lib64 -lcuda -lcudart -lcupti
 
@@ -26,14 +26,14 @@ TOBJ := $(OBJ_C) $(OBJ_CU)
 OBJDIR := obj
 SRCDIR := src
 
-FLAGS :=
+FLAGS := --compiler-options "-fPIC"
 
 OBJ := $(subst $(SRCDIR), $(OBJDIR), $(TOBJ))
 
-TARGET := perfmon
+LIB := gpudump.so
 
-$(TARGET): $(OBJ)
-	$(CC) $(FLAGS) $(LIBS) $(ARCH) $(OBJ) -o bin/$(TARGET)
+$(LIB): $(OBJ)
+	$(CC) $(FLAGS) $(LD_FLAGS) $(LIBS) $(ARCH) $(OBJ) -o bin/$(TARGET)
 
 obj/%.o: src/%.c objdep 
 	$(CC) $(FLAGS) $(INCLUDE) $(CC_FLAGS) $(ARCH) -c $< -o $@
