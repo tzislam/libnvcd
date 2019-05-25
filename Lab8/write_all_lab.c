@@ -3,16 +3,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-//#define FILESIZE      1048576
-//#define FILESIZE 1024
-#define FILESIZE 20
-//#define INTS_PER_BLK
-#define INTS_PER_BLK  3
+#include "fileinfo.h"
 
 int main(int argc, char **argv)
 {
-  int *buf, rank, nprocs, nints, bufsize;
+  mpi_type_t* buf = NULL;
+  int rank, nprocs, nvals, bufsize;//
   MPI_File fh;
   MPI_Datatype filetype;
   MPI_Status s;
@@ -22,11 +18,16 @@ int main(int argc, char **argv)
   
   MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+  int type_size = 0;
+  MPI_Type_size(MPI_TDEF_TYPE, &type_size);
+
+  printf("type size: %i\n", type_size);
   
-  bufsize = FILESIZE/nprocs;
-  buf = (int *) malloc(bufsize);
-  nints = bufsize/sizeof(int);
-  memset(buf, 'A'+rank, nints * sizeof(int));
+  bufsize = (FILESIZE/nprocs);
+  buf = (mpi_type_t *) malloc(bufsize);
+  nvals = bufsize/type_size;
+  memset(buf, 'A'+rank, bufsize);
 
   // Open file in WRONLY mode, make sure to have CREATE flag on
   MPI_File_open(MPI_COMM_WORLD,
@@ -34,20 +35,20 @@ int main(int argc, char **argv)
                 MPI_MODE_CREATE | MPI_MODE_WRONLY,
                 MPI_INFO_NULL, &fh);
   // Declare type vector
-  MPI_Type_vector(1, INTS_PER_BLK, nprocs, MPI_INT, &filetype);
+  MPI_Type_vector(nvals/VALS_PER_BLK, VALS_PER_BLK, nprocs * VALS_PER_BLK, MPI_TDEF_TYPE, &filetype);
 
   // Commit newly declared type vector
   MPI_Type_commit(&filetype);
   
   // Set file view
   MPI_File_set_view(fh,
-                    INTS_PER_BLK * rank * sizeof(int),
-                    MPI_INT,
+                    VALS_PER_BLK * rank * type_size,
+                    MPI_TDEF_TYPE,
                     filetype,
                     "native",
                     MPI_INFO_NULL);
 
-  MPI_File_write_all(fh, buf, nints, MPI_INT, &s);
+  MPI_File_write_all(fh, buf, nvals, MPI_TDEF_TYPE, &s);
 
   MPI_File_close(&fh);
 
@@ -58,7 +59,7 @@ int main(int argc, char **argv)
   // Type free
   free(buf);
     
-// MPI finalize
+  // MPI finalize
   MPI_Finalize();
   return 0; 
 }
