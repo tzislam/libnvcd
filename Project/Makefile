@@ -5,13 +5,15 @@ CUDA_ARCH_SM ?= sm_37
 
 CUPTI := $(CUDA_HOME)/extras/CUPTI
 
+##
+# Library
+##
+
 INCLUDE=-I./include -I$(CUPTI)/include
 
 CC_FLAGS=--compiler-options "-Wall -lpthread -Werror -g -ggdb -std=gnu99"
 
-##
-# Library
-##
+CU_FLAGS=-std=c++11 -G
 
 LD_FLAGS=--compiler-options "-shared"
 
@@ -72,8 +74,8 @@ obj/%.o: src/%.c objdep
 	$(CC) $(FLAGS) $(INCLUDE) $(CC_FLAGS) $(ARCH) -c $< -o $@
 
 obj/%.o: src/%.cu objdep
-	$(CC) $(FLAGS) $(INCLUDE) $(ARCH) -c $< -o $@
-	$(CC) --ptx $(FLAGS) $(INCLUDE) $(ARCH) -c $< -o $@.ptx
+	$(CC) $(FLAGS) $(INCLUDE) $(CU_FLAGS) $(ARCH) -c $< -o $@
+	$(CC) --ptx $(FLAGS) $(INCLUDE) $(CU_FLAGS) $(ARCH) -c $< -o $@.ptx
 
 # Test binary
 $(TEST_BIN): $(TEST_OBJ) $(LIB)
