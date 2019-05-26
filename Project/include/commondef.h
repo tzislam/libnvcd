@@ -44,7 +44,9 @@
 
 #define V_UNSET (-1)
 
-typedef long long int clock64_t;
+static int64_t ASSERT_SIZE_INT64_LONGLONGINT[sizeof(int64_t) == sizeof(long long int) ? 1 : (-1)];
+
+typedef int64_t clock64_t;
 typedef uint32_t bool32_t; // alignment and portability
 
 #define __FUNC__ __func__
