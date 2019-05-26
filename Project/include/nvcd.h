@@ -22,12 +22,12 @@ NVCD_EXPORT void nvcd_host_end();
 
 NVCD_EXPORT void nvcd_terminate();
 
-#define NVCD_EXEC_KERNEL(kernel_invoke_expr)    \
-  do {                                          \
-    while (!nvcd_host_finished()) {             \
-      (kernel_invoke_expr);                     \
-      CUDA_RUNTIME_FN(cudaDeviceSynchronize()); \
-    }                                           \
+#define NVCD_KERNEL_EXEC(kname, grid, block, ...)       \
+  do {                                                  \
+    while (!nvcd_host_finished()) {                     \
+      kname<<<grid, block>>>(__VA_ARGS__);              \
+      CUDA_RUNTIME_FN(cudaDeviceSynchronize());         \
+    }                                                   \
   } while (0)
 
 C_LINKAGE_END
