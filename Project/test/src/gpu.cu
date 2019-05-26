@@ -6,6 +6,8 @@
 
 #include "gpu.cuh"
 
+#include <nvcd.h>
+#include <device.cuh>
 
 /* 
  * template for taking the dot product of a vector with the row of a matrix 
@@ -74,21 +76,16 @@ __global__ void gpu_kernel_matrix_vec_int(int n,
                                           int m,
                                           int* q,
                                           int* u,
-                                          int* v,
-                                          clock64_t* d_times)
+                                          int* v)
 {       
   int thread_row = threadIdx.x;
 
   //      printf("Kernel executed: %i\n", thread_row);
 
   if (GPU_ASSERT(thread_row < n)) {
-    clock64_t start = clock64();
-
+    nvcd_device_begin(thread_row);
     vec_mat_dot_tmpl(thread_row, m, int, q, u, v);
-
-    clock64_t time = clock64() - start;
-
-    d_times[thread_row] = time;
+    nvcd_device_end(thread_row);
   }
 }
 
@@ -167,20 +164,19 @@ __host__ void gpu_test_matrix_vec_mul(int num_threads)
   CUDA_RUNTIME_FN(cudaMemcpy(u, su, usize * sizeof(int), cudaMemcpyHostToDevice));
 
   {
-    ASSERT(sizeof(clock64_t) == sizeof(int64_t));
+    nvcd_host_begin(num_threads);
 
-    clock64_t* d_exec_times = (clock64_t*) cuda_alloci64((size_t) num_threads);
-
-    gpu_kernel_matrix_vec_int<<<grid, block>>>(n, m, q, u, v, d_exec_times);
-
-    CUDA_RUNTIME_FN(cudaMemcpy(h_exec_times,
-                               d_exec_times,
-                               sizeof(clock64_t) * num_threads,
-                               cudaMemcpyDeviceToHost));
-
-    CUDA_RUNTIME_FN(cudaFree(d_exec_times));
+    
+    NVCD_KERNEL_EXEC(gpu_kernel_matrix_vec_int,
+                     grid, block,
+                     n, m, q, u, v);
+    
+    
+    //NVCD_KERNEL_EXEC(gpu_kernel_matrix_vec_int<<<grid, block>>>(n, m, q, u, v));
+    
+    nvcd_host_end();
   }
-
+  
   CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
   CUDA_RUNTIME_FN(cudaMemcpy(hv, v, vsize * sizeof(int), cudaMemcpyDeviceToHost));
