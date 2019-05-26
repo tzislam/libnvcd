@@ -6,8 +6,6 @@
 
 C_LINKAGE_START
 
-typedef long long int clock64_t;
-
 #define GPU_ASSERT(condition_expr) assert_cond_impl(condition_expr, #condition_expr, __LINE__) 
 
 __device__ bool assert_cond_impl(bool condition, const char* message, int line);
