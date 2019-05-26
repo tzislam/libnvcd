@@ -76,14 +76,14 @@ DEV uint get_smid() {
 // public
 //-------------------------------------
 
-EXTC HOST void nvcd_device_free_mem() {
+EXTC NVCD_EXPORT HOST void nvcd_device_free_mem() {
   cuda_safe_free(d_dev_tstart);
   cuda_safe_free(d_dev_ttime);
   cuda_safe_free(d_dev_num_iter);
   cuda_safe_free(d_dev_smids);
 }
 
-EXTC HOST void nvcd_device_init_mem(int num_threads) {
+EXTC NVCD_EXPORT HOST void nvcd_device_init_mem(int num_threads) {
   {       
     dev_tbuf_size = sizeof(clock64_t) * static_cast<size_t>(num_threads);
 
@@ -122,14 +122,14 @@ EXTC HOST void nvcd_device_init_mem(int num_threads) {
   }
 }
 
-EXTC HOST void nvcd_device_get_ttime(clock64_t* out) {        
+EXTC NVCD_EXPORT HOST void nvcd_device_get_ttime(clock64_t* out) {        
   CUDA_RUNTIME_FN(cudaMemcpy(out,
                              d_dev_ttime,
                              dev_tbuf_size,                                                                                                                                                  
                              cudaMemcpyDeviceToHost));
 }
 
-EXTC HOST void nvcd_device_get_smids(unsigned* out) {
+EXTC NVCD_EXPORT HOST void nvcd_device_get_smids(unsigned* out) {
   CUDA_RUNTIME_FN(cudaMemcpy(out,
                              d_dev_smids,
                              dev_smids_size,                                                                                                                                                         
@@ -137,26 +137,26 @@ EXTC HOST void nvcd_device_get_smids(unsigned* out) {
 
 }
 
-EXTC DEV void nvcd_device_start(int thread) {
+EXTC NVCD_EXPORT DEV void nvcd_device_begin(int thread) {
   dev_tstart[thread] = clock64(); 
 }
 
-EXTC DEV void nvcd_device_end(int thread) {
+EXTC NVCD_EXPORT DEV void nvcd_device_end(int thread) {
   dev_ttime[thread] = clock64() - dev_tstart[thread];
   dev_smids[thread] = get_smid();
 }
 
-EXTC GLOBAL void nvcd_kernel_test() {
+EXTC NVCD_EXPORT GLOBAL void nvcd_kernel_test() {
   int thread = blockIdx.x * blockDim.x + threadIdx.x;
 
   int num_threads = blockDim.x * gridDim.x;
 
   if (thread == 0) {
-
+    
   }
 
   if (thread < num_threads) {
-    nvcd_device_start(thread);
+    nvcd_device_begin(thread);
 
     volatile int number = 0;
 
@@ -168,7 +168,7 @@ EXTC GLOBAL void nvcd_kernel_test() {
   }
 }
 
-EXTC HOST void nvcd_kernel_test_call(int num_threads) {
+EXTC NVCD_EXPORT HOST void nvcd_kernel_test_call(int num_threads) {
   int nblock = 4;
   int threads = num_threads / nblock;
   nvcd_kernel_test<<<nblock, threads>>>();
