@@ -22,8 +22,7 @@ __global__ void gpu_kernel_matrix_vec_mul_int(int n,
                                               int m,
                                               int* q,
                                               int* u,
-                                              int* v,
-                                              clock64_t* d_times);
+                                              int* v);
 
 
 C_LINKAGE_END

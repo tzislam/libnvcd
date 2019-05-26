@@ -126,8 +126,7 @@ static __host__ void cpu_matrix_vec_mul(int n, int m, int* q, int* u, int* v)
     v[r] = k;
   }
 }
-
-__host__ void gpu_test_matrix_vec_mul(int num_threads, clock64_t* h_exec_times)
+__host__ void gpu_test_matrix_vec_mul(int num_threads)
 {
   dim3 grid(1, 1, 1);
 
