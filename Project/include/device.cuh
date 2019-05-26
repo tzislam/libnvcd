@@ -22,11 +22,11 @@
 EXTC DEV void nvcd_device_start(int thread);
 EXTC DEV void nvcd_device_end(int thread);
 
-EXTC HOST void nvcd_init_device_mem(int num_threads);
-EXTC HOST void nvcd_free_device_mem();
+EXTC HOST void nvcd_device_init_mem(int num_threads);
+EXTC HOST void nvcd_device_free_mem();
 
-EXTC HOST void nvcd_get_device_ttime(clock64_t* out);
-EXTC HOST void nvcd_get_device_smids(unsigned* out);
+EXTC HOST void nvcd_device_get_ttime(clock64_t* out);
+EXTC HOST void nvcd_device_get_smids(unsigned* out);
 
 EXTC GLOBAL void nvcd_kernel_test();
 

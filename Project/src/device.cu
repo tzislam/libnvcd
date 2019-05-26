@@ -76,14 +76,14 @@ DEV uint get_smid() {
 // public
 //-------------------------------------
 
-EXTC HOST void nvcd_free_device_mem() {
+EXTC HOST void nvcd_device_free_mem() {
   cuda_safe_free(d_dev_tstart);
   cuda_safe_free(d_dev_ttime);
   cuda_safe_free(d_dev_num_iter);
   cuda_safe_free(d_dev_smids);
 }
 
-EXTC HOST void nvcd_init_device_mem(int num_threads) {
+EXTC HOST void nvcd_device_init_mem(int num_threads) {
   {       
     dev_tbuf_size = sizeof(clock64_t) * static_cast<size_t>(num_threads);
 
@@ -122,14 +122,14 @@ EXTC HOST void nvcd_init_device_mem(int num_threads) {
   }
 }
 
-EXTC HOST void nvcd_get_device_ttime(clock64_t* out) {        
+EXTC HOST void nvcd_device_get_ttime(clock64_t* out) {        
   CUDA_RUNTIME_FN(cudaMemcpy(out,
                              d_dev_ttime,
                              dev_tbuf_size,                                                                                                                                                  
                              cudaMemcpyDeviceToHost));
 }
 
-EXTC HOST void nvcd_get_device_smids(unsigned* out) {
+EXTC HOST void nvcd_device_get_smids(unsigned* out) {
   CUDA_RUNTIME_FN(cudaMemcpy(out,
                              d_dev_smids,
                              dev_smids_size,                                                                                                                                                         
