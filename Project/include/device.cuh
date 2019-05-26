@@ -3,16 +3,28 @@
 
 #include "commondef.h"
 
+#ifdef __cplusplus
 #define EXTC extern "C"
+#else
+#define EXTC
+#endif
 
+#ifdef __CUDACC__
 #define DEV __device__
 #define HOST __host__
 #define GLOBAL __global__
+#else
+#define DEV
+#define HOST
+#define GLOBAL
+#endif 
 
+#ifdef __CUDACC__
 namespace nvcd {
   
   
 }
+#endif // __CUDACC__
 
 EXTC NVCD_EXPORT DEV void nvcd_device_begin(int thread);
 EXTC NVCD_EXPORT DEV void nvcd_device_end(int thread);
