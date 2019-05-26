@@ -6,6 +6,8 @@
 #include "list.h"
 #include "env_var.h"
 
+#include "device.h"
+
 #include <ctype.h>
 #include <cupti.h>
 #include <cuda.h>
@@ -174,9 +176,11 @@ NVCD_EXPORT void nvcd_init() {
   nvcd_init_cuda(&g_nvcd);
 }
 
-NVCD_EXPORT void nvcd_host_begin() {  
+NVCD_EXPORT void nvcd_host_begin(int num_cuda_threads) {  
   ASSERT(g_nvcd.initialized == true);
 
+  nvcd_device_init_mem(num_cuda_threads);
+  
   g_event_data.cuda_context = g_nvcd.contexts[0];
   g_event_data.cuda_device = g_nvcd.devices[0];
 
@@ -197,6 +201,8 @@ NVCD_EXPORT bool nvcd_host_finished() {
 
 NVCD_EXPORT void nvcd_host_end() {
   cupti_event_data_end(&g_event_data);
+
+  nvcd_device_free_mem();
 }
 
 NVCD_EXPORT void nvcd_terminate() {
