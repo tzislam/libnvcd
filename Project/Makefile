@@ -32,7 +32,7 @@ TOBJ := $(OBJ_C) $(OBJ_CU)
 OBJDIR := obj
 SRCDIR := src
 
-FLAGS := --compiler-options "-fPIC -fvisibility=hidden -Wno-unused-function"
+FLAGS := --compiler-options "-fPIC -fvisibility=hidden -Wno-unused-function -Wno-unused-variable"
 
 OBJ := $(subst $(SRCDIR), $(OBJDIR), $(TOBJ))
 
