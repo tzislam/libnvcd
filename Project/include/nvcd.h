@@ -14,7 +14,7 @@ NVCD_EXPORT void nvcd_report();
 
 NVCD_EXPORT void nvcd_init();
 
-NVCD_EXPORT void nvcd_host_begin();
+NVCD_EXPORT void nvcd_host_begin(int num_cuda_threads);
 
 NVCD_EXPORT bool nvcd_host_finished();
 
@@ -24,12 +24,10 @@ NVCD_EXPORT void nvcd_terminate();
 
 #define NVCD_EXEC_KERNEL(kernel_invoke_expr)    \
   do {                                          \
-    nvcd_host_begin();                          \
     while (!nvcd_host_finished()) {             \
       (kernel_invoke_expr);                     \
       CUDA_RUNTIME_FN(cudaDeviceSynchronize()); \
     }                                           \
-    nvcd_host_end();                            \
   } while (0)
 
 C_LINKAGE_END
