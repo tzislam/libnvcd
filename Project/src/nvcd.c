@@ -6,7 +6,7 @@
 #include "list.h"
 #include "env_var.h"
 
-#include "device.h"
+#include "device.cuh"
 
 #include <ctype.h>
 #include <cupti.h>
@@ -21,10 +21,16 @@
 #include <inttypes.h>
 #include <pthread.h>
 
+//
+// nvcd base data
+//
+
 typedef struct nvcd {
   CUdevice* devices;
   CUcontext* contexts;
+
   int num_devices;
+  
   bool32_t initialized;
 } nvcd_t;
 
@@ -48,6 +54,77 @@ static void nvcd_init_cuda(nvcd_t* nvcd) {
     nvcd->initialized = true;
   }
 }
+
+static nvcd_t g_nvcd = {
+  .devices = NULL,
+  .contexts = NULL,
+
+  .num_devices = 0,
+
+  .initialized = false
+};
+
+//
+// kernel thread
+// 
+
+typedef struct kernel_thread_data {
+  clock64_t* times;
+
+  uint32_t* smids;
+  
+  size_t num_cuda_threads;
+
+  bool32_t initialized;
+  
+} kernel_thread_data_t;
+
+static void kernel_thread_data_init(kernel_thread_data_t* k, int num_cuda_threads) {
+  ASSERT(k != NULL);
+
+  if (!k->initialized) {
+    k->num_cuda_threads = (size_t)num_cuda_threads;
+
+    k->times = zallocNN(sizeof(k->times[0]) * k->num_cuda_threads);
+    k->smids = zallocNN(sizeof(k->smids[0]) * k->num_cuda_threads);
+
+    k->initialized = true;
+  }
+}
+
+static void kernel_thread_data_free(kernel_thread_data_t* k) {
+  ASSERT(k != NULL);
+
+  safe_free_v(k->times);
+  safe_free_v(k->smids);
+
+  k->initialized = false;
+}
+
+static void kernel_thread_data_report(kernel_thread_data_t* k) {
+  ASSERT(k != NULL);
+  
+  puts("============PER-THREAD KERNEL DATA============");
+
+  for (size_t i = 0; i < k->num_cuda_threads; ++i) {
+    printf("---\nThread %" PRIu64 ":\n"
+           "\tTime\t= %" PRId64 " nanoseconds\n"
+           "\tSM ID\t= %" PRIu32 "\n",
+           i,
+           k->times[i],
+           k->smids[i]);
+  }
+  puts("==============================================");
+}
+
+static kernel_thread_data_t g_kernel_thread_data = {
+  .times = NULL,
+  .smids = NULL,
+  
+  .num_cuda_threads = 0,
+
+  .initialized = false
+};
 
 //
 // Cupti Event
@@ -94,12 +171,6 @@ static cupti_event_data_t g_event_data = {
   .initialized = false
 };
 
-static nvcd_t g_nvcd = {
-  .devices = NULL,
-  .contexts = NULL,
-  .num_devices = 0,
-  .initialized = false
-};
 
 /*
  * env var list testing
@@ -180,10 +251,11 @@ NVCD_EXPORT void nvcd_host_begin(int num_cuda_threads) {
   ASSERT(g_nvcd.initialized == true);
 
   nvcd_device_init_mem(num_cuda_threads);
+
+  kernel_thread_data_init(&g_kernel_thread_data, num_cuda_threads);
   
   g_event_data.cuda_context = g_nvcd.contexts[0];
   g_event_data.cuda_device = g_nvcd.devices[0];
-
   g_event_data.thread_host_begin = pthread_self();
   
   cupti_event_data_init(&g_event_data);
@@ -200,8 +272,16 @@ NVCD_EXPORT bool nvcd_host_finished() {
 }
 
 NVCD_EXPORT void nvcd_host_end() {
-  cupti_event_data_end(&g_event_data);
+  ASSERT(g_kernel_thread_data.initialized == true);
+  ASSERT(g_nvcd.initialized == true);
+  
+  nvcd_device_get_ttime(g_kernel_thread_data.times);
+  nvcd_device_get_smids(g_kernel_thread_data.smids);
 
+  kernel_thread_data_report(&g_kernel_thread_data);
+  kernel_thread_data_free(&g_kernel_thread_data);
+  
+  cupti_event_data_end(&g_event_data);
   nvcd_device_free_mem();
 }
 
