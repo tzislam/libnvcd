@@ -10,10 +10,6 @@
 // internal
 //-------------------------------------
 
-DEV clock64_t* dev_tstart;
-DEV clock64_t* dev_ttime;
-DEV int* dev_num_iter;
-DEV uint* dev_smids;
 
 static size_t dev_tbuf_size = 0;
 static size_t dev_num_iter_size = 0;
@@ -65,12 +61,6 @@ static void cuda_memcpy_host_to_dev(void* dst, std::vector<T> host) {
 
 }
 
-// see https://devtalk.nvidia.com/default/topic/481465/any-way-to-know-on-which-sm-a-thread-is-running-/
-DEV uint get_smid() {
-  uint ret;
-  asm("mov.u32 %0, %smid;" : "=r"(ret) );
-  return ret;
-}
 
 //-------------------------------------
 // public
@@ -87,20 +77,20 @@ EXTC NVCD_EXPORT HOST void nvcd_device_init_mem(int num_threads) {
   {       
     dev_tbuf_size = sizeof(clock64_t) * static_cast<size_t>(num_threads);
 
-    d_dev_tstart = cuda_zalloc_sym(dev_tbuf_size, dev_tstart);
-    d_dev_ttime = cuda_zalloc_sym(dev_tbuf_size, dev_ttime);
+    d_dev_tstart = cuda_zalloc_sym(dev_tbuf_size, detail::dev_tstart);
+    d_dev_ttime = cuda_zalloc_sym(dev_tbuf_size, detail::dev_ttime);
   }
 
   {
     dev_smids_size = sizeof(uint) * static_cast<size_t>(num_threads);
 
-    d_dev_smids = cuda_zalloc_sym(dev_smids_size, dev_smids);
+    d_dev_smids = cuda_zalloc_sym(dev_smids_size, detail::dev_smids);
   }
 
   if (test_imbalance_detect) {
     dev_num_iter_size = sizeof(int) * static_cast<size_t>(num_threads);
 
-    d_dev_num_iter = cuda_zalloc_sym(dev_num_iter_size, dev_num_iter);
+    d_dev_num_iter = cuda_zalloc_sym(dev_num_iter_size, detail::dev_num_iter);
 
     std::vector<int> host_num_iter(num_threads, 0);
 
@@ -122,29 +112,21 @@ EXTC NVCD_EXPORT HOST void nvcd_device_init_mem(int num_threads) {
   }
 }
 
-EXTC NVCD_EXPORT HOST void nvcd_device_get_ttime(clock64_t* out) {        
+EXTC NVCD_EXPORT HOST void nvcd_device_get_ttime(clock64_t* out) {
   CUDA_RUNTIME_FN(cudaMemcpy(out,
                              d_dev_ttime,
-                             dev_tbuf_size,                                                                                                                                                  
+                             dev_tbuf_size,
                              cudaMemcpyDeviceToHost));
 }
 
 EXTC NVCD_EXPORT HOST void nvcd_device_get_smids(unsigned* out) {
   CUDA_RUNTIME_FN(cudaMemcpy(out,
                              d_dev_smids,
-                             dev_smids_size,                                                                                                                                                         
+                             dev_smids_size,
                              cudaMemcpyDeviceToHost));
 
 }
 
-EXTC NVCD_EXPORT DEV void nvcd_device_begin(int thread) {
-  dev_tstart[thread] = clock64(); 
-}
-
-EXTC NVCD_EXPORT DEV void nvcd_device_end(int thread) {
-  dev_ttime[thread] = clock64() - dev_tstart[thread];
-  dev_smids[thread] = get_smid();
-}
 
 EXTC NVCD_EXPORT GLOBAL void nvcd_kernel_test() {
   int thread = blockIdx.x * blockDim.x + threadIdx.x;
@@ -160,7 +142,7 @@ EXTC NVCD_EXPORT GLOBAL void nvcd_kernel_test() {
 
     volatile int number = 0;
 
-    for (int i = 0; i < dev_num_iter[thread]; ++i) {
+    for (int i = 0; i < detail::dev_num_iter[thread]; ++i) {
       number += i;
     }
 

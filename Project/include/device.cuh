@@ -10,24 +10,48 @@
 #endif
 
 #ifdef __CUDACC__
+
+#include <cuda.h>
+#include <cuda_runtime.h>
+
 #define DEV __device__
 #define HOST __host__
 #define GLOBAL __global__
+
+#define NVCD_DEV_EXPORT EXTC NVCD_EXPORT DEV
+
 #else
 #define DEV
 #define HOST
 #define GLOBAL
-#endif 
+#endif
 
 #ifdef __CUDACC__
-namespace nvcd {
-  
-  
+namespace detail {
+  DEV clock64_t* dev_tstart;
+  DEV clock64_t* dev_ttime;
+  DEV int* dev_num_iter;
+  DEV uint* dev_smids;
 }
-#endif // __CUDACC__
 
-EXTC NVCD_EXPORT DEV void nvcd_device_begin(int thread);
-EXTC NVCD_EXPORT DEV void nvcd_device_end(int thread);
+// see https://devtalk.nvidia.com/default/topic/481465/any-way-to-know-on-which-sm-a-thread-is-running-/
+
+NVCD_DEV_EXPORT uint get_smid() {
+  uint ret;
+  asm("mov.u32 %0, %smid;" : "=r"(ret) );
+  return ret;
+}
+
+NVCD_DEV_EXPORT void nvcd_device_begin(int thread) {
+  detail::dev_tstart[thread] = clock64(); 
+}
+
+NVCD_DEV_EXPORT void nvcd_device_end(int thread) {
+  detail::dev_ttime[thread] = clock64() - detail::dev_tstart[thread];
+  detail::dev_smids[thread] = get_smid();
+}
+
+#endif // __CUDACC__
 
 EXTC NVCD_EXPORT HOST void nvcd_device_init_mem(int num_threads);
 EXTC NVCD_EXPORT HOST void nvcd_device_free_mem();
