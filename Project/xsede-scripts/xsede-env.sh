@@ -2,6 +2,8 @@
 
 cuda_version=9.2
 
+export LD_LIBRARY_PATH=/home/schutth/cs415/Project/bin:$LD_LIBRARY_PATH
+
 module purge
 
 module load gnutools
