@@ -83,73 +83,25 @@ extern "C" {
       nvcd->initialized = true;
     }
   }
-
-  static nvcd_t g_nvcd = {
-    /*.devices =*/ NULL,
-    /*.contexts =*/ NULL,
-    /*.num_devices =*/ 0,
-    /*.initialized =*/ false
-  };
 }
+
+extern "C" nvcd_t g_nvcd;
 
 //--------------------------------------
 // CUPTI event data
 //-------------------------------------
 
-extern "C" {
-
-    static cupti_event_data_t g_event_data = {
-      /*.event_id_buffer =*/ NULL, 
-      /*.event_counter_buffer =*/ NULL, 
-
-      /*.num_events_per_group =*/ NULL, 
-      /*.num_events_read_per_group =*/ NULL,
-      /*.num_instances_per_group =*/ NULL,
-
-      /*.event_counter_buffer_offsets =*/ NULL,
-      /*.event_id_buffer_offsets =*/ NULL,
-      /*.event_groups_read =*/ NULL,
-
-      /*.kernel_times_nsec_start =*/ NULL,
-      /*.kernel_times_nsec_end =*/ NULL,
-
-      /*.event_groups =*/ NULL,
-
-      /*.event_names =*/ NULL,
-
-      /*.stage_time_nsec_start =*/ 0,
-      /*.stage_time_nsec_end =*/ 0,
-
-      /*.cuda_context =*/ NULL,
-      /*.cuda_device =*/ CU_DEVICE_INVALID,
-
-      /*.subscriber =*/ NULL,
-  
-      /*.num_event_groups =*/ 0,
-      /*.num_kernel_times =*/ 0,
-
-      /*.count_event_groups_read =*/ 0,
-  
-      /*.event_counter_buffer_length =*/ 0,
-      /*.event_id_buffer_length =*/ 0,
-      /*.kernel_times_nsec_buffer_length =*/ 10, // default; will increase as necessary at runtime
-
-      /*.event_names_buffer_length =*/ 0,
-
-      /*.initialized =*/ false
-  };
-  
-}
+extern "C" cupti_event_data_t g_event_data;
 
 //--------------------------------------
 // Device globals
 //-------------------------------------
 
 namespace detail {
-  extern DEV clock64_t* dev_tstart = nullptr;
-  extern DEV clock64_t* dev_ttime = nullptr;
-  extern DEV int* dev_num_iter = nullptr;
-  extern DEV uint* dev_smids = nullptr;
+  DEV clock64_t* dev_tstart = nullptr;
+  DEV clock64_t* dev_ttime = nullptr;
+  DEV int* dev_num_iter = nullptr;
+  DEV uint* dev_smids = nullptr;
 }
 
 // --------------------------------------------------------------------------
@@ -158,16 +110,16 @@ namespace detail {
 // Host-side device memory management
 //-------------------------------------
 
-static size_t dev_tbuf_size = 0;
-static size_t dev_num_iter_size = 0;
-static size_t dev_smids_size = 0;
+extern size_t dev_tbuf_size;
+extern size_t dev_num_iter_size;
+extern size_t dev_smids_size;
 
-static void* d_dev_tstart = nullptr;
-static void* d_dev_ttime = nullptr;
-static void* d_dev_num_iter = nullptr;
-static void* d_dev_smids = nullptr;
+extern void* d_dev_tstart;
+extern void* d_dev_ttime;
+extern void* d_dev_num_iter;
+extern void* d_dev_smids;
 
-static volatile bool test_imbalance_detect = true;
+extern volatile bool test_imbalance_detect;
 
 template <class T>
 static void cuda_safe_free(T*& ptr) {
@@ -384,16 +336,9 @@ extern "C" {
     }
     puts("==============================================");
   }
-
-  static kernel_thread_data_t g_kernel_thread_data = {
-    /*.times =*/ NULL,
-    /*.smids =*/ NULL,
-  
-    /*.num_cuda_threads =*/ 0,
-
-    /*.initialized =*/ false
-  };
 }
+
+extern "C" kernel_thread_data_t g_kernel_thread_data;
 
 //------------------------------------------------------
 // NVCD host
@@ -420,9 +365,14 @@ NVCD_CUDA_EXPORT void nvcd_report() {
 
 NVCD_CUDA_EXPORT void nvcd_init() {
   nvcd_init_cuda(&g_nvcd);
+
+  printf("nvcd_init address: %p\n", nvcd_init);
+  ASSERT(g_nvcd.initialized == true);
 }
 
 NVCD_CUDA_EXPORT void nvcd_host_begin(int num_cuda_threads) {  
+  printf("nvcd_host_begin address: %p\n", nvcd_host_begin);
+
   ASSERT(g_nvcd.initialized == true);
 
   nvcd_device_init_mem(num_cuda_threads);
@@ -510,6 +460,88 @@ NVCD_CUDA_EXPORT void nvcd_device_get_smids(unsigned* out);
 
 EXTC NVCD_EXPORT GLOBAL void nvcd_kernel_test();
 NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads);
+#endif
+
+#ifdef NVCD_GLOBAL_IMPL
+
+extern "C" {
+
+nvcd_t g_nvcd = {
+  /*.devices =*/ NULL,
+  /*.contexts =*/ NULL,
+  /*.num_devices =*/ 0,
+  /*.initialized =*/ false
+};
+
+cupti_event_data_t g_event_data = {
+  /*.event_id_buffer =*/ NULL, 
+  /*.event_counter_buffer =*/ NULL, 
+
+  /*.num_events_per_group =*/ NULL, 
+  /*.num_events_read_per_group =*/ NULL,
+  /*.num_instances_per_group =*/ NULL,
+
+  /*.event_counter_buffer_offsets =*/ NULL,
+  /*.event_id_buffer_offsets =*/ NULL,
+  /*.event_groups_read =*/ NULL,
+
+  /*.kernel_times_nsec_start =*/ NULL,
+  /*.kernel_times_nsec_end =*/ NULL,
+
+  /*.event_groups =*/ NULL,
+
+  /*.event_names =*/ NULL,
+
+  /*.stage_time_nsec_start =*/ 0,
+  /*.stage_time_nsec_end =*/ 0,
+
+  /*.cuda_context =*/ NULL,
+  /*.cuda_device =*/ CU_DEVICE_INVALID,
+
+  /*.subscriber =*/ NULL,
+  
+  /*.num_event_groups =*/ 0,
+  /*.num_kernel_times =*/ 0,
+
+  /*.count_event_groups_read =*/ 0,
+  
+  /*.event_counter_buffer_length =*/ 0,
+  /*.event_id_buffer_length =*/ 0,
+  /*.kernel_times_nsec_buffer_length =*/ 10, // default; will increase as necessary at runtime
+
+  /*.event_names_buffer_length =*/ 0,
+
+  /*.initialized =*/ false
+};
+
+kernel_thread_data_t g_kernel_thread_data = {
+  /*.times =*/ NULL,
+  /*.smids =*/ NULL,
+  
+  /*.num_cuda_threads =*/ 0,
+
+  /*.initialized =*/ false
+};
+
+}
+
+/*
+extern DEV clock64_t* detail::dev_tstart = nullptr;
+extern DEV clock64_t* detail::dev_ttime = nullptr;
+extern DEV int* detail::dev_num_iter = nullptr;
+extern DEV uint* detail::dev_smids = nullptr;
+*/
+
+size_t dev_tbuf_size = 0;
+size_t dev_num_iter_size = 0;
+size_t dev_smids_size = 0;
+
+void* d_dev_tstart = nullptr;
+void* d_dev_ttime = nullptr;
+void* d_dev_num_iter = nullptr;
+void* d_dev_smids = nullptr;
+
+volatile bool test_imbalance_detect = false;
 #endif
 
 #endif // __DEVICE_CUH__
