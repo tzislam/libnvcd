@@ -76,6 +76,10 @@ typedef struct cupti_event_data {
 } cupti_event_data_t;
 
 
+#ifndef PTHREAD_INITIALIZER
+#define PTHREAD_INITIALIZER (unsigned long)0
+#endif
+
 #define CUPTI_EVENT_DATA_NULL {                                         \
   /*.event_id_buffer =*/ NULL,                                          \
     /*.event_counter_buffer =*/ NULL,                                   \
@@ -92,6 +96,8 @@ typedef struct cupti_event_data {
     /*.cuda_context =*/ NULL,                                           \
     /*.cuda_device =*/ CU_DEVICE_INVALID,                               \
     /*.subscriber =*/ NULL,                                             \
+      /*.thread_host_begin =*/ PTHREAD_INITIALIZER,                     \
+      /*.thread_host_end =*/ PTHREAD_INITIALIZER,                       \
     /*.num_event_groups =*/ 0,                                          \
     /*.num_kernel_times =*/ 0,                                          \
     /*.count_event_groups_read =*/ 0,                                   \

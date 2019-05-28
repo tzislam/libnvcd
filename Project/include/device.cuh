@@ -235,8 +235,8 @@ struct nvcd_run_info {
       curr_num_threads(0) {}
 
   ~nvcd_run_info() {
-    for (auto& ed: cupti_events) {
-      cupti_event_data_free(&ed);
+    for (size_t i = 0; i < num_runs; ++i) {
+      cupti_event_data_free(&cupti_events[i]);
     }
   }
   
@@ -256,7 +256,20 @@ struct nvcd_run_info {
     }
     
     if (num_runs == cupti_events.size()) {
-      cupti_events.resize(cupti_events.size() << 1);  
+      if (cupti_events.size() == 0) {
+        cupti_events.resize(8);
+
+        for (size_t i = 0; i < cupti_events.size(); ++i) {
+          cupti_event_data_set_null(&cupti_events[i]);
+        }
+      } else {
+        size_t oldsz = cupti_events.size();
+        cupti_events.resize(cupti_events.size() << 1);
+
+        for (size_t i = oldsz; i < cupti_events.size(); ++i) {
+          cupti_event_data_set_null(&cupti_events[i]);
+        }
+      }
     }
 
     memcpy(&cupti_events[num_runs],
@@ -264,8 +277,6 @@ struct nvcd_run_info {
            sizeof(g_event_data));
 
     num_runs++;
-    
-    cupti_event_data_set_null(&g_event_data);
   }
 
   void report() {
@@ -484,7 +495,6 @@ extern "C" {
   }
 
   NVCD_CUDA_EXPORT void nvcd_report() {
-    ASSERT(g_event_data.initialized == true);
     ASSERT(g_run_info.get() != nullptr);
     
     g_run_info->report();
@@ -535,6 +545,8 @@ extern "C" {
     g_run_info->update();
     
     nvcd_device_free_mem();
+
+    cupti_event_data_set_null(&g_event_data);
   }
 
   NVCD_CUDA_EXPORT void nvcd_terminate() {

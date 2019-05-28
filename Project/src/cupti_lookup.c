@@ -982,6 +982,10 @@ NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
     init_cupti_event_groups(e);
     init_cupti_event_buffers(e);
 
+    e->kernel_times_nsec = zallocNN(sizeof(e->kernel_times_nsec[0]) *
+                                    e->kernel_times_nsec_buffer_length);
+                                           
+    
     e->initialized = true;
   }
 }
@@ -1010,6 +1014,7 @@ NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   
   for (size_t i = 0; i < e->num_event_groups; ++i) { 
     if (e->event_groups[i] != NULL) {
+      CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
       CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i]));
       CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i]));
     }

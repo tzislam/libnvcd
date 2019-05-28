@@ -7,10 +7,12 @@
 int main() {
   nvcd_init();
 
-  int threads = 16;
+  int threads = 1024;
 
-  gpu_test_matrix_vec_mul(threads);
+  //  gpu_test_matrix_vec_mul(threads);
 
+  nvcd_kernel_test_call(threads);
+  
   nvcd_report();
 
   nvcd_terminate();
