@@ -833,7 +833,6 @@ NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
   }
 }
 
-
 static bool _message_reported = false;
 
 NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
@@ -925,10 +924,22 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
     } break;
 
     case CUPTI_API_EXIT: {
+      size_t finish_time = 0;
+      
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());
       CUPTI_FN(cuptiDeviceGetTimestamp(callback_info->context,
-                                       &event_data->stage_time_nsec_end));
+                                       &finish_time));
+
       collect_group_events(event_data);
+
+      MAYBE_GROW_BUFFER_U32_NN(event_data->kernel_times_nsec,
+                               event_data->num_kernel_times,
+                               event_data->kernel_times_nsec_buffer_length);
+
+      event_data->kernel_times_nsec[event_data->num_kernel_times] =
+        finish_time - event_data->stage_time_nsec_start;
+
+      event_data->num_kernel_times++;
     } break;
 
     default:
@@ -956,6 +967,8 @@ NVCD_EXPORT void cupti_event_data_subscribe(cupti_event_data_t* e) {
 NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e) {
   ASSERT(e != NULL && e->initialized && e->subscriber != NULL);
   CUPTI_FN(cuptiUnsubscribe(e->subscriber));
+  //
+  e->subscriber = NULL;
 }
 
 
@@ -973,6 +986,12 @@ NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
   }
 }
 
+
+NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
+  cupti_event_data_t tmp = CUPTI_EVENT_DATA_NULL;
+  memcpy(e, &tmp, sizeof(tmp));
+}
+
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   
@@ -987,8 +1006,7 @@ NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   safe_free_v(e->event_id_buffer_offsets);
   safe_free_v(e->event_groups_read);
 
-  safe_free_v(e->kernel_times_nsec_start);
-  safe_free_v(e->kernel_times_nsec_end);
+  safe_free_v(e->kernel_times_nsec);
   
   for (size_t i = 0; i < e->num_event_groups; ++i) { 
     if (e->event_groups[i] != NULL) {
@@ -1014,6 +1032,8 @@ NVCD_EXPORT void cupti_event_data_begin(cupti_event_data_t* e) {
 
 NVCD_EXPORT void cupti_event_data_end(cupti_event_data_t* e) {
   cupti_event_data_unsubscribe(e);
+
+  
 }
 
 

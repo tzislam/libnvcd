@@ -31,15 +31,13 @@ typedef struct cupti_event_data {
   uint32_t* event_groups_read; // not all event groups can be read simultaneously
 
   // arbitrary, has a max size which can grow
-  uint64_t* kernel_times_nsec_start;
-  uint64_t* kernel_times_nsec_end;
+  uint64_t* kernel_times_nsec;
   
   CUpti_EventGroup* event_groups;
   
   char*const * event_names;
 
   uint64_t stage_time_nsec_start;
-  uint64_t stage_time_nsec_end;
   
   CUcontext cuda_context;
   CUdevice cuda_device;
@@ -76,6 +74,36 @@ typedef struct cupti_event_data {
   bool32_t initialized;
   
 } cupti_event_data_t;
+
+
+#define CUPTI_EVENT_DATA_NULL {                                         \
+  /*.event_id_buffer =*/ NULL,                                          \
+    /*.event_counter_buffer =*/ NULL,                                   \
+    /*.num_events_per_group =*/ NULL,                                   \
+    /*.num_events_read_per_group =*/ NULL,                              \
+    /*.num_instances_per_group =*/ NULL,                                \
+    /*.event_counter_buffer_offsets =*/ NULL,                           \
+    /*.event_id_buffer_offsets =*/ NULL,                                \
+    /*.event_groups_read =*/ NULL,                                      \
+    /*.kernel_times_nsec =*/ NULL,                                      \
+    /*.event_groups =*/ NULL,                                           \
+    /*.event_names =*/ NULL,                                            \
+    /*.stage_time_nsec_start =*/ 0,                                     \
+    /*.cuda_context =*/ NULL,                                           \
+    /*.cuda_device =*/ CU_DEVICE_INVALID,                               \
+    /*.subscriber =*/ NULL,                                             \
+    /*.num_event_groups =*/ 0,                                          \
+    /*.num_kernel_times =*/ 0,                                          \
+    /*.count_event_groups_read =*/ 0,                                   \
+    /*.event_counter_buffer_length =*/ 0,                               \
+    /*.event_id_buffer_length =*/ 0,                                    \
+    /*.kernel_times_nsec_buffer_length =*/ 10,                          \
+    /*.event_names_buffer_length =*/ 0,                                 \
+    /*.initialized =*/ false                                            \
+    }
+
+
+
 
 // unread -> can be read, unless an attempt to enable the event group
 //           leads to a compatibility error with other enabled event groups.
@@ -116,6 +144,8 @@ NVCD_EXPORT void cupti_event_data_subscribe(cupti_event_data_t* e);
 NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e);
 
 NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e);
+
+NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e);
 
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e);
 

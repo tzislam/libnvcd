@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <algorithm>
 #include <iterator>
+#include <memory>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -56,19 +57,27 @@
 #define DEV __device__
 #define HOST __host__
 #define GLOBAL __global__
+
 #define NVCD_DEV_EXPORT static inline DEV
-#define NVCD_INLINE inline
+#define NVCD_CUDA_EXPORT static inline HOST
+#define NVCD_GLOBAL_EXPORT static GLOBAL
 
 #define DEV_PRINT_PTR(v) printf("&(%s) = %p, %s = %p\n", #v, &v, #v, v)
 
-#define NVCD_CUDA_EXPORT static inline
+#define NVCD_KERNEL_EXEC(kname, dim3_grid, dim3_block, ...)       \
+  do {                                                            \
+    while (!nvcd_host_finished()) {                               \
+      kname<<<dim3_grid, dim3_block>>>(__VA_ARGS__);              \
+      CUDA_RUNTIME_FN(cudaDeviceSynchronize());                   \
+    }                                                             \
+  } while (0)
 
-#define NVCD_KERNEL_EXEC(kname, grid, block, ...)       \
-  do {                                                  \
-    while (!nvcd_host_finished()) {                     \
-      kname<<<grid, block>>>(__VA_ARGS__);              \
-      CUDA_RUNTIME_FN(cudaDeviceSynchronize());         \
-    }                                                   \
+#define NVCD_KERNEL_EXEC_v2(kname, num_blocks, threads_per_block, ...)  \
+  do {                                                                  \
+    while (!nvcd_host_finished()) {                                     \
+      kname<<<num_blocks, threads_per_block>>>(__VA_ARGS__);            \
+      CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         \
+    }                                                                   \
   } while (0)
 
 typedef struct nvcd {
@@ -221,7 +230,51 @@ struct kernel_invoke_data {
   }
 };
 
-extern std::vector<kernel_invoke_data> kernel_invoke_list;
+struct nvcd_run_info {
+  std::vector<kernel_invoke_data> kernel_stats;
+  std::vector<cupti_event_data_t> cupti_events;
+
+  size_t num_runs;
+
+  nvcd_run_info()
+    : num_runs(0) {}
+
+  void update() {
+
+    {
+      puts("============PER-THREAD KERNEL DATA============");
+
+      kernel_thread_data_t* k = &g_kernel_thread_data;
+        
+      kernel_invoke_data d(static_cast<size_t>(k->num_cuda_threads));
+
+      for (size_t i = 0; i < k->num_cuda_threads; ++i) {
+        d.times[i] = k->times[i];
+        d.smids[i] = k->smids[i];
+      }
+
+      d.write();
+
+      kernel_stats.push_back(std::move(d));
+    
+      puts("==============================================");
+    }
+    
+    if (num_runs == cupti_events.size()) {
+      cupti_events.resize(cupti_events.size() << 1);  
+    }
+
+    memcpy(&cupti_events[num_runs],
+             &g_event_data,
+             sizeof(g_event_data));
+
+    num_runs++;
+    
+    cupti_event_data_set_null(&g_event_data);
+  }
+};
+
+extern std::unique_ptr<nvcd_run_info> g_run_info;
 
 //
 // Device functions
@@ -234,7 +287,7 @@ NVCD_DEV_EXPORT uint get_smid() {
 }
 
 NVCD_DEV_EXPORT void nvcd_device_begin(int thread) {
-  DEV_PRINT_PTR(detail::dev_tstart);
+  //  DEV_PRINT_PTR(detail::dev_tstart);
   detail::dev_tstart[thread] = clock64();
 }
 
@@ -242,8 +295,30 @@ NVCD_DEV_EXPORT void nvcd_device_end(int thread) {
   detail::dev_ttime[thread] = clock64() - detail::dev_tstart[thread];
   detail::dev_smids[thread] = get_smid();
 
-  DEV_PRINT_PTR(detail::dev_ttime);
-  DEV_PRINT_PTR(detail::dev_smids);
+  // DEV_PRINT_PTR(detail::dev_ttime);
+  // DEV_PRINT_PTR(detail::dev_smids);
+}
+
+NVCD_GLOBAL_EXPORT void nvcd_kernel_test() {
+  int thread = blockIdx.x * blockDim.x + threadIdx.x;
+
+  int num_threads = blockDim.x * gridDim.x;
+
+  if (thread == 0) {
+    
+  }
+
+  if (thread < num_threads) {
+    nvcd_device_begin(thread);
+
+    volatile int number = 0;
+
+    for (int i = 0; i < detail::dev_num_iter[thread]; ++i) {
+      number += i;
+    }
+
+    nvcd_device_end(thread);
+  }
 }
 
 
@@ -429,34 +504,7 @@ extern "C" {
 
   NVCD_CUDA_EXPORT void kernel_thread_data_report(kernel_thread_data_t* k) {
     ASSERT(k != NULL);  
-    puts("============PER-THREAD KERNEL DATA============");
-
-    {
-      for (size_t i = 0; i < k->num_cuda_threads; ++i) {
-        printf("---\nThread %" PRIu64 ":\n"
-               "\tTime\t= %" PRId64 " nanoseconds\n"
-               "\tSM ID\t= %" PRIu32 "\n",
-               i,
-               k->times[i],
-               k->smids[i]);
       }
-    }
-
-    {
-      kernel_invoke_data d(static_cast<size_t>(k->num_cuda_threads));
-
-      for (size_t i = 0; i < k->num_cuda_threads; ++i) {
-        d.times[i] = k->times[i];
-        d.smids[i] = k->smids[i];
-      }
-
-      d.write();
-
-      kernel_invoke_list.push_back(std::move(d));
-    }
-    
-    puts("==============================================");
-  }
 
   NVCD_CUDA_EXPORT void cleanup() {
     cupti_event_data_free(&g_event_data);
@@ -478,6 +526,10 @@ extern "C" {
   NVCD_CUDA_EXPORT void nvcd_init() {
     nvcd_init_cuda(&g_nvcd);
 
+    if (!g_run_info) {
+      g_run_info.reset(new nvcd_run_info());
+    }
+    
     printf("nvcd_init address: %p\n", nvcd_init);
     ASSERT(g_nvcd.initialized == true);
   }
@@ -486,6 +538,7 @@ extern "C" {
     printf("nvcd_host_begin address: %p\n", nvcd_host_begin);
 
     ASSERT(g_nvcd.initialized == true);
+    ASSERT(g_run_info.get() != nullptr);
 
     nvcd_device_init_mem(num_cuda_threads);
 
@@ -518,11 +571,26 @@ extern "C" {
     kernel_thread_data_free(&g_kernel_thread_data);
   
     cupti_event_data_end(&g_event_data);
+
+    g_run_info->update();
+    
     nvcd_device_free_mem();
   }
 
   NVCD_CUDA_EXPORT void nvcd_terminate() {
     cleanup();
+  }
+
+  NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {
+    nvcd_host_begin(num_threads);
+    
+    int nblock = 4;
+    int threads = num_threads / nblock;
+    //    nvcd_kernel_test<<<nblock, threads>>>();
+
+    NVCD_KERNEL_EXEC_v2(nvcd_kernel_test, nblock, threads);
+
+    nvcd_host_end();
   }
 }
 
@@ -535,130 +603,48 @@ extern "C" {
 
 extern "C" {
 
-nvcd_t g_nvcd = {
-  /*.devices =*/ NULL,
-  /*.contexts =*/ NULL,
-  /*.num_devices =*/ 0,
-  /*.initialized =*/ false
-};
+  //
+  // C++ doesn't support the nice
+  // struct init syntax,
+  // so these are commented out.
+  //
+  nvcd_t g_nvcd = {
+    /*.devices =*/ NULL,
+    /*.contexts =*/ NULL,
+    /*.num_devices =*/ 0,
+    /*.initialized =*/ false
+  };
 
-cupti_event_data_t g_event_data = {
-  /*.event_id_buffer =*/ NULL, 
-  /*.event_counter_buffer =*/ NULL, 
+  cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_NULL;
 
-  /*.num_events_per_group =*/ NULL, 
-  /*.num_events_read_per_group =*/ NULL,
-  /*.num_instances_per_group =*/ NULL,
-
-  /*.event_counter_buffer_offsets =*/ NULL,
-  /*.event_id_buffer_offsets =*/ NULL,
-  /*.event_groups_read =*/ NULL,
-
-  /*.kernel_times_nsec_start =*/ NULL,
-  /*.kernel_times_nsec_end =*/ NULL,
-
-  /*.event_groups =*/ NULL,
-
-  /*.event_names =*/ NULL,
-
-  /*.stage_time_nsec_start =*/ 0,
-  /*.stage_time_nsec_end =*/ 0,
-
-  /*.cuda_context =*/ NULL,
-  /*.cuda_device =*/ CU_DEVICE_INVALID,
-
-  /*.subscriber =*/ NULL,
+  kernel_thread_data_t g_kernel_thread_data = {
+    /*.times =*/ NULL,
+    /*.smids =*/ NULL,
   
-  /*.num_event_groups =*/ 0,
-  /*.num_kernel_times =*/ 0,
+    /*.num_cuda_threads =*/ 0,
 
-  /*.count_event_groups_read =*/ 0,
-  
-  /*.event_counter_buffer_length =*/ 0,
-  /*.event_id_buffer_length =*/ 0,
-  /*.kernel_times_nsec_buffer_length =*/ 10, // default; will increase as necessary at runtime
+    /*.initialized =*/ false
+  }; 
 
-  /*.event_names_buffer_length =*/ 0,
+  size_t dev_tbuf_size = 0;
+  size_t dev_num_iter_size = 0;
+  size_t dev_smids_size = 0;
 
-  /*.initialized =*/ false
-};
+  void* d_dev_tstart = nullptr;
+  void* d_dev_ttime = nullptr;
+  void* d_dev_num_iter = nullptr;
+  void* d_dev_smids = nullptr;
 
-kernel_thread_data_t g_kernel_thread_data = {
-  /*.times =*/ NULL,
-  /*.smids =*/ NULL,
-  
-  /*.num_cuda_threads =*/ 0,
-
-  /*.initialized =*/ false
-}; 
-
-size_t dev_tbuf_size = 0;
-size_t dev_num_iter_size = 0;
-size_t dev_smids_size = 0;
-
-void* d_dev_tstart = nullptr;
-void* d_dev_ttime = nullptr;
-void* d_dev_num_iter = nullptr;
-void* d_dev_smids = nullptr;
-
-volatile bool test_imbalance_detect = true;
-
+  volatile bool test_imbalance_detect = true;
 }
 
-
 //
-// Stats globals
+// non-c linkage globals
 //
 
-std::vector<kernel_invoke_data> kernel_invoke_list;
-
+std::unique_ptr<nvcd_run_info> g_run_info(nullptr);
+  
 #endif // NVCD_HEADER_IMPL
-
-
-
-//
-// (currently) dead code
-//
-#if 0
-EXTC NVCD_EXPORT GLOBAL void nvcd_kernel_test() {
-  int thread = blockIdx.x * blockDim.x + threadIdx.x;
-
-  int num_threads = blockDim.x * gridDim.x;
-
-  if (thread == 0) {
-    
-  }
-
-  if (thread < num_threads) {
-    nvcd_device_begin(thread);
-
-    volatile int number = 0;
-
-    for (int i = 0; i < detail::dev_num_iter[thread]; ++i) {
-      number += i;
-    }
-
-    nvcd_device_end(thread);
-  }
-}
-
-NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {
-  int nblock = 4;
-  int threads = num_threads / nblock;
-  nvcd_kernel_test<<<nblock, threads>>>();
-}
-
-NVCD_CUDA_EXPORT void nvcd_device_init_mem(int num_threads);
-NVCD_CUDA_EXPORT void nvcd_device_free_mem();
-
-NVCD_CUDA_EXPORT void nvcd_device_get_ttime(clock64_t* out);
-NVCD_CUDA_EXPORT void nvcd_device_get_smids(unsigned* out);
-
-EXTC NVCD_EXPORT GLOBAL void nvcd_kernel_test();
-NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads);
-#endif
-
-
 
 #endif // __DEVICE_CUH__
 
