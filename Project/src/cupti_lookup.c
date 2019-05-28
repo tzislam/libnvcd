@@ -674,14 +674,14 @@ void init_cupti_event_buffers(cupti_event_data_t* e) {
 
 }
 
-void cupti_name_map_free() {
+NVCD_EXPORT void cupti_name_map_free() {
   list_free_fn_impl(g_name_map_list,
                     cupti_name_map_t,
                     cupti_name_map_free_node,
                     self);
 }
 
-void cupti_map_event_name_to_id(const char* event_name, CUpti_EventID event_id) {
+NVCD_EXPORT void cupti_map_event_name_to_id(const char* event_name, CUpti_EventID event_id) {
   if (cupti_find_event_name_from_id(event_id) == NULL) {
     cupti_name_map_t* node = mallocNN(sizeof(cupti_name_map_t));
 
@@ -696,7 +696,7 @@ void cupti_map_event_name_to_id(const char* event_name, CUpti_EventID event_id) 
   }
 }
 
-const char* cupti_find_event_name_from_id(CUpti_EventID id) {
+NVCD_EXPORT const char* cupti_find_event_name_from_id(CUpti_EventID id) {
   const char* ret = NULL;
 
   list_t* n = list_node(g_name_map_list,
@@ -827,7 +827,7 @@ static void print_event_group(cupti_event_data_t* e, uint32_t group) {
 #undef peg_buffer_length
 }
 
-void cupti_report_event_data(cupti_event_data_t* e) {
+NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
     print_event_group(e, i);
   }
@@ -836,7 +836,7 @@ void cupti_report_event_data(cupti_event_data_t* e) {
 
 static bool _message_reported = false;
 
-void CUPTIAPI cupti_event_callback(void* userdata,
+NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                                    CUpti_CallbackDomain domain,
                                    CUpti_CallbackId callback_id,
                                    CUpti_CallbackData* callback_info) {
@@ -926,12 +926,9 @@ void CUPTIAPI cupti_event_callback(void* userdata,
 
     case CUPTI_API_EXIT: {
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());
-
       CUPTI_FN(cuptiDeviceGetTimestamp(callback_info->context,
                                        &event_data->stage_time_nsec_end));
-      
-      collect_group_events(event_data);     
-      
+      collect_group_events(event_data);
     } break;
 
     default:
@@ -941,7 +938,7 @@ void CUPTIAPI cupti_event_callback(void* userdata,
   }
 }
 
-void cupti_event_data_subscribe(cupti_event_data_t* e) {
+NVCD_EXPORT void cupti_event_data_subscribe(cupti_event_data_t* e) {
   ASSERT(e != NULL && e->subscriber == NULL && e->initialized);
   
   CUPTI_FN(cuptiSubscribe(&e->subscriber,
@@ -956,13 +953,13 @@ void cupti_event_data_subscribe(cupti_event_data_t* e) {
   }
 }
 
-void cupti_event_data_unsubscribe(cupti_event_data_t* e) {
+NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e) {
   ASSERT(e != NULL && e->initialized && e->subscriber != NULL);
   CUPTI_FN(cuptiUnsubscribe(e->subscriber));
 }
 
 
-void cupti_event_data_init(cupti_event_data_t* e) {
+NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   ASSERT(e->cuda_context != NULL);
   ASSERT(e->cuda_device >= 0);
@@ -976,7 +973,7 @@ void cupti_event_data_init(cupti_event_data_t* e) {
   }
 }
 
-void cupti_event_data_free(cupti_event_data_t* e) {
+NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   
   safe_free_v(e->event_id_buffer);
@@ -1009,13 +1006,13 @@ void cupti_event_data_free(cupti_event_data_t* e) {
   memset(e, 0, sizeof(*e));
 }
 
-void cupti_event_data_begin(cupti_event_data_t* e) {
+NVCD_EXPORT void cupti_event_data_begin(cupti_event_data_t* e) {
   ASSERT(e != NULL);
 
   cupti_event_data_subscribe(e);
 }
 
-void cupti_event_data_end(cupti_event_data_t* e) {
+NVCD_EXPORT void cupti_event_data_end(cupti_event_data_t* e) {
   cupti_event_data_unsubscribe(e);
 }
 

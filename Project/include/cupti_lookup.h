@@ -98,30 +98,30 @@ enum {
 
 extern const char* g_cupti_metrics_3x[NUM_CUPTI_METRICS_3X];
 
-void cupti_map_event_name_to_id(const char* event_name, CUpti_EventID event_id);
+NVCD_EXPORT void cupti_map_event_name_to_id(const char* event_name, CUpti_EventID event_id);
 
-const char* cupti_find_event_name_from_id(CUpti_EventID id);
+NVCD_EXPORT const char* cupti_find_event_name_from_id(CUpti_EventID id);
 
-void cupti_name_map_free();
+NVCD_EXPORT void cupti_name_map_free();
 
-void cupti_report_event_data(cupti_event_data_t* e);
+NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e);
 
-void CUPTIAPI cupti_event_callback(void* userdata,
+NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                                    CUpti_CallbackDomain domain,
                                    CUpti_CallbackId callback_id,
                                    CUpti_CallbackData* callback_info);
 
-void cupti_event_data_subscribe(cupti_event_data_t* e);
+NVCD_EXPORT void cupti_event_data_subscribe(cupti_event_data_t* e);
 
-void cupti_event_data_unsubscribe(cupti_event_data_t* e);
+NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e);
 
-void cupti_event_data_init(cupti_event_data_t* e);
+NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e);
 
-void cupti_event_data_free(cupti_event_data_t* e);
+NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e);
 
-void cupti_event_data_begin(cupti_event_data_t* e);
+NVCD_EXPORT void cupti_event_data_begin(cupti_event_data_t* e);
 
-void cupti_event_data_end(cupti_event_data_t* e);
+NVCD_EXPORT void cupti_event_data_end(cupti_event_data_t* e);
 
 C_LINKAGE_END
 #endif //__CUPTI_LOOKUP_H__

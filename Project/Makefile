@@ -13,7 +13,7 @@ INCLUDE=-I./include -I$(CUPTI)/include
 
 CC_FLAGS=--compiler-options "-Wall -lpthread -Werror -g -ggdb -std=gnu99"
 
-CU_FLAGS=-std=c++11 -G
+CU_FLAGS=-std=c++11 --compiler-options "-Wall -lpthread -Werror -g -ggdb"
 
 LD_FLAGS=--compiler-options "-shared"
 
@@ -38,7 +38,7 @@ OBJDIR := obj
 SRCDIR := src
 PREDIR := pre
 
-FLAGS := --compiler-options "-fPIC -fvisibility=hidden -Wno-unused-function -Wno-unused-variable"
+FLAGS :=-G --compiler-options "-fPIC -fvisibility=hidden -Wno-unused-function -Wno-unused-variable"
 
 FLAGS_PRE := --compiler-options "-E"
 
@@ -52,9 +52,9 @@ LIB := libnvcd.so
 # Test binary
 ##
 
-TEST_SRC_C := $(wildcard test/src/*.c)
-TEST_OBJ_C := $(TEST_SRC_C:.c=.o)
-TEST_PRE_C := $(TEST_SRC_C:.c=.c.pre)
+TEST_SRC_C := $(wildcard test/src/*.cpp)
+TEST_OBJ_C := $(TEST_SRC_C:.cpp=.o)
+TEST_PRE_C := $(TEST_SRC_C:.cpp=.cpp.pre)
 
 TEST_SRC_CU := $(wildcard test/src/*.cu)
 TEST_OBJ_CU := $(TEST_SRC_CU:.cu=.o)
@@ -69,7 +69,7 @@ TEST_PRE := $(subst $(TEST_SRCDIR), $(TEST_PREDIR), $(TEST_PRE_C) $(TEST_PRE_CU)
 
 TEST_BIN := nvcdrun
 
-TEST_CC_FLAGS=-std=c++11 --compiler-options "-std=c++11 -Wall -lpthread -Werror -g -ggdb"
+TEST_CC_FLAGS=-G -std=c++11 --compiler-options "-std=c++11 -Wall -lpthread -Werror -g -ggdb -Wno-unused-function -Wno-unused-variable"
 
 TEST_LIBS := $(LIBS) -Lbin -lnvcd
 
@@ -106,7 +106,7 @@ $(TEST_BIN): $(TEST_OBJ) $(LIB)
 
 $(TEST_BIN).pre: $(TEST_PRE) $(LIB).pre
 
-test/obj/%.o: test/src/%.c objdep
+test/obj/%.o: test/src/%.cpp objdep
 	$(CC) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@
 
 test/obj/%.o: test/src/%.cu objdep

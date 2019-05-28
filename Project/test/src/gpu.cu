@@ -6,7 +6,7 @@
 
 #include "gpu.cuh"
 
-#include <nvcd.h>
+//#include <nvcd.h>
 #include <device.cuh>
 
 /* 
@@ -170,11 +170,17 @@ __host__ void gpu_test_matrix_vec_mul(int num_threads)
     NVCD_KERNEL_EXEC(gpu_kernel_matrix_vec_int,
                      grid, block,
                      n, m, q, u, v);
+
     
+    //  while (!nvcd_host_finished()) {
+    //  gpu_kernel_matrix_vec_int<<<grid, block>>>(n, m, q, u, v);
+    //  CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+    // }
     
     //NVCD_KERNEL_EXEC(gpu_kernel_matrix_vec_int<<<grid, block>>>(n, m, q, u, v));
-    
+
     nvcd_host_end();
+  
   }
   
   CUDA_RUNTIME_FN(cudaDeviceSynchronize());

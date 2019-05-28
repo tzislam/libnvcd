@@ -1,11 +1,11 @@
-#include <nvcd.h>
+#include <device.cuh>
 
 #include "gpu.h"
 
 int main() {
   nvcd_init();
 
-  int threads = 1024;
+  int threads = 16;
 
   gpu_test_matrix_vec_mul(threads);
 
