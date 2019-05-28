@@ -1,6 +1,6 @@
-#define NVCD_GLOBAL_IMPL
+#define NVCD_HEADER_IMPL
 #include <device.cuh>
-#undef NVCD_GLOBAL_IMPL
+#undef NVCD_HEADER_IMPL
 
 #include "gpu.h"
 
