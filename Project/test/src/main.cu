@@ -1,5 +1,5 @@
 #define NVCD_HEADER_IMPL
-#include <nvcd/device.cuh>
+#include <nvcd/nvcd.cuh>
 #undef NVCD_HEADER_IMPL
 
 #include "gpu.h"
