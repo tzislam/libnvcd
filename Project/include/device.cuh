@@ -549,17 +549,17 @@ extern "C" {
     cupti_event_data_set_null(&g_event_data);
   }
 
-  NVCD_CUDA_EXPORT void nvcd_terminate() {
+  NVCD_CUDA_EXPORT void nvcd_terminate() {    
     cupti_event_data_set_null(&g_event_data);
   
-    cupti_name_map_free();
+    cupti_name_map_free(); 
 
+    g_run_info.reset();
+ 
     for (int i = 0; i < g_nvcd.num_devices; ++i) {
       ASSERT(g_nvcd.contexts[i] != NULL);
       CUDA_DRIVER_FN(cuCtxDestroy(g_nvcd.contexts[i]));
     }
-
-    g_run_info.reset();
   }
 
   NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {
