@@ -1,9 +1,9 @@
-#include "cupti_lookup.h"
+#include "nvcd/cupti_lookup.h"
 #include <string.h>
 #include <inttypes.h>
-#include "util.h"
-#include "list.h"
-#include "env_var.h"
+#include "nvcd/util.h"
+#include "nvcd/list.h"
+#include "nvcd/env_var.h"
 
 /*
  * List of event strings as listed in the CUPTI event documentation

@@ -1,11 +1,11 @@
 #ifndef __DEVICE_CUH__
 #define __DEVICE_CUH__
 
-#include "commondef.h"
-#include "util.h"
-#include "list.h"
-#include "env_var.h"
-#include "cupti_lookup.h"
+#include "nvcd/commondef.h"
+#include "nvcd/util.h"
+#include "nvcd/list.h"
+#include "nvcd/env_var.h"
+#include "nvcd/cupti_lookup.h"
 
 #include <vector>
 #include <unordered_map>

@@ -1,6 +1,6 @@
-#include "env_var.h"
-#include "commondef.h"
-#include "util.h"
+#include "nvcd/env_var.h"
+#include "nvcd/commondef.h"
+#include "nvcd/util.h"
 #include <ctype.h>
 
 C_LINKAGE_START

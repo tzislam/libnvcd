@@ -2,7 +2,7 @@
 #ifndef __CUPTI_LOOKUP_H__
 #define __CUPTI_LOOKUP_H__
 
-#include "commondef.h"
+#include "nvcd/commondef.h"
 
 #include <cupti.h>
 #include <pthread.h>

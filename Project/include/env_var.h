@@ -1,7 +1,7 @@
 #ifndef __ENV_VAR_H__
 #define __ENV_VAR_H__
 
-#include "commondef.h"
+#include "nvcd/commondef.h"
 
 C_LINKAGE_START
 

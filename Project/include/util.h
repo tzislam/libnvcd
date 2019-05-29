@@ -1,7 +1,7 @@
 #ifndef __UTIL_H__
 #define __UTIL_H__
 
-#include "commondef.h"
+#include "nvcd/commondef.h"
 
 #include <cuda.h>
 #include <cuda_runtime.h>

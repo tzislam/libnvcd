@@ -1,10 +1,10 @@
-#include "nvcd.h"
+#include "nvcd/nvcd.h"
 #include <stdio.h>
 
-#include "commondef.h"
-#include "cupti_lookup.h"
-#include "list.h"
-#include "env_var.h"
+#include "nvcd/commondef.h"
+#include "nvcd/cupti_lookup.h"
+#include "nvcd/list.h"
+#include "nvcd/env_var.h"
 
 //#include "device.cuh"
 
