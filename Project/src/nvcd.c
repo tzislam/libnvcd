@@ -1,4 +1,3 @@
-#include "nvcd/nvcd.h"
 #include <stdio.h>
 
 #include "nvcd/commondef.h"

@@ -1,8 +1,8 @@
 #ifndef __GPU_H__
 #define __GPU_H__
 
-#include <commondef.h>
-#include <util.h>
+#include <nvcd/commondef.h>
+#include <nvcd/util.h>
 
 #include <stdio.h>
 

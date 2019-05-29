@@ -1,13 +1,13 @@
-#include <commondef.h>
-#include <util.h>
+#include <nvcd/commondef.h>
+#include <nvcd/util.h>
+#include <nvcd/device.cuh>
 
 #include <stdio.h>
 #include <cuda.h>
 
 #include "gpu.cuh"
 
-//#include <nvcd.h>
-#include <device.cuh>
+
 
 /* 
  * template for taking the dot product of a vector with the row of a matrix 
