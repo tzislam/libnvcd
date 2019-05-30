@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <iterator>
 #include <memory>
+#include <string>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -222,6 +223,66 @@ struct kernel_invoke_data {
 
     print_blockv("load_minor", load_minor);
     print_blockv("load_major", load_major);
+  }
+};
+
+struct nvcd_device_info {
+  struct entry {
+    std::string name;
+    bool supported;
+
+    entry()
+      : entry("", false) {
+    }
+
+    entry(const std::string& name_, bool supported_)
+      : name(name_),
+        supported(supported_) {
+    }
+  };
+  
+  using name_list_type = std::vector<entry>;
+
+  using event_map_type = std::unordered_map<std::string,
+                                            name_list_type>;
+  
+  using ptr_type = std::unique_ptr<nvcd_device_info>;
+  
+  event_map_type events;
+
+  std::vector<std::string> device_names;
+
+  nvcd_device_info() {
+    ASSERT(g_nvcd.initialized == true);
+    
+    char** event_names = cupti_get_event_names();
+    
+    auto num_event_names = cupti_get_num_event_names();
+    
+    for (auto i = 0; i < g_nvcd.num_devices; ++i) {
+      std::string device(g_nvcd.device_names[i]);
+
+      device_names.push_back(device);
+      
+      events[device] = name_list_type();
+
+      auto& list = events[device];
+
+      for (decltype(num_event_names) j = 0; j < num_event_names; ++j) {
+        std::string event(event_names[j]);
+        entry e(event, false);
+
+        CUpti_EventID dummy_id;
+        CUptiResult err = cuptiEventGetIdFromName(g_nvcd.devices[i],
+                                                  event_names[j],
+                                                  &dummy_id);
+        if (err == CUPTI_SUCCESS) {
+          e.supported = true;
+        }
+
+        list.push_back(e);
+      }
+    }
   }
 };
 
@@ -561,6 +622,12 @@ extern "C" {
     nvcd_device_free_mem();
 
     cupti_event_data_set_null(&g_event_data);
+  }
+  
+  NVCD_CUDA_EXPORT nvcd_device_info::ptr_type nvcd_host_get_device_info() {
+    ASSERT(g_nvcd.initialized == true);
+    nvcd_device_info::ptr_type ptr(new nvcd_device_info());
+    return std::move(ptr);
   }
 
   NVCD_CUDA_EXPORT void nvcd_terminate() {    
