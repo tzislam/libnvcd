@@ -88,6 +88,14 @@ NVCD_EXPORT void safe_free(void** p) {
   }
 }
 
+NVCD_EXPORT void free_strlist(char** list, size_t length) {
+  for (size_t i = 0; i < length; ++i) {
+    safe_free((void**) &list[i]);
+  }
+
+  safe_free((void**) &list);
+}
+
 NVCD_EXPORT void* assert_not_null_impl(void* p, const char* expr, const char* file, int line) {
   if (p == NULL) {
     assert_impl(false, expr, file, line);

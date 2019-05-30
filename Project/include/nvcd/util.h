@@ -32,6 +32,8 @@ NVCD_EXPORT void* zalloc(size_t sz);
 
 NVCD_EXPORT void safe_free(void** p); // safer, but not "safe"
 
+NVCD_EXPORT void free_strlist(char** list, size_t length);
+
 NVCD_EXPORT int random_nexti(int rmin, int rmax);
 
 NVCD_EXPORT void cuda_runtime_error_print_exit(cudaError_t status,
