@@ -178,7 +178,7 @@ objdep:
 	mkdir -p util/obj
 
 clean:
-	rm -f bin/perfmon
+	rm -f bin/*
 	rm -f obj/*.o
 	rm -f test/obj/*.o
 	rm -f test/src/*~
