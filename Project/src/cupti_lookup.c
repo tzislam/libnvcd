@@ -1046,6 +1046,8 @@ NVCD_EXPORT void cupti_event_data_begin(cupti_event_data_t* e) {
 }
 
 NVCD_EXPORT void cupti_event_data_end(cupti_event_data_t* e) {
+  ASSERT(e != NULL);
+  
   cupti_event_data_unsubscribe(e);
 
   
