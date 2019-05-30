@@ -78,6 +78,35 @@ TEST_INCLUDE := $(INCLUDE) -I./test/include
 TEST_FLAGS_PRE := $(FLAGS_PRE)
 
 ##
+# Util
+##
+
+UTIL_SRC_C := $(wildcard util/src/*.cpp)
+UTIL_OBJ_C := $(UTIL_SRC_C:.cpp=.o)
+UTIL_PRE_C := $(UTIL_SRC_C:.cpp=.cpp.pre)
+
+UTIL_SRC_CU := $(wildcard util/src/*.cu)
+UTIL_OBJ_CU := $(UTIL_SRC_CU:.cu=.o)
+UTIL_PRE_CU := $(UTIL_SRC_CU:.cu=.cu.pre)
+
+UTIL_OBJDIR := util/obj
+UTIL_SRCDIR := util/src
+UTIL_PREDIR := util/pre
+
+UTIL_OBJ := $(subst $(UTIL_SRCDIR), $(UTIL_OBJDIR), $(UTIL_OBJ_C) $(UTIL_OBJ_CU))
+UTIL_PRE := $(subst $(UTIL_SRCDIR), $(UTIL_PREDIR), $(UTIL_PRE_C) $(UTIL_PRE_CU))
+
+UTIL_BIN := nvcdinfo
+
+UTIL_CC_FLAGS=-G -std=c++11 --compiler-options "-std=c++11 -Wall -lpthread -Werror -g -ggdb -Wno-unused-function -Wno-unused-variable"
+
+UTIL_LIBS := $(LIBS) -L./bin -lnvcd
+
+UTIL_INCLUDE := $(INCLUDE) -I./util/include
+
+UTIL_FLAGS_PRE := $(FLAGS_PRE)
+
+##
 # Targets
 ##
 
@@ -119,6 +148,26 @@ test/pre/%.c.pre: test/src/%.c objdep
 test/pre/%.cu.pre: test/src/%.cu objdep
 	$(CC) $(TEST_FLAGS_PRE) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@
 
+# Util 
+$(UTIL_BIN): $(UTIL_OBJ) $(LIB)
+	$(CC) $(UTIL_INCLUDE) $(UTIL_CC_FLAGS) $(UTIL_LIBS) $(ARCH) $(UTIL_OBJ) -o bin/$(UTIL_BIN)
+
+$(UTIL_BIN).pre: $(UTIL_PRE) $(LIB).pre
+
+util/obj/%.o: util/src/%.cpp objdep
+	$(CC) $(UTIL_INCLUDE) $(UTIL_CC_FLAGS) $(ARCH) -c $< -o $@
+
+util/obj/%.o: util/src/%.cu objdep
+	$(CC) $(UTIL_INCLUDE) $(UTIL_CC_FLAGS) $(ARCH) -c $< -o $@
+	$(CC) --ptx $(UTIL_INCLUDE) $(UTIL_CC_FLAGS) $(ARCH) -c $< -o $@.ptx
+
+util/pre/%.c.pre: util/src/%.c objdep
+	$(CC) $(UTIL_FLAGS_PRE) $(UTIL_INCLUDE) $(UTIL_CC_FLAGS) $(ARCH) -c $< -o $@
+
+util/pre/%.cu.pre: util/src/%.cu objdep
+	$(CC) $(UTIL_FLAGS_PRE) $(UTIL_INCLUDE) $(UTIL_CC_FLAGS) $(ARCH) -c $< -o $@
+
+
 # Housekeeping
 objdep:
 	mkdir -p obj
@@ -126,6 +175,7 @@ objdep:
 	mkdir -p test/obj
 	mkdir -p pre
 	mkdir -p test/pre
+	mkdir -p util/obj
 
 clean:
 	rm -f bin/perfmon
@@ -137,6 +187,8 @@ clean:
 	rm -f *~
 	rm -f include/*~
 	rm -f src/*~
+	rm -f util/src/*~
+	rm -f util/obj/*.o
 
 #$$CUDACC -v $DEBUG -c $INCLUDE $ARCH src/gpu.cu -o obj/gpu.o &&\
 #$CC -v $DEBUG $INCLUDE $ARCH -L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart obj/gpu.o src/main.c -o bin/perfmon
