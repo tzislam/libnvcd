@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "perf_dump.h"
-/* Define length of dot product vectors and number of OpenMP threads */
+
 #define VECLEN 100
 #define NUMTHREADS 24
 
@@ -13,39 +13,46 @@ int main (int argc, char* argv[])
   double *a, *b;
   double mysum, allsum, sum, psum;
 
-  /* MPI Initialization */
+
+  // init mpi and pdump libraries
   MPI_Init (&argc, &argv);
+
   pdump_init();
+
   MPI_Comm_size (MPI_COMM_WORLD, &numprocs);
   MPI_Comm_rank (MPI_COMM_WORLD, &myid);
-  /* 
-   *    Each MPI task uses OpenMP to perform the dot product, obtains its partial sum, 
-   *       and then calls MPI_Reduce to obtain the global sum.
-   *       */
+
+  // have N processes running concurrently, so it makes sense to
+  // only report state in one process.
   if (myid == 0)
     printf("Starting omp_dotprod_hybrid. Using %d tasks...\n",numprocs);
 
-  /* Assign storage for dot product vectors */
+  // heap allocate  24 * 100 matrix, with
+  // each thread representing a row in the matrix
   a = (double*) malloc (len*threads*sizeof(double));
   b = (double*) malloc (len*threads*sizeof(double));
- 
-  /* Initialize dot product vectors */
+
+  // set all values to 1.0
   for (i=0; i<len*threads; i++) {
     a[i]=1.0;
     b[i]=a[i];
   }
 
-  /*
-   *    Perform the dot product in an OpenMP parallel region for loop with a sum reduction
-   *       For illustration purposes:
-   *            - Explicitly sets number of threads
-   *                 - Gets and prints number of threads used
-   *                      - Each thread keeps track of its partial sum
-   *                      */
-
-  /* Initialize OpenMP reduction sum */
   sum = 0.0;
 
+  // toggle the beginning of a region so we
+  // can begin profiling.
+  // we want to tid, our loop index, and psum
+  // to be private to each thread; the loop itself
+  // will be subdivided into length iterations
+  // per thread, which is what allows for i
+  // to be private in the first place ("num_threads(threads)" parameter ensures this)
+  // we continuously update each thread's psum in the loop, so that we know what exactly the partial
+  // sum for that thread will be when it's finished. since "sum" is reduced over the '+' operator,
+  // we have an implicit private relationship over the sum variable as well, thus preventing
+  // psum from sharing values from other threads; we update psum in the loop since
+  // outside of the loop the reduced sum variable will have been joined with all other
+  // thread sum instances
   pdump_start_region();
 #pragma omp parallel private(i,tid,psum) num_threads(threads)
   {
@@ -57,6 +64,7 @@ int main (int argc, char* argv[])
       printf("Task %d using %d threads\n",myid, threads);
     }
 
+    // here we begin our profiler
     pdump_start_profile();
 #pragma omp for reduction(+:sum)
     for (i=0; i<len*threads; i++)
@@ -69,11 +77,12 @@ int main (int argc, char* argv[])
     printf("Task %d thread %d partial sum = %f\n",myid, tid, psum);
   }
   pdump_end_region();
-  /* Print this task's partial sum */
+
   mysum = sum;
   printf("Task %d partial sum = %f\n",myid, mysum);
 
-  /* After the dot product, perform a summation of results on each node */
+  // sum up each sum value and send them all over rank 0, which will store
+  // the result in its allsum variable.
   MPI_Reduce (&mysum, &allsum, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
   if (myid == 0) 
     printf ("Done. Hybrid version: global sum  =  %f \n", allsum);
