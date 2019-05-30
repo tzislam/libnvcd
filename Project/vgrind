@@ -1,4 +1,4 @@
 #!/bin/bash
 
-optirun valgrind -v --leak-check=full --log-file=./memcheck.log bin/perfmon
+optirun valgrind -v --leak-check=full --log-file=./memcheck.log bin/$1
  
