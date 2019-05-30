@@ -1,11 +1,11 @@
-#ifndef __DEVICE_CUH__
-#define __DEVICE_CUH__
+#ifndef __NVCD_CUH__
+#define __NVCD_CUH__
 
-#include "nvcd/commondef.h"
-#include "nvcd/util.h"
-#include "nvcd/list.h"
-#include "nvcd/env_var.h"
-#include "nvcd/cupti_lookup.h"
+#include <nvcd/commondef.h>
+#include <nvcd/util.h>
+#include <nvcd/list.h>
+#include <nvcd/env_var.h>
+#include <nvcd/cupti_lookup.h>
 
 #include <vector>
 #include <unordered_map>
@@ -614,5 +614,5 @@ std::unique_ptr<nvcd_run_info> g_run_info(nullptr);
   
 #endif // NVCD_HEADER_IMPL
 
-#endif // __DEVICE_CUH__
+#endif // __NVCD_CUH__
 
