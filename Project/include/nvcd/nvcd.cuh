@@ -251,8 +251,10 @@ struct nvcd_device_info {
   struct metric_entry : public entry {
     std::vector<std::string> events;
     
-    metric_entry(const std::string& name) :
-      entry(name, true) {}
+    metric_entry(const std::string& name, bool supported, std::vector<std::string> events_)
+      : entry(name, supported),
+        events(std::move(events_))
+      {}
   };
   
   using name_list_type = std::vector<entry>;
