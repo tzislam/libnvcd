@@ -84,6 +84,8 @@ typedef struct nvcd {
   CUdevice* devices;
   CUcontext* contexts;
 
+  char** device_names;
+  
   int num_devices;
   
   bool32_t initialized;
@@ -421,13 +423,25 @@ extern "C" {
 
       nvcd->contexts = (CUcontext*)zallocNN(sizeof(*(nvcd->contexts)) *
                                             nvcd->num_devices);
-  
+
+      nvcd->device_names = (char**)zallocNN(sizeof(*(nvcd->device_names)) *
+                                            nvcd->num_devices);
+
+      const size_t MAX_STRING_LENGTH = 128;
+      
       for (int i = 0; i < nvcd->num_devices; ++i) {
         CUDA_DRIVER_FN(cuDeviceGet(&nvcd->devices[i], i));
         
         CUDA_DRIVER_FN(cuCtxCreate(&nvcd->contexts[i],
                                    0,
                                    nvcd->devices[i]));
+        
+        nvcd->device_names[i] = (char*) zallocNN(sizeof(nvcd->device_names[i][0]) *
+                                                 MAX_STRING_LENGTH);
+        
+        CUDA_DRIVER_FN(cuDeviceGetName(&nvcd->device_names[i][0],
+                                       MAX_STRING_LENGTH,
+                                       nvcd->devices[i]));
       }
 
       nvcd->initialized = true;
@@ -558,8 +572,11 @@ extern "C" {
  
     for (int i = 0; i < g_nvcd.num_devices; ++i) {
       ASSERT(g_nvcd.contexts[i] != NULL);
+      safe_free_v(g_nvcd.device_names[i]);
       CUDA_DRIVER_FN(cuCtxDestroy(g_nvcd.contexts[i]));
     }
+
+    safe_free_v(g_nvcd.device_names);
   }
 
   NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {
