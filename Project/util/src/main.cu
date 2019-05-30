@@ -16,6 +16,35 @@ int main(void) {
     nvcd_host_get_device_info();
 
   std::stringstream ss;
+
+  auto print_metrics = [&ss](const std::string& title,
+                             const std::vector<nvcd_device_info::metric_entry>& metrics) -> void {
+    ss << SECTION_BLOCK
+    << title
+    << SECTION_BLOCK;
+      
+    for (size_t j = 0; j < metrics.size(); ++j) {
+      ss << "[" << j << "]: " << metrics.at(j).name << "\n";
+
+      for (size_t k = 0; k < metrics.at(j).events.size(); ++k) {
+        ss << "\t[" << k << "]: " << metrics.at(j).events.at(k) << "\n";
+      }
+    }
+  };
+
+  auto print_events = [&ss](const std::string& title,
+                            const std::vector<std::string>& events) -> void {
+
+
+    ss << SECTION_BLOCK
+    << title
+    << SECTION_BLOCK;
+
+    for (size_t j = 0; j < events.size(); ++j) {
+      ss << "[" << j << "]: " << events.at(j) << "\n";
+    }
+    
+  };
   
   for (size_t i = 0; i < info->device_names.size(); ++i) {
     nvcd_device_info::name_list_type& events =
@@ -32,42 +61,34 @@ int main(void) {
           unsupported.push_back(entry.name);
         }
       }
-    
+
       ss << DEVICE_BLOCK
-         << "[" << i << "]: " << info->device_names[i]
-         << SECTION_BLOCK
-         << "EVENTS - SUPPORTED"
-         << SECTION_BLOCK;
+         << "[" << i << "]: " << info->device_names[i];
 
-      for (size_t j = 0; j < supported.size(); ++j) {
-        ss << "[" << j << "]: " << supported[j] << "\n";
-      }
-
-      ss << SECTION_BLOCK
-         << "EVENTS - UNSUPPORTED"
-         << SECTION_BLOCK;
-    
-      for (size_t j = 0; j < unsupported.size(); ++j) {
-        ss << "[" << j << "]: " << unsupported[j] << "\n";
-      }
+      print_events("EVENTS - SUPPORTED", supported);
+      
+      print_events("EVENTS - UNSUPPORTED", unsupported);
 
       ss << SECTION_BLOCK;
     }
 
     {
-      ss << SECTION_BLOCK
-         << "METRICS"
-         << SECTION_BLOCK;
+      
+      std::vector< nvcd_device_info::metric_entry > supported;
+      std::vector< nvcd_device_info::metric_entry > unsupported;
 
       auto& metrics = info->metrics[info->device_names[i]];
       
-      for (size_t j = 0; j < metrics.size(); ++j) {
-        ss << "[" << j << "]: " << metrics[j].name << "\n";
-
-        for (size_t k = 0; k < metrics[j].events.size(); ++k) {
-          ss << "\t[" << k << "]: " << metrics[j].events[k] << "\n";
+      for (size_t k = 0; k < metrics.size(); ++k) {
+        if (metrics[k].supported) {
+          supported.push_back(metrics[k]);
+        } else {
+          unsupported.push_back(metrics[k]);
         }
       }
+      
+      print_metrics("METRICS - SUPPORTED", supported);
+      print_metrics("METRICS - UNSUPPORTED", unsupported);
     }
   }
 
