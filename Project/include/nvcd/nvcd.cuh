@@ -630,7 +630,8 @@ extern "C" {
     return std::move(ptr);
   }
 
-  NVCD_CUDA_EXPORT void nvcd_terminate() {    
+  NVCD_CUDA_EXPORT void nvcd_terminate() {
+    cupti_event_data_free(&g_event_data);
     cupti_event_data_set_null(&g_event_data);
   
     cupti_name_map_free(); 
