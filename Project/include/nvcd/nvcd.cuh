@@ -226,6 +226,13 @@ struct kernel_invoke_data {
   }
 };
 
+template <typename T>
+NVCD_CUDA_EXPORT void __buf_to_vec(std::vector<T>& vec, T* buf, uint32_t length) {
+  vec.resize(length);
+  memcpy(&vec[0], &buf[0], sizeof(buf[0]) * length);
+  free(buf);
+}
+
 struct nvcd_device_info {
   struct entry {
     std::string name;
@@ -240,21 +247,34 @@ struct nvcd_device_info {
         supported(supported_) {
     }
   };
+
+  struct metric_entry : public entry {
+    std::vector<std::string> events;
+    
+    metric_entry(const std::string& name) :
+      entry(name, true) {}
+  };
   
   using name_list_type = std::vector<entry>;
-
+  using metric_list_type = std::vector<metric_entry>;
+  
   using event_map_type = std::unordered_map<std::string,
                                             name_list_type>;
+
+  using metric_map_type = std::unordered_map<std::string,
+                                             metric_list_type>;
   
   using ptr_type = std::unique_ptr<nvcd_device_info>;
   
   event_map_type events;
 
-  std::vector<std::string> device_names;
+  metric_map_type metrics;
 
+  std::vector<std::string> device_names;
+  
   nvcd_device_info() {
     ASSERT(g_nvcd.initialized == true);
-    
+
     char** event_names = cupti_get_event_names();
     
     auto num_event_names = cupti_get_num_event_names();
@@ -263,24 +283,74 @@ struct nvcd_device_info {
       std::string device(g_nvcd.device_names[i]);
 
       device_names.push_back(device);
-      
-      events[device] = name_list_type();
 
-      auto& list = events[device];
+      // device events
+      {
+        events[device] = name_list_type();
 
-      for (decltype(num_event_names) j = 0; j < num_event_names; ++j) {
-        std::string event(event_names[j]);
-        entry e(event, false);
+        auto& list = events[device];
 
-        CUpti_EventID dummy_id;
-        CUptiResult err = cuptiEventGetIdFromName(g_nvcd.devices[i],
-                                                  event_names[j],
-                                                  &dummy_id);
-        if (err == CUPTI_SUCCESS) {
-          e.supported = true;
+        for (decltype(num_event_names) j = 0; j < num_event_names; ++j) {
+          std::string event(event_names[j]);
+          entry e(event, false);
+
+          CUpti_EventID dummy_id;
+          CUptiResult err = cuptiEventGetIdFromName(g_nvcd.devices[i],
+                                                    event_names[j],
+                                                    &dummy_id);
+          if (err == CUPTI_SUCCESS) {
+            e.supported = true;
+          }
+
+          list.push_back(e);
+        }
+      }
+
+      // device metrics
+      {
+        std::vector<CUpti_MetricID> metric_ids;
+        {
+          uint32_t num_metrics;
+
+          CUpti_MetricID* buf = cupti_metric_get_ids(g_nvcd.devices[i],
+                                                     &num_metrics);
+
+          __buf_to_vec(metric_ids, buf, num_metrics);
         }
 
-        list.push_back(e);
+        metrics[device] = metric_list_type();
+        auto& list = metrics[device];
+        
+        for (uint32_t j = 0; j < metric_ids.size(); ++j) {
+          char* cmetric_name = cupti_metric_get_name(metric_ids[j]);
+          
+          std::string metric_name(cmetric_name);
+          
+          free(cmetric_name);
+
+          metric_entry m(metric_name);
+
+          {
+            std::vector<CUpti_EventID> event_ids;
+
+            {
+              uint32_t num_events;
+              CUpti_EventID* buf = cupti_metric_get_event_ids(metric_ids[j],
+                                                           &num_events);
+              __buf_to_vec(event_ids, buf, num_events);
+            }
+            
+            for (auto& event: event_ids) {
+              char* cname = cupti_event_get_name(event);
+              std::string name(cname);
+              free(cname);
+
+              m.events.push_back(name);
+            }
+          }
+
+          list.push_back(m);
+        }
       }
     }
   }
