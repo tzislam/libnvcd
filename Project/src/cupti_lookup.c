@@ -1049,8 +1049,59 @@ NVCD_EXPORT void cupti_event_data_end(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   
   cupti_event_data_unsubscribe(e);
+}
 
+typedef char name_str_t[256];
+
+NVCD_EXPORT char* cupti_event_get_name(CUpti_EventID eid) {
+  name_str_t name = {0};
+
+  size_t sz = sizeof(name);
   
+  CUPTI_FN(cuptiEventGetAttribute(eid, CUPTI_EVENT_ATTR_NAME, &sz, &name[0]));
+
+  return strdup(name);
+}
+
+NVCD_EXPORT CUpti_EventID* cupti_metric_get_event_ids(CUpti_MetricID metric, uint32_t* num_events) {
+  ASSERT(num_events != NULL);
+  
+  CUPTI_FN(cuptiMetricGetNumEvents(metric, num_events));
+
+  size_t sz = sizeof(CUpti_EventID) * (*num_events);
+
+  CUpti_EventID* event_ids = zallocNN(sz);
+
+  CUPTI_FN(cuptiMetricEnumEvents(metric, &sz, &event_ids[0]));
+
+  return event_ids;
+}
+
+NVCD_EXPORT CUpti_MetricID* cupti_metric_get_ids(CUdevice dev, uint32_t* num_metrics) {
+  CUPTI_FN(cuptiDeviceGetNumMetrics(dev, num_metrics));
+
+  size_t array_size_bytes = sizeof(CUpti_MetricID) * (*num_metrics);
+  
+  CUpti_MetricID* metric_ids = mallocNN(array_size_bytes); 
+
+  CUPTI_FN(cuptiDeviceEnumMetrics(dev,
+                                  &array_size_bytes,
+                                  &metric_ids[0]));
+
+  return metric_ids;
+}
+
+NVCD_EXPORT char* cupti_metric_get_name(CUpti_MetricID metric) {
+  name_str_t name = {0};
+
+  size_t sz = sizeof(name);
+          
+  CUPTI_FN(cuptiMetricGetAttribute(metric,
+                                   CUPTI_METRIC_ATTR_NAME,
+                                   &sz,
+                                   (void*) &name[0]));
+
+  return strdup(name);
 }
 
 

@@ -167,5 +167,15 @@ NVCD_EXPORT void cupti_event_data_begin(cupti_event_data_t* e);
 
 NVCD_EXPORT void cupti_event_data_end(cupti_event_data_t* e);
 
+NVCD_EXPORT char* cupti_event_get_name(CUpti_EventID eid);
+
+NVCD_EXPORT CUpti_EventID* cupti_metric_get_event_ids(CUpti_MetricID metric,
+                                                      uint32_t* num_events);
+
+NVCD_EXPORT CUpti_MetricID* cupti_metric_get_ids(CUdevice dev,
+                                                 uint32_t* num_metrics);
+
+NVCD_EXPORT char* cupti_metric_get_name(CUpti_MetricID metric);
+
 C_LINKAGE_END
 #endif //__CUPTI_LOOKUP_H__
