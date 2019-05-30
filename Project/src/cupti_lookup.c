@@ -545,7 +545,7 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
   
   if (env_string != NULL) { 
     size_t count = 0;
-    char* const* list = env_var_list_read(env_string, &count);
+    char** list = env_var_list_read(env_string, &count);
 
     // Sanity check
     ASSERT(count < 0x1FF);
@@ -579,6 +579,8 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
         e->event_names = list;
         e->event_names_buffer_length = (uint32_t)count;
       }
+
+      free_strlist(list, count);
     } else {
       exit_msg(stream,
                EBAD_INPUT,
