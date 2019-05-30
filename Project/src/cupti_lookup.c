@@ -166,6 +166,14 @@ char* g_cupti_event_names_2x[] = {
 
 const uint32_t g_cupti_event_names_2x_length = ARRAY_LENGTH(g_cupti_event_names_2x);
 
+NVCD_EXPORT char** cupti_get_event_names() {
+  return g_cupti_event_names_2x;
+}
+
+NVCD_EXPORT uint32_t cupti_get_num_event_names() {
+  return g_cupti_event_names_2x_length;
+}
+
 /*
  * List of event metrics as listed in the CUPTI event documentation
  * for CUDA toolkit v9.2
