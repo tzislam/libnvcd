@@ -3,7 +3,6 @@
 #SBATCH --output="nvcdinfo.log"
 #SBATCH --partition=gpu-shared
 #SBATCH --gres=gpu:k80:1
-#SBATCH --pty
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
 #SBATCH --export=ALL
