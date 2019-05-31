@@ -362,34 +362,183 @@ static void cupti_name_map_free_node(cupti_name_map_t* n) {
   n->name = NULL;
 }
 
+typedef struct group_info {
+  uint32_t num_events;
+  uint32_t num_instances;
+  CUpti_EventID* events;
+  uint64_t* counters;
+  CUpti_EventGroup group;
+} group_info_t; 
+
+static volatile bool g_group_method_read_all = false;
+
+static group_info_t* g_group_info_buffer = NULL;
+static uint32_t g_group_info_count = 0;
+static uint32_t g_group_info_size = 0;
+
+static void group_info_append(group_info_t* info, uint32_t group) {
+  if (g_group_info_buffer == NULL) {
+    g_group_info_size = 50;
+    g_group_info_buffer = zallocNN(g_group_info_size * sizeof(*g_group_info_buffer));
+  }
+
+  ASSERT(group < g_group_info_size /* TODO: use double_buffer_size() in util.h */); 
+  
+  memcpy(&g_group_info_buffer[group], info, sizeof(*info));
+  g_group_info_count++;
+}
+
+static void group_info_free(group_info_t* info) {
+  safe_free_v(info->events);
+  safe_free_v(info->counters);
+}
+
+static void group_info_validate(cupti_event_data_t* e,
+                                group_info_t* info,
+                                uint32_t group) {
+  printf("Validating group %" PRIu32 "\n", group);
+
+  ASSERT(info->group == e->event_groups[group]);
+  ASSERT(info->num_events == e->num_events_per_group[group]);
+  ASSERT(info->num_instances == e->num_instances_per_group[group]);
+
+  volatile CUpti_EventID* base =
+    &e->event_id_buffer[e->event_id_buffer_offsets[group]];
+  
+  for (uint32_t i = 0; i < info->num_events; ++i) {
+    ASSERT(base[i] == info->events[i]);
+
+    char* name = cupti_event_get_name(info->events[i]);
+    char* name2 = cupti_event_get_name(base[i]);
+
+    ASSERT(strcmp(name, name2) == 0);
+#if 0
+    uint64_t* soa_counters = &e->event_counter_buffer[e->event_counter_buffer_offsets[group]];
+    
+    // counter comparison
+    for (uint32_t j = 0; j < info->num_instances; ++j) {
+      ASSERT(soa_counters[i * info->num_instances + j] ==
+             info->counters[i * info->num_instances + j]);
+    }
+#endif
+    
+    printf("\t[%" PRIu32 "] %s|%s is good...\n", i, name, name2);
+    free(name);
+    free(name2);
+  }
+
+  ASSERT(info->num_instances == 1);
+}
+
+static void group_info_make(cupti_event_data_t* e,
+                        group_info_t* info,
+                        uint32_t group) {
+
+  CUpti_EventGroup g = e->event_groups[group];
+  
+  {
+    size_t sz = sizeof(info->num_events);
+
+    CUPTI_FN(cuptiEventGroupGetAttribute(g,
+                                         CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS,
+                                         &sz,
+                                         &info->num_events));
+  }
+
+  {
+    size_t sz = sizeof(info->num_instances);
+
+    CUPTI_FN(cuptiEventGroupGetAttribute(g,
+                                         CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT,
+                                         &sz,
+                                         &info->num_instances));
+  }
+
+  {
+    size_t sz = sizeof(info->events[0]) * info->num_events;
+
+    info->events = zallocNN(sz);
+    
+    CUPTI_FN(cuptiEventGroupGetAttribute(g,
+                                         CUPTI_EVENT_GROUP_ATTR_EVENTS,
+                                         &sz,
+                                         &info->events[0]));
+  }
+  
+  {
+    size_t sz = sizeof(info->counters) * info->num_instances * info->num_events;
+    info->counters = zallocNN(sz);
+  }
+
+  info->group = g;
+}
+
+static group_info_t* group_info_new(cupti_event_data_t* e, uint32_t group) {
+  group_info_t* ret = zallocNN(sizeof(*ret));
+  group_info_make(e, ret, group);
+  return ret;
+}
+
+static void read_group_all_events(cupti_event_data_t* e, uint32_t group) {
+  size_t cb_size =
+    e->num_events_per_group[group] *
+    e->num_instances_per_group[group] *
+    sizeof(uint64_t);
+    
+  size_t cb_offset = e->event_counter_buffer_offsets[group];
+
+  size_t ib_size = e->num_events_per_group[group] * sizeof(CUpti_EventID);
+  size_t ib_offset = e->event_id_buffer_offsets[group];
+
+  size_t ids_read = 0;
+    
+  CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[group],
+                                        CUPTI_EVENT_READ_FLAG_NONE,
+                                        &cb_size,
+                                        &e->event_counter_buffer[cb_offset],
+                                        &ib_size,
+                                        &e->event_id_buffer[ib_offset],
+                                        &ids_read));
+
+  printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
+         group,
+         ids_read,
+         (size_t) e->num_events_per_group[group]);
+
+}
+
+// if called, it must be called after read_group_all_events
+static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {
+  group_info_t* info = group_info_new(e, group);
+
+  size_t bytes_read_per_event = sizeof(info->counters[0]) * info->num_instances;
+  
+  for (uint32_t i = 0; i < info->num_events; ++i) {
+    CUPTI_FN(cuptiEventGroupReadEvent(info->group,
+                                      CUPTI_EVENT_READ_FLAG_NONE,
+                                      info->events[i],
+                                      &bytes_read_per_event,
+                                      &info->counters[i * info->num_instances]));
+
+    ASSERT(bytes_read_per_event == sizeof(info->counters[0]) * info->num_instances);
+  }
+
+  for (uint32_t i = 0; i < g_group_info_count; ++i) {
+    ASSERT(info->group != g_group_info_buffer[i].group);
+  }
+  
+  group_info_append(info, group);
+}
+
 static void collect_group_events(cupti_event_data_t* e) {
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
     if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
-      
-      size_t cb_size =
-        e->num_events_per_group[i] *
-        e->num_instances_per_group[i] *
-        sizeof(uint64_t);
-    
-      size_t cb_offset = e->event_counter_buffer_offsets[i];
+      read_group_all_events(e, i);
+      read_group_per_event(e, i);
 
-      size_t ib_size = e->num_events_per_group[i] * sizeof(CUpti_EventID);
-      size_t ib_offset = e->event_id_buffer_offsets[i];
-
-      size_t ids_read = 0;
-    
-      CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[i],
-                                            CUPTI_EVENT_READ_FLAG_NONE,
-                                            &cb_size,
-                                            &e->event_counter_buffer[cb_offset],
-                                            &ib_size,
-                                            &e->event_id_buffer[ib_offset],
-                                            &ids_read));
-
-      printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
-             i,
-             ids_read,
-             (size_t) e->num_events_per_group[i]);
+      group_info_validate(e,
+                          &g_group_info_buffer[i],
+                          i);
     }
   }
 
@@ -729,7 +878,7 @@ NVCD_EXPORT const char* cupti_find_event_name_from_id(CUpti_EventID id) {
 
 static char _peg_buffer[1 << 13] = { 0 };
 
-static void print_event_group(cupti_event_data_t* e, uint32_t group) {
+static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
   // used for iterative bounds checking
 #define peg_buffer_length ARRAY_LENGTH(_peg_buffer) - 1
   
@@ -828,7 +977,7 @@ static void print_event_group(cupti_event_data_t* e, uint32_t group) {
 
   ASSERT(ptr <= peg_buffer_length);
   
-  printf("======GROUP %" PRIu32  "=======\n"
+  printf("======(SOA)GROUP %" PRIu32  "=======\n"
          "%s"
          "===\n",
          group,
@@ -837,18 +986,52 @@ static void print_event_group(cupti_event_data_t* e, uint32_t group) {
 #undef peg_buffer_length
 }
 
+static void print_event_group_aos(cupti_event_data_t* e, uint32_t group) {
+  ASSERT(group < g_group_info_count);
+  
+  group_info_t* info = &g_group_info_buffer[group];
+  
+  printf("======(AOS) GROUP %" PRIu32  "=======\n", group);
+  
+  for (uint32_t i = 0; i < info->num_events; ++i){
+    char* name = cupti_event_get_name(info->events[i]);
+
+    printf("[%" PRIu32 "] %s\n", i, name);
+    
+    for (uint32_t j = 0; j < info->num_instances; ++j) {
+      printf("\t[%" PRIu32 "] %" PRIu64 "\n",
+             j,
+             info->counters[i * info->num_instances + j]);
+    }
+
+    free(name);
+  }
+
+  printf("===\n");
+}
+ 
 NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    print_event_group(e, i);
+    group_info_t* info = &g_group_info_buffer[i];
+    group_info_validate(e, info, i);
+  }
+
+  
+  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+    // if (g_group_method_read_all) {
+      print_event_group_soa(e, i);
+      //} else {
+      print_event_group_aos(e, i);
+      //}
   }
 }
 
 static bool _message_reported = false;
 
 NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
-                                   CUpti_CallbackDomain domain,
-                                   CUpti_CallbackId callback_id,
-                                   CUpti_CallbackData* callback_info) {
+                                               CUpti_CallbackDomain domain,
+                                               CUpti_CallbackId callback_id,
+                                               CUpti_CallbackData* callback_info) {
   {
     bool found = false;
     size_t i = 0;
