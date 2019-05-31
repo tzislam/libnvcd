@@ -13,6 +13,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
+#include <set>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -29,7 +30,6 @@
 #include <cupti.h>
 #include <cuda.h>
 #include <cuda_runtime.h>
-
 
 #ifdef __CUDACC__
 #ifndef PRIu64
@@ -50,6 +50,10 @@
 
 #ifndef PRId32
 #define PRId32 "i"
+#endif
+
+#ifndef PRIx32
+#define PRIx32 "x"
 #endif
 
 #endif // __CUDACC__
@@ -119,7 +123,6 @@ extern "C" {
 
   NVCD_CUDA_EXPORT void nvcd_device_get_smids(unsigned* out);
 }
-
 
 //
 // Stats
@@ -235,23 +238,39 @@ NVCD_CUDA_EXPORT void __buf_to_vec(std::vector<T>& vec, T* buf, uint32_t length)
 
 struct nvcd_device_info {
   struct entry {
+    static constexpr uint32_t id_unset = static_cast<uint32_t>(-1);
+    
     std::string name;
+    uint32_t id;
     bool supported;
 
+    bool blank() {
+      return id == id_unset && supported == false && name == "";
+    }
+    
     entry()
-      : entry("", false) {
+      : entry("", id_unset, false) {
     }
 
     entry(const std::string& name_, bool supported_)
+      : entry(name_, id_unset, supported)
+        
+    {}
+
+    entry(const std::string& name_, uint32_t id_, bool supported_)
       : name(name_),
+        id(id_),
         supported(supported_) {
     }
   };
 
+  using id_list_type = std::vector<uint32_t>;
+  using event_name_id_map_type = std::unordered_map<std::string, id_list_type>;
+  
   struct metric_entry : public entry {
-    std::vector<std::string> events;
+    event_name_id_map_type events;
     
-    metric_entry(const std::string& name, bool supported, std::vector<std::string> events_)
+    metric_entry(const std::string& name, bool supported, event_name_id_map_type events_)
       : entry(name, supported),
         events(std::move(events_))
       {}
@@ -274,22 +293,27 @@ struct nvcd_device_info {
 
   std::vector<std::string> device_names;
   
-  std::vector<std::string> get_metric_event_names(CUpti_MetricID metric_id) {
-    std::vector<std::string> event_names;
+  event_name_id_map_type get_metric_event_names(const std::string& device,
+                                                const std::string& metric_name,
+                                                CUpti_MetricID metric_id) {    
+    event_name_id_map_type event_names;
       
     uint32_t num_events;
 
     CUpti_EventID* event_ids = cupti_metric_get_event_ids(metric_id,
                                                           &num_events);
-            
-    event_names.reserve(num_events);
 
     for (uint32_t k = 0; k < num_events; ++k) {                            
       char* cname = cupti_event_get_name(event_ids[k]);
+      
       std::string name(cname);
       free(cname);
-              
-      event_names.push_back(name);
+      
+      if (event_names.find(name) == event_names.end()) {
+        event_names[name] = id_list_type();
+      }
+      
+      event_names[name].push_back(event_ids[k]);
     }
 
     free(event_ids);
@@ -297,54 +321,55 @@ struct nvcd_device_info {
     return event_names;
   }
 
+  bool event_supported(const std::string& device,
+                       const std::string& name) {
+    const auto& all_events = this->events.at(device);
+
+    size_t l = 0;
+
+    bool found = false;
+    bool supported = true;
+
+    entry ret;
+          
+    while (!found && l < all_events.size()) {
+      found = all_events.at(l).name == name;
+      
+      if (found) {
+        if (!all_events.at(l).supported) {
+          supported = false;
+        }
+      }
+                
+      l++;
+    }
+
+    return supported;
+  }
+  
   bool all_events_supported(const std::string& device,
                             CUdevice device_handle,
-                            const std::vector<std::string>& event_names) {
-
+                            const event_name_id_map_type& event_names) {
     bool all_supported = true;
-    {
-      size_t k = 0;
 
-      const auto& all_events = events.at(device);
-            
-      while (all_supported && k < event_names.size()) {
-        if (event_names[k] == "event_name") {
-          // assumption test
-          CUpti_EventID eid;
-          CUptiResult err = cuptiEventGetIdFromName(device_handle,
-                                                     event_names[k].c_str(),
-                                                     &eid);
-
-          ASSERT(err != CUPTI_SUCCESS);
-          
-          all_supported = false;
-        } else {
-          size_t l = 0;
-
-          bool found = false;
-          
-          while (!found && l < all_events.size()) {
-            found = all_events[l].name == event_names[k];
-            
-            if (found) {
-              if (!all_events[l].supported) {
-                all_supported = false;
-              }
-            }
-                
-            l++;
-          }
-        }
-
-        k++;
+    for (auto& event_name: event_names) {
+      if (event_name.first != "event_name") {
+        all_supported =
+          event_supported(device, event_name.first);
       }
-    }
+
+      if (!all_supported) {
+        break;
+      }
+    }  
+    
     return all_supported;
   }
   
   nvcd_device_info() {
     ASSERT(g_nvcd.initialized == true);
 
+    // no need to free this list
     char** event_names = cupti_get_event_names();
     
     auto num_event_names = cupti_get_num_event_names();
@@ -363,15 +388,17 @@ struct nvcd_device_info {
 
         for (decltype(num_event_names) j = 0; j < num_event_names; ++j) {
           std::string event(event_names[j]);
-          entry e(event, false);
-
-          CUpti_EventID dummy_id;
+          
+          CUpti_EventID event_id = static_cast<uint32_t>(-1);
+          
           CUptiResult err = cuptiEventGetIdFromName(g_nvcd.devices[i],
                                                     event_names[j],
-                                                    &dummy_id);
-          if (err == CUPTI_SUCCESS) {
-            e.supported = true;
-          }
+                                                    &event_id);
+          bool supported = err == CUPTI_SUCCESS;
+          
+          entry e(event,
+                  event_id,
+                  supported);
 
           list.push_back(e);
         }
@@ -388,7 +415,16 @@ struct nvcd_device_info {
         auto& list = metrics[device];
         
         for (uint32_t j = 0; j < num_metrics; ++j) {
-          std::vector<std::string> event_names = get_metric_event_names(metric_ids[j]);
+          char* cmetric_name = cupti_metric_get_name(metric_ids[j]);
+          
+          std::string metric_name(cmetric_name);
+          
+          free(cmetric_name);
+
+          event_name_id_map_type event_names =
+            get_metric_event_names(device,
+                                   metric_name,
+                                   metric_ids[j]);
 
           // the metric cannot be used if any of its dependent events
           // are unsupported
@@ -396,12 +432,6 @@ struct nvcd_device_info {
                                                     device_handle,
                                                     event_names);                                             
       
-          char* cmetric_name = cupti_metric_get_name(metric_ids[j]);
-          
-          std::string metric_name(cmetric_name);
-          
-          free(cmetric_name);
-
           metric_entry m(metric_name, all_supported, std::move(event_names));
 
           list.push_back(m);      

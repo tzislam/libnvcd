@@ -5,9 +5,12 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <iomanip>
 
 #define DEVICE_BLOCK "\n===================================\n"
 #define SECTION_BLOCK "\n----------------------------------\n"
+
+#define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
 
 int main(void) {
   nvcd_init();
@@ -26,8 +29,17 @@ int main(void) {
     for (size_t j = 0; j < metrics.size(); ++j) {
       ss << "[" << j << "]: " << metrics.at(j).name << "\n";
 
-      for (size_t k = 0; k < metrics.at(j).events.size(); ++k) {
-        ss << "\t[" << k << "]: " << metrics.at(j).events.at(k) << "\n";
+      for (auto& event_name: metrics.at(j).events) {
+        ss << "\tevent IDs corresponding to \"" << event_name.first << "\": ";
+
+        if (event_name.second.size() == 1) {
+          ss << STREAM_HEX(4) << event_name.second.at(0) << std::dec << "\n";
+        } else {
+          ss << "\n";
+          for (auto& eid: event_name.second) {
+            ss << "\t\t" << STREAM_HEX(4) << eid << std::dec << "\n";
+          }
+        }
       }
     }
   };
@@ -63,7 +75,8 @@ int main(void) {
       }
 
       ss << DEVICE_BLOCK
-         << "[" << i << "]: " << info->device_names[i];
+         << "[" << i << "]: "
+         << info->device_names[i];
 
       print_events("EVENTS - SUPPORTED", supported);
       
