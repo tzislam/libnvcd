@@ -24,11 +24,13 @@ case $1 in
        ;;
 
     6) export BENCH_EVENTS="ALL"
-	;;
+        ;;
     *)
         echo "Invalid argument specified"
         exit 1
         ;;
 esac
 
-./run > out_$1
+dt=$(date '+%m-%d-%Y_%H-%M-%S')
+
+./run > "out_${1}_${dt}"
