@@ -362,6 +362,131 @@ static void cupti_name_map_free_node(cupti_name_map_t* n) {
   n->name = NULL;
 }
 
+static bool find_event_group(cupti_event_data_t* e,
+                             CUpti_EventGroup* local_eg_assign,
+                             CUpti_EventID event_id,
+                             uint32_t max_egs,
+                             uint32_t* num_egs) {
+  
+  uint32_t j = 0;
+  CUptiResult err = CUPTI_ERROR_NOT_COMPATIBLE;
+
+  //
+  // find a suitable group
+  // for this event
+  //
+  bool iterating = j < max_egs;
+  bool error_valid = false;
+  bool found = false;
+
+  while (iterating) {
+    if (local_eg_assign[j] == NULL) {
+      CUPTI_FN(cuptiEventGroupCreate(e->cuda_context,
+                                     &local_eg_assign[j],
+                                     0));
+      *num_egs = *num_egs + 1;
+    }
+
+    err = cuptiEventGroupAddEvent(local_eg_assign[j],
+                                  event_id);
+        
+    j++;
+
+    // event groups cannot have
+    // events from different domains;
+    // in these cases we just find another group.
+    error_valid =
+      !(err == CUPTI_ERROR_MAX_LIMIT_REACHED
+        || err == CUPTI_ERROR_NOT_COMPATIBLE);
+
+    if (error_valid) {
+      error_valid = err == CUPTI_SUCCESS;
+    }
+        
+    if (j == max_egs || error_valid) {
+      iterating = false;
+      found = true;
+    }
+  }
+
+  ASSERT(j <= max_egs);
+      
+  // trigger exit if we still error out:
+  // something not taken into account
+  // needs to be looked at
+  CUPTI_FN(err);
+
+  return found;
+}
+
+static void compute_metrics(cupti_event_data_t* e) {
+  uint32_t num_metrics = 0;
+  CUPTI_FN(cuptiDeviceGetNumMetrics(e->cuda_device,
+                                    &num_metrics));
+
+  size_t metric_array_size = sizeof(CUpti_MetricID) * num_metrics;
+
+  CUpti_MetricID* metrics = zallocNN(metric_array_size);
+
+  CUPTI_FN(cuptiDeviceEnumMetrics(e->cuda_device,
+                                  &metric_array_size,
+                                  &metrics[0]));
+
+#define _index_ "[%" PRIu32 "] "
+  
+  for (uint32_t i = 0; i < num_metrics; ++i) {
+    char* name = cupti_metric_get_name(metrics[i]);
+    printf( _index_ "Processing metric %s...\n", i, name);
+    
+    uint32_t num_events = 0;
+    CUPTI_FN(cuptiMetricGetNumEvents(metrics[i], &num_events));
+    printf(_index_ "event count is %" PRIu32 ":\n", i, num_events);
+
+    size_t event_array_size = sizeof(CUpti_EventID) * num_events;
+    
+    CUpti_EventID* events = zallocNN(event_array_size);
+    CUPTI_FN(cuptiMetricEnumEvents(metrics[i], &event_array_size, &events[0]));
+    
+    for (uint32_t j = 0; j < num_events; ++j) {
+      char* ename = cupti_event_get_name(events[j]);
+      printf("\t" _index_ "name = %s, id = 0x%" PRIx32 "\n", j, ename, events[j]);
+      free(ename);
+    }
+
+    printf(_index_"Creating groups...\n", i);
+
+    uint32_t next_event = (uint32_t)0;
+    uint32_t events_added = 0;
+
+    CUpti_EventGroup groups[50] = { 0 };
+    uint32_t max_egs = 50;
+    uint32_t num_egs = 0;
+
+    uint32_t k = 0;
+    while (k < num_events && num_egs < max_egs) {
+      bool found = find_event_group(e,
+                                    &groups[0],
+                                    events[k],
+                                    max_egs,
+                                    &num_egs);
+
+      ASSERT(found);
+
+      k++;
+    }
+
+    // TODO: take each group and compute the needed values...
+    
+    ASSERT(k == num_events);
+    
+    free(name);
+
+    puts("---");
+  }
+
+  free(metrics);
+}
+
 typedef struct group_info {
   uint32_t num_events;
   uint32_t num_instances;
@@ -370,7 +495,7 @@ typedef struct group_info {
   CUpti_EventGroup group;
 } group_info_t; 
 
-static volatile bool g_group_method_read_all = false;
+static volatile bool g_process_group_aos = false;
 
 static group_info_t* g_group_info_buffer = NULL;
 static uint32_t g_group_info_count = 0;
@@ -484,31 +609,47 @@ static void read_group_all_events(cupti_event_data_t* e, uint32_t group) {
     e->num_events_per_group[group] *
     e->num_instances_per_group[group] *
     sizeof(uint64_t);
+
+  uint64_t* tmp = zallocNN(cb_size);
+  
+  {
+    size_t ib_size = e->num_events_per_group[group] * sizeof(CUpti_EventID);
+    size_t ib_offset = e->event_id_buffer_offsets[group];
+
+    size_t ids_read = 0;
     
-  size_t cb_offset = e->event_counter_buffer_offsets[group];
+    CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[group],
+                                          CUPTI_EVENT_READ_FLAG_NONE,
+                                          &cb_size,
+                                          //&e->event_counter_buffer[cb_offset],
+                                          tmp,
+                                          &ib_size,
+                                          &e->event_id_buffer[ib_offset],
+                                          &ids_read));
 
-  size_t ib_size = e->num_events_per_group[group] * sizeof(CUpti_EventID);
-  size_t ib_offset = e->event_id_buffer_offsets[group];
-
-  size_t ids_read = 0;
+    printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
+           group,
+           ids_read,
+           (size_t) e->num_events_per_group[group]);
+  }
+  
+  {
+    size_t num_counters = cb_size / sizeof(tmp[0]);
+    size_t stride = e->num_instances_per_group[group];
+    size_t cb_offset = e->event_counter_buffer_offsets[group];
     
-  CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[group],
-                                        CUPTI_EVENT_READ_FLAG_NONE,
-                                        &cb_size,
-                                        &e->event_counter_buffer[cb_offset],
-                                        &ib_size,
-                                        &e->event_id_buffer[ib_offset],
-                                        &ids_read));
-
-  printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
-         group,
-         ids_read,
-         (size_t) e->num_events_per_group[group]);
+    for (size_t i = 0; i < num_counters; ++i) {
+      size_t base = cb_offset + i * stride;
+      for (size_t j = 0; j < stride; ++j) {
+        e->event_counter_buffer[base + j] += tmp[base + j];
+      }
+    }
+  }
 
 }
 
 // if called, it must be called after read_group_all_events
-static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {
+static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {  
   group_info_t* info = group_info_new(e, group);
 
   size_t bytes_read_per_event = sizeof(info->counters[0]) * info->num_instances;
@@ -534,11 +675,13 @@ static void collect_group_events(cupti_event_data_t* e) {
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
     if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
       read_group_all_events(e, i);
-      read_group_per_event(e, i);
 
-      group_info_validate(e,
-                          &g_group_info_buffer[i],
-                          i);
+      if (g_process_group_aos) {
+        read_group_per_event(e, i);
+        group_info_validate(e,
+                            &g_group_info_buffer[i],
+                            i);
+      }
     }
   }
 
@@ -604,61 +747,18 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
       cupti_map_event_name_to_id(e->event_names[i], event_id);
     }
     
-    uint32_t event_group = 0;
-    
     if (available) {
-      uint32_t j = 0;
-      err = CUPTI_ERROR_NOT_COMPATIBLE;
-
-      //
-      // find a suitable group
-      // for this event
-      //
-      bool iterating = j < max_egs;
-      bool error_valid = false;
-
-      while (iterating) {
-        if (local_eg_assign[j] == NULL) {
-          CUPTI_FN(cuptiEventGroupCreate(e->cuda_context,
-                                         &local_eg_assign[j],
-                                         0));
-          num_egs++;
-        }
-
-        err = cuptiEventGroupAddEvent(local_eg_assign[j],
-                                      event_id);
-        
-        event_group = j;
-        j++;
-
-        // event groups cannot have
-        // events from different domains;
-        // in these cases we just find another group.
-        error_valid =
-                           !(err == CUPTI_ERROR_MAX_LIMIT_REACHED
-                             || err == CUPTI_ERROR_NOT_COMPATIBLE);
-
-        if (error_valid) {
-          error_valid = err == CUPTI_SUCCESS;
-        }
-        
-        if (j == max_egs || error_valid) {
-          iterating = false;
-        }
-      }
-
-      ASSERT(j <= max_egs);
-      
-      // trigger exit if we still error out:
-      // something not taken into account
-      // needs to be looked at
-      CUPTI_FN(err);
+      bool found = find_event_group(e,
+                                    &local_eg_assign[0],
+                                    event_id,
+                                    max_egs,
+                                    &num_egs);
+      ASSERT(found);
     }
 
-    printf("(%s) index %u, group_index %u => %s:0x%x\n",
+    printf("(%s) group found for index %u => %s:0x%x\n",
            available ? "available" : "unavailable",
            i,
-           event_group,
            e->event_names[i],
            event_id);
   }
@@ -1009,20 +1109,23 @@ static void print_event_group_aos(cupti_event_data_t* e, uint32_t group) {
 
   printf("===\n");
 }
- 
-NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
-  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    group_info_t* info = &g_group_info_buffer[i];
-    group_info_validate(e, info, i);
-  }
 
+NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
+  // sneak in the metrics computation here
+  compute_metrics(e);
+  
+  if (g_process_group_aos) {
+    for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+      group_info_t* info = &g_group_info_buffer[i];
+      group_info_validate(e, info, i);
+    }
+  }
   
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    // if (g_group_method_read_all) {
-      print_event_group_soa(e, i);
-      //} else {
+    print_event_group_soa(e, i);
+    if (g_process_group_aos) {
       print_event_group_aos(e, i);
-      //}
+    }
   }
 }
 
