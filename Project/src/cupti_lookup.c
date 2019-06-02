@@ -350,6 +350,8 @@ static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
 
 #define NUM_CUPTI_RUNTIME_CBIDS (sizeof(g_cupti_runtime_cbids) / sizeof(g_cupti_runtime_cbids[0]))
 
+static void init_cupti_event_buffers(cupti_event_data_t* e);
+
 static void cupti_name_map_push(cupti_name_map_t* node) {
   list_push_fn_impl(&g_name_map_list,
                     node,
@@ -360,6 +362,20 @@ static void cupti_name_map_push(cupti_name_map_t* node) {
 static void cupti_name_map_free_node(cupti_name_map_t* n) {
   free(n->name);
   n->name = NULL;
+}
+
+static void fill_event_groups(cupti_event_data_t* e,
+                              CUpti_EventGroup* local_eg_assign,
+                              uint32_t num_egs) {
+  e->num_event_groups = num_egs;
+  e->event_groups = zallocNN(sizeof(e->event_groups[0]) * e->num_event_groups);
+  e->event_groups_read = zallocNN(sizeof(e->event_groups_read[0]) * e->num_event_groups);
+    
+  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+    ASSERT(local_eg_assign[i] != NULL);
+      
+    e->event_groups[i] = local_eg_assign[i];
+  }
 }
 
 static bool find_event_group(cupti_event_data_t* e,
@@ -419,72 +435,59 @@ static bool find_event_group(cupti_event_data_t* e,
   return found;
 }
 
-static void compute_metrics(cupti_event_data_t* e) {
-  uint32_t num_metrics = 0;
+static cupti_metric_data_t* init_cupti_metric_data(cupti_event_data_t* e) {
+  cupti_metric_data_t* metric_buffer = zallocNN(sizeof(*metric_buffer));
+  
+
   CUPTI_FN(cuptiDeviceGetNumMetrics(e->cuda_device,
-                                    &num_metrics));
+                                    &metric_buffer->num_metrics));
 
-  size_t metric_array_size = sizeof(CUpti_MetricID) * num_metrics;
+  size_t metric_array_size = sizeof(CUpti_MetricID) * metric_buffer->num_metrics;
 
-  CUpti_MetricID* metrics = zallocNN(metric_array_size);
+  metric_buffer->metric_ids = zallocNN(metric_array_size);
 
   CUPTI_FN(cuptiDeviceEnumMetrics(e->cuda_device,
                                   &metric_array_size,
-                                  &metrics[0]));
+                                  &metric_buffer->metric_ids[0]));
 
+  metric_buffer->event_data = zallocNN(sizeof(metric_buffer->event_data[0]) *
+                                       metric_buffer->num_metrics);
+  
 #define _index_ "[%" PRIu32 "] "
   
-  for (uint32_t i = 0; i < num_metrics; ++i) {
-    char* name = cupti_metric_get_name(metrics[i]);
+  for (uint32_t i = 0; i < metric_buffer->num_metrics; ++i) {
+    char* name = cupti_metric_get_name(metric_buffer->metric_ids[i]);
     printf( _index_ "Processing metric %s...\n", i, name);
     
     uint32_t num_events = 0;
-    CUPTI_FN(cuptiMetricGetNumEvents(metrics[i], &num_events));
+    CUPTI_FN(cuptiMetricGetNumEvents(metric_buffer->metric_ids[i], &num_events));
     printf(_index_ "event count is %" PRIu32 ":\n", i, num_events);
 
     size_t event_array_size = sizeof(CUpti_EventID) * num_events;
     
     CUpti_EventID* events = zallocNN(event_array_size);
-    CUPTI_FN(cuptiMetricEnumEvents(metrics[i], &event_array_size, &events[0]));
     
-    for (uint32_t j = 0; j < num_events; ++j) {
-      char* ename = cupti_event_get_name(events[j]);
-      printf("\t" _index_ "name = %s, id = 0x%" PRIx32 "\n", j, ename, events[j]);
-      free(ename);
-    }
+    CUPTI_FN(cuptiMetricEnumEvents(metric_buffer->metric_ids[i],
+                                   &event_array_size,
+                                   &events[0]));
+    
+    cupti_event_data_set_null(&metric_buffer->event_data[i]);
 
-    printf(_index_"Creating groups...\n", i);
-
-    uint32_t next_event = (uint32_t)0;
-    uint32_t events_added = 0;
-
-    CUpti_EventGroup groups[50] = { 0 };
-    uint32_t max_egs = 50;
-    uint32_t num_egs = 0;
-
-    uint32_t k = 0;
-    while (k < num_events && num_egs < max_egs) {
-      bool found = find_event_group(e,
-                                    &groups[0],
-                                    events[k],
-                                    max_egs,
-                                    &num_egs);
-
-      ASSERT(found);
-
-      k++;
-    }
-
+    metric_buffer->event_data[i].cuda_device = e->cuda_device;
+    metric_buffer->event_data[i].cuda_context = e->cuda_context;
+    
+    cupti_event_data_init_from_ids(&metric_buffer->event_data[i],
+                                   &events[0],
+                                   num_events);
+    
     // TODO: take each group and compute the needed values...
-    
-    ASSERT(k == num_events);
     
     free(name);
 
     puts("---");
   }
 
-  free(metrics);
+  return metric_buffer;
 }
 
 typedef struct group_info {
@@ -772,19 +775,8 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
              "No supported events found within given list. "
              "Support can vary between device and compute capability.");
   }
-  
-  // fill our event groups buffer
-  {
-    e->num_event_groups = num_egs;
-    e->event_groups = zallocNN(sizeof(e->event_groups[0]) * e->num_event_groups);
-    e->event_groups_read = zallocNN(sizeof(e->event_groups_read[0]) * e->num_event_groups);
-    
-    for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-      ASSERT(local_eg_assign[i] != NULL);
-      
-      e->event_groups[i] = local_eg_assign[i];
-    }
-  }
+
+  fill_event_groups(e, &local_eg_assign[0], num_egs);
 }
 
 static void init_cupti_event_names(cupti_event_data_t* e) {
@@ -847,7 +839,7 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
   }
 }
 
-void init_cupti_event_buffers(cupti_event_data_t* e) {
+static void init_cupti_event_buffers(cupti_event_data_t* e) {
   // get instance and event counts for each group
   {
     e->num_events_per_group = zallocNN(sizeof(e->num_events_per_group[0]) *
@@ -930,7 +922,6 @@ void init_cupti_event_buffers(cupti_event_data_t* e) {
     e->event_counter_buffer =
       zallocNN(sizeof(e->event_counter_buffer[0]) * e->event_counter_buffer_length);  
   }
-
 }
 
 NVCD_EXPORT void cupti_name_map_free() {
@@ -1112,7 +1103,7 @@ static void print_event_group_aos(cupti_event_data_t* e, uint32_t group) {
 
 NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
   // sneak in the metrics computation here
-  compute_metrics(e);
+  //  compute_metrics(e);
   
   if (g_process_group_aos) {
     for (uint32_t i = 0; i < e->num_event_groups; ++i) {
@@ -1267,6 +1258,44 @@ NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e) {
   e->subscriber = NULL;
 }
 
+NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
+                                                CUpti_EventID* event_ids,
+                                                uint32_t num_event_ids) {
+  ASSERT(e != NULL);
+  ASSERT(e->cuda_context != NULL);
+  ASSERT(e->cuda_device >= 0);
+  ASSERT(!e->is_root);
+
+  if (!e->initialized) {
+
+    // event group initialization
+    {
+      CUpti_EventGroup eg_buf[50] = { 0 };
+      uint32_t num_egs = 0;
+      uint32_t max_egs = 50;
+      
+      for (uint32_t i = 0; i < num_event_ids; ++i) {
+        volatile bool found = find_event_group(e,
+                                               &eg_buf[0],
+                                               event_ids[i],
+                                               max_egs,
+                                               &num_egs);
+
+        ASSERT(found);
+      }
+
+      ASSERT(num_egs <= max_egs);
+      
+      fill_event_groups(e,
+                        &eg_buf[0],
+                        num_egs);
+    }
+
+    init_cupti_event_buffers(e);
+    
+    e->initialized = true;
+  }
+}
 
 NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
   ASSERT(e != NULL);
@@ -1281,6 +1310,10 @@ NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
     e->kernel_times_nsec = zallocNN(sizeof(e->kernel_times_nsec[0]) *
                                     e->kernel_times_nsec_buffer_length);
                                            
+
+    if (e->is_root) {
+      init_cupti_metric_data(e);
+    }
     
     e->initialized = true;
   }

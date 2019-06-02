@@ -21,6 +21,8 @@ NVCD_EXPORT char** cupti_get_event_names();
 
 NVCD_EXPORT uint32_t cupti_get_num_event_names();
 
+typedef struct cupti_metric_data cupti_metric_data_t;
+
 typedef struct cupti_event_data {
   // one large contiguous buffer,
   // for all groups, constant size.
@@ -45,6 +47,8 @@ typedef struct cupti_event_data {
   
   char*const * event_names;
 
+  cupti_metric_data_t* metric_data; // ONLY applies to the root event_data node
+  
   uint64_t stage_time_nsec_start;
   
   CUcontext cuda_context;
@@ -80,9 +84,14 @@ typedef struct cupti_event_data {
   uint32_t event_names_buffer_length;
 
   bool32_t initialized;
-  
+  bool32_t is_root;
 } cupti_event_data_t;
 
+typedef struct cupti_metric_data {
+  CUpti_MetricID* metric_ids;
+  cupti_event_data_t* event_data;
+  uint32_t num_metrics;
+} cupti_metric_data_t;
 
 #ifndef PTHREAD_INITIALIZER
 #define PTHREAD_INITIALIZER (unsigned long)0
@@ -94,12 +103,13 @@ typedef struct cupti_event_data {
     /*.num_events_per_group =*/ NULL,                                   \
     /*.num_events_read_per_group =*/ NULL,                              \
     /*.num_instances_per_group =*/ NULL,                                \
-    /*.event_counter_buffer_offsets =*/ NULL,                           \
+      /*.event_counter_buffer_offsets =*/ NULL,                         \
     /*.event_id_buffer_offsets =*/ NULL,                                \
     /*.event_groups_read =*/ NULL,                                      \
     /*.kernel_times_nsec =*/ NULL,                                      \
     /*.event_groups =*/ NULL,                                           \
     /*.event_names =*/ NULL,                                            \
+      /*.metric_data =*/ NULL,                                          \
     /*.stage_time_nsec_start =*/ 0,                                     \
     /*.cuda_context =*/ NULL,                                           \
     /*.cuda_device =*/ CU_DEVICE_INVALID,                               \
@@ -113,7 +123,8 @@ typedef struct cupti_event_data {
     /*.event_id_buffer_length =*/ 0,                                    \
     /*.kernel_times_nsec_buffer_length =*/ 10,                          \
     /*.event_names_buffer_length =*/ 0,                                 \
-    /*.initialized =*/ false                                            \
+      /*.initialized =*/ false,                                         \
+      /*.is_root =*/ false                                              \
     }
 
 
@@ -156,6 +167,10 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
 NVCD_EXPORT void cupti_event_data_subscribe(cupti_event_data_t* e);
 
 NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e);
+
+NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
+                                                CUpti_EventID* event_ids,
+                                                uint32_t num_event_ids);
 
 NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e);
 

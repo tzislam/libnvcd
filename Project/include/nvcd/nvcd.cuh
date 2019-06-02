@@ -741,6 +741,8 @@ extern "C" {
     
     printf("nvcd_init address: %p\n", nvcd_init);
     ASSERT(g_nvcd.initialized == true);
+
+    g_event_data.is_root = true;
   }
 
   NVCD_CUDA_EXPORT void nvcd_host_begin(int num_cuda_threads) {  
