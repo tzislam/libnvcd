@@ -375,6 +375,11 @@ static void fill_event_groups(cupti_event_data_t* e,
     ASSERT(local_eg_assign[i] != NULL);
       
     e->event_groups[i] = local_eg_assign[i];
+
+    uint32_t profile_all = 1;
+    CUPTI_FN(cuptiEventGroupSetAttribute(e->event_groups[i],
+                                         CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES,
+                                         sizeof(profile_all), &profile_all));
   }
 }
 
@@ -494,6 +499,21 @@ static cupti_metric_data_t* init_cupti_metric_data(cupti_event_data_t* e) {
   
   return metric_buffer;
 }
+
+#if 0
+static uint32_t derive_event_count(cupti_event_data_t* e) {
+  return 0;
+}
+
+static void calc_cupti_metrics(cupti_metric_data_t* m) {
+  ASSERT(m->initialized == true);
+  ASSERT(m->num_metrics < 2000);
+  
+  for (uint32_t i = 0; i < m->num_metrics; ++i) {
+    
+  }
+}
+#endif
 
 typedef struct group_info {
   uint32_t num_events;
