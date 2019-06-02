@@ -763,12 +763,8 @@ extern "C" {
     cupti_event_data_begin(&g_event_data);
   }
 
-  NVCD_CUDA_EXPORT bool nvcd_host_finished() {  
-    ASSERT(g_event_data.count_event_groups_read
-           <= g_event_data.num_event_groups /* serious problem if this fails */);
-  
-    return g_event_data.count_event_groups_read
-      == g_event_data.num_event_groups; 
+  NVCD_CUDA_EXPORT bool nvcd_host_finished() {
+    return cupti_event_data_callback_finished(&g_event_data);
   }
 
   NVCD_CUDA_EXPORT void nvcd_host_end() {

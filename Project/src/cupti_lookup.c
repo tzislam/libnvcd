@@ -1428,4 +1428,10 @@ NVCD_EXPORT char* cupti_metric_get_name(CUpti_MetricID metric) {
   return strdup(name);
 }
 
-
+NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e) {
+  ASSERT(e->count_event_groups_read
+         <= e->num_event_groups /* serious problem if this fails */);
+  
+  return e->count_event_groups_read
+    == e->num_event_groups;
+}
