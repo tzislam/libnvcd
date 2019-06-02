@@ -85,6 +85,30 @@
     }                                                                   \
   } while (0)
 
+#if 0
+void f(p_event_data, kname, num_blocks, threads_per_block, ...) {
+  do {
+    cupti_event_data_t* __e = (p_event_data);
+    
+    ASSERT(__e->is_root == true);
+    ASSERT(__e->initialized == true);
+    ASSERT(__e->metric_data != NULL);
+    ASSERT(__e->metric_data->initialized == true);
+
+    for (uint32_t i = 0; i < __e->metric_data->num_metrics; ++i) {
+      cupti_event_data_begin(&__e->metric_data->event_data[i]);
+
+      while (!cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) {
+        kname<<<num_blocks, threads_per_block>>>(__VA_ARGS__);
+        CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+      }
+      
+      cupti_event_data_end(&__e->metric_data->event_data[i]);
+    }
+  } while (0)
+}
+#endif
+
 typedef struct nvcd {
   CUdevice* devices;
   CUcontext* contexts;
