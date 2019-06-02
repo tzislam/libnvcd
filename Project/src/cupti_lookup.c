@@ -452,6 +452,9 @@ static cupti_metric_data_t* init_cupti_metric_data(cupti_event_data_t* e) {
 
   metric_buffer->event_data = zallocNN(sizeof(metric_buffer->event_data[0]) *
                                        metric_buffer->num_metrics);
+
+  metric_buffer->computed = zallocNN(sizeof(metric_buffer->computed[0]) *
+                                     metric_buffer->num_metrics);
   
 #define _index_ "[%" PRIu32 "] "
   
@@ -487,6 +490,8 @@ static cupti_metric_data_t* init_cupti_metric_data(cupti_event_data_t* e) {
     puts("---");
   }
 
+  metric_buffer->initialized = true;
+  
   return metric_buffer;
 }
 
