@@ -1174,7 +1174,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
     event_data->thread_event_callback = pthread_self();
     
     volatile int threads_eq = pthread_equal(event_data->thread_event_callback,
-                                            event_data->thread_host_begin);
+                                            event_data->thread_event_data_init);
 
     if (threads_eq != 0) {
       if (!_message_reported) {
@@ -1283,6 +1283,15 @@ NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e) {
   e->subscriber = NULL;
 }
 
+static inline void __cupti_event_data_init_base(cupti_event_data_t* e) {
+  e->thread_event_data_init = pthread_self();
+
+  e->kernel_times_nsec = zallocNN(sizeof(e->kernel_times_nsec[0]) *
+                                  e->kernel_times_nsec_buffer_length);
+
+  init_cupti_event_buffers(e);  
+}
+
 NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
                                                 CUpti_EventID* event_ids,
                                                 uint32_t num_event_ids) {
@@ -1316,7 +1325,7 @@ NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
                         num_egs);
     }
 
-    init_cupti_event_buffers(e);
+    __cupti_event_data_init_base(e); 
     
     e->initialized = true;
   }
@@ -1330,13 +1339,10 @@ NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
   if (!e->initialized) {
     init_cupti_event_names(e);
     init_cupti_event_groups(e);
-    init_cupti_event_buffers(e);
 
-    e->kernel_times_nsec = zallocNN(sizeof(e->kernel_times_nsec[0]) *
-                                    e->kernel_times_nsec_buffer_length);
-                                           
-
-    if (e->is_root) {
+    __cupti_event_data_init_base(e); 
+    
+    if (e->is_root == true) {
       init_cupti_metric_data(e);
     }
     

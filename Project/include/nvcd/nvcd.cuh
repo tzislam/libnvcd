@@ -781,7 +781,6 @@ extern "C" {
     
     g_event_data.cuda_context = g_nvcd.contexts[0];
     g_event_data.cuda_device = g_nvcd.devices[0];
-    g_event_data.thread_host_begin = pthread_self();
   
     cupti_event_data_init(&g_event_data);
     cupti_event_data_begin(&g_event_data);

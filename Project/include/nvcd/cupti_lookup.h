@@ -58,7 +58,7 @@ typedef struct cupti_event_data {
   
   // for asserting thread relationship
   // consistency
-  pthread_t thread_host_begin;
+  pthread_t thread_event_data_init;
   pthread_t thread_event_callback;
 
   
@@ -116,8 +116,8 @@ typedef struct cupti_metric_data {
     /*.cuda_context =*/ NULL,                                           \
     /*.cuda_device =*/ CU_DEVICE_INVALID,                               \
     /*.subscriber =*/ NULL,                                             \
-      /*.thread_host_begin =*/ PTHREAD_INITIALIZER,                     \
-      /*.thread_host_end =*/ PTHREAD_INITIALIZER,                       \
+      /*.thread_event_data_init =*/ PTHREAD_INITIALIZER,                     \
+      /*.thread_event_callback =*/ PTHREAD_INITIALIZER,                       \
     /*.num_event_groups =*/ 0,                                          \
     /*.num_kernel_times =*/ 0,                                          \
     /*.count_event_groups_read =*/ 0,                                   \
