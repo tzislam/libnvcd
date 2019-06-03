@@ -463,6 +463,11 @@ static void init_cupti_metric_data(cupti_event_data_t* e) {
 
   metric_buffer->computed = zallocNN(sizeof(metric_buffer->computed[0]) *
                                      metric_buffer->num_metrics);
+
+  metric_buffer->metric_get_value_results =
+    zallocNN(sizeof(metric_buffer->metric_get_value_results[0]) *
+             metric_buffer->num_metrics);
+                                                     
   
 #define _index_ "[%" PRIu32 "] "
   
@@ -554,82 +559,108 @@ static void normalize_counters(cupti_event_data_t* e, uint64_t* normalized) {
 }
 
 static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index) {
-  ASSERT(metric_data->computed[index] == true);
+  //ASSERT(metric_data->computed[index] == true);
 
   CUpti_MetricID m = metric_data->metric_ids[index];
   CUpti_MetricValue v = metric_data->metric_values[index];
-  
-  CUpti_MetricValueKind kind;
-  
-  size_t kind_sz = sizeof(kind);
-  
-  CUPTI_FN(cuptiMetricGetAttribute(m,
-                                   CUPTI_METRIC_ATTR_VALUE_KIND,
-                                   &kind_sz,
-                                   (void*) &kind));
 
   char* name = cupti_metric_get_name(m);
-
+    
   printf("[%" PRIu32 "] %s = ", index, name);
   
-  switch (kind) {
-  case CUPTI_METRIC_VALUE_KIND_DOUBLE: {
-    printf("(double) %f", v.metricValueDouble);
-  } break;
-    
-  case CUPTI_METRIC_VALUE_KIND_UINT64: {
-    printf("(uint64) %" PRIu64, v.metricValueUint64);
-  } break;
-    
-  case CUPTI_METRIC_VALUE_KIND_INT64: {
-    printf("(int64) %" PRId64, v.metricValueInt64);
-  } break;
-    
-  case CUPTI_METRIC_VALUE_KIND_PERCENT: {
-    printf("(percent) %f", v.metricValuePercent);
-  } break;
-    
-  case CUPTI_METRIC_VALUE_KIND_THROUGHPUT: {
-    printf("(bytes/second) %" PRId64, v.metricValueThroughput);
-  } break;
-    
-  case CUPTI_METRIC_VALUE_KIND_UTILIZATION_LEVEL: {
-    const char* level = NULL;
-    
-    switch (v.metricValueUtilizationLevel) {
-    case CUPTI_METRIC_VALUE_UTILIZATION_IDLE: { 
-      level = "IDLE";
+  if (metric_data->computed[index] == true) {
+  
+    CUpti_MetricValueKind kind;
+  
+    size_t kind_sz = sizeof(kind);
+  
+    CUPTI_FN(cuptiMetricGetAttribute(m,
+                                     CUPTI_METRIC_ATTR_VALUE_KIND,
+                                     &kind_sz,
+                                     (void*) &kind));
+  
+    switch (kind) {
+    case CUPTI_METRIC_VALUE_KIND_DOUBLE: {
+      printf("(double) %f", v.metricValueDouble);
     } break;
+    
+    case CUPTI_METRIC_VALUE_KIND_UINT64: {
+      printf("(uint64) %" PRIu64, v.metricValueUint64);
+    } break;
+    
+    case CUPTI_METRIC_VALUE_KIND_INT64: {
+      printf("(int64) %" PRId64, v.metricValueInt64);
+    } break;
+    
+    case CUPTI_METRIC_VALUE_KIND_PERCENT: {
+      printf("(percent) %f", v.metricValuePercent);
+    } break;
+    
+    case CUPTI_METRIC_VALUE_KIND_THROUGHPUT: {
+      printf("(bytes/second) %" PRId64, v.metricValueThroughput);
+    } break;
+    
+    case CUPTI_METRIC_VALUE_KIND_UTILIZATION_LEVEL: {
+      const char* level = NULL;
+    
+      switch (v.metricValueUtilizationLevel) {
+      case CUPTI_METRIC_VALUE_UTILIZATION_IDLE: { 
+        level = "IDLE";
+      } break;
       
-    case CUPTI_METRIC_VALUE_UTILIZATION_LOW: { 
-      level = "LOW";
-    } break;
+      case CUPTI_METRIC_VALUE_UTILIZATION_LOW: { 
+        level = "LOW";
+      } break;
 
-    case CUPTI_METRIC_VALUE_UTILIZATION_MID: { 
-      level = "MID";
-    } break;
+      case CUPTI_METRIC_VALUE_UTILIZATION_MID: { 
+        level = "MID";
+      } break;
 
-    case CUPTI_METRIC_VALUE_UTILIZATION_HIGH: { 
-      level = "HIGH";
-    } break;
+      case CUPTI_METRIC_VALUE_UTILIZATION_HIGH: { 
+        level = "HIGH";
+      } break;
 
-    case CUPTI_METRIC_VALUE_UTILIZATION_MAX: { 
-      level = "MAX";
-    } break;
+      case CUPTI_METRIC_VALUE_UTILIZATION_MAX: { 
+        level = "MAX";
+      } break;
       
+      default:
+        //        ASSERT(false /* bad utilization level received */);
+
+        level = "UNKNOWN (bad value received)";
+        break;
+      }
+    
+      printf("(utilization level) %" PRIu32 " =  %s ",
+             v.metricValueUtilizationLevel,
+             level);
+    } break;
+
     default:
-      ASSERT(false /* bad utilization level received */);
+      //ASSERT(false /* bad metric value kind received */);
+      printf("[WARNING: bad metric value kind received: 0x%" PRIx32 "] ", kind);
       break;
     }
+  } else {
+    const char* result_string = NULL;
+
+    // TODO: docs do not specify whether or not this string should be freed,
+    // so the assumption is that it shouldn't (for now - should test with valgrind
+    // when time allows)
+    //
+    // reference (see function listing given below the enum values):
+    //
+    // https://docs.nvidia.com/cuda/archive/9.2/cupti/group__CUPTI__RESULT__API.html#group__CUPTI__RESULT__API_1g8c54bf95108e67d858f37fcf76c88714
+    //
+    //
+    CUPTI_FN(cuptiGetResultString(metric_data->metric_get_value_results[index],
+                                 &result_string));
     
-    printf("(utilization level) %s", level);
+    printf("[NOT computed - Error code received: %" PRIu32 " = %s]",
+           metric_data->metric_get_value_results[index],
+           result_string);
   }
-
-  default:
-    ASSERT(false /* bad metric value kind received */);
-    break;
-  }
-
+  
   printf("%s", "\n");
 
   free(name);
@@ -652,17 +683,24 @@ static void calc_cupti_metrics(cupti_metric_data_t* m) {
     
     normalize_counters(e, normalized);
     
-    CUPTI_FN(cuptiMetricGetValue(e->cuda_device,
+    CUptiResult err = cuptiMetricGetValue(e->cuda_device,
                                  m->metric_ids[i],
                                  sizeof(e->event_id_buffer[0]) * e->event_id_buffer_length,
                                  &e->event_id_buffer[0],
                                  sizeof(normalized[0]) * e->event_id_buffer_length,
                                  &normalized[0],
                                  e->kernel_times_nsec[0],
-                                 &m->metric_values[i]));
+                                 &m->metric_values[i]);
 
     ASSERT(m->computed[i] == false);
-    m->computed[i] = true;
+
+    if (err == CUPTI_SUCCESS) {
+      m->computed[i] = true;
+    } else if (err != CUPTI_ERROR_INVALID_METRIC_VALUE) {
+      CUPTI_FN(err);
+    }
+
+    m->metric_get_value_results[i] = err;
   }
 }
 
