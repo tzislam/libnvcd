@@ -376,10 +376,14 @@ static void fill_event_groups(cupti_event_data_t* e,
       
     e->event_groups[i] = local_eg_assign[i];
 
+    // enabling this (on the GTX 980M, at least, will cause a SIGBUS error for event groups
+    // that are tied to events which are used by metrics)
+    #if 0
     uint32_t profile_all = 1;
     CUPTI_FN(cuptiEventGroupSetAttribute(e->event_groups[i],
                                          CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES,
                                          sizeof(profile_all), &profile_all));
+    #endif
   }
 }
 
@@ -531,14 +535,25 @@ static void normalize_counters(cupti_event_data_t* e, uint64_t* normalized) {
                                          CUPTI_EVENT_GROUP_ATTR_EVENT_DOMAIN_ID,
                                          &domain_id_sz,
                                          (void*) &domain_id));
+    
+    uint32_t total_instance_count = 1;
 
-    uint32_t total_instance_count = 0;
+    // Querying for this value will throw
+    // an error that isn't consistent with what's reported
+    // in the documentation. Currently, only speculation
+    // as to "why" is possible - for now, we're forgoing
+    // anything involving multiple domain instances
+    // since it appears to cause problems with specific configurations
+    // (at least, for the metrics - event counters that are recorded without
+    // interfacing with teh metrics appear to be fine)
+    #if 0    
     size_t total_instance_count_sz = sizeof(total_instance_count);
     CUPTI_FN(cuptiEventDomainGetAttribute(domain_id,
                                           CUPTI_EVENT_DOMAIN_ATTR_TOTAL_INSTANCE_COUNT,
                                           &total_instance_count_sz,
                                           (void*) &total_instance_count));
-
+    #endif
+    
     uint32_t cb_offset = e->event_counter_buffer_offsets[j];
     uint32_t ib_offset = e->event_id_buffer_offsets[j];
     uint32_t nepg = e->num_events_per_group[j];
