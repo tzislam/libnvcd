@@ -45,7 +45,7 @@ typedef struct cupti_event_data {
   
   CUpti_EventGroup* event_groups;
   
-  char*const * event_names;
+  char * const * event_names;
 
   cupti_metric_data_t* metric_data; // ONLY applies to the root event_data node
   

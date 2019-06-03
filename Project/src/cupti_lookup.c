@@ -717,6 +717,7 @@ static void group_info_validate(cupti_event_data_t* e,
     char* name2 = cupti_event_get_name(base[i]);
 
     ASSERT(strcmp(name, name2) == 0);
+
 #if 0
     uint64_t* soa_counters = &e->event_counter_buffer[e->event_counter_buffer_offsets[group]];
     
@@ -1321,6 +1322,9 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
   }
 
   cupti_event_data_t* event_data = (cupti_event_data_t*) userdata;
+
+  puts("-----------------");
+  printf("event callback hit for event_data = %p\n", event_data);
   
   // For now it appears that the threads are the same between the main thread
   // and the thread this callback is installed in. The check is important though
@@ -1458,7 +1462,8 @@ NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
   ASSERT(!e->is_root);
 
   if (!e->initialized) {
-
+    
+    
     // event group initialization
     {
       CUpti_EventGroup eg_buf[50] = { 0 };
@@ -1626,3 +1631,4 @@ NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e) {
   return e->count_event_groups_read
     == e->num_event_groups;
 }
+
