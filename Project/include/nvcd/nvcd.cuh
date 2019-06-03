@@ -79,35 +79,38 @@
 
 #define NVCD_KERNEL_EXEC_v2(kname, num_blocks, threads_per_block, ...)  \
   do {                                                                  \
+    cupti_event_data_begin(&g_event_data);                              \
     while (!nvcd_host_finished()) {                                     \
       kname<<<num_blocks, threads_per_block>>>(__VA_ARGS__);            \
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         \
     }                                                                   \
+    cupti_event_data_end(&g_event_data);                                \
+    NVCD_KERNEL_EXEC_METRICS(&g_event_data,                             \
+                             kname,                                     \
+                             num_blocks,                                \
+                             threads_per_block,                         \
+                             __VA_ARGS__);                              \
   } while (0)
 
-#if 0
-void f(p_event_data, kname, num_blocks, threads_per_block, ...) {
-  do {
-    cupti_event_data_t* __e = (p_event_data);
-    
-    ASSERT(__e->is_root == true);
-    ASSERT(__e->initialized == true);
-    ASSERT(__e->metric_data != NULL);
-    ASSERT(__e->metric_data->initialized == true);
-
-    for (uint32_t i = 0; i < __e->metric_data->num_metrics; ++i) {
-      cupti_event_data_begin(&__e->metric_data->event_data[i]);
-
-      while (!cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) {
-        kname<<<num_blocks, threads_per_block>>>(__VA_ARGS__);
-        CUDA_RUNTIME_FN(cudaDeviceSynchronize());
-      }
-      
-      cupti_event_data_end(&__e->metric_data->event_data[i]);
-    }
-  } while (0)
-}
-#endif
+#define NVCD_KERNEL_EXEC_METRICS(p_event_data, kname, num_blocks, threads_per_block, ...) \
+  do {                                                                  \
+    cupti_event_data_t* __e = (p_event_data);                           \
+                                                                        \
+    ASSERT(__e->is_root == true);                                       \
+    ASSERT(__e->initialized == true);                                   \
+    ASSERT(__e->metric_data != NULL);                                   \
+    ASSERT(__e->metric_data->initialized == true);                      \
+                                                                        \
+    for (uint32_t i = 0; i < __e->metric_data->num_metrics; ++i) {      \
+      cupti_event_data_begin(&__e->metric_data->event_data[i]);         \
+      while (!cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) { \
+        kname<<<num_blocks, threads_per_block>>>(__VA_ARGS__);          \
+        CUDA_RUNTIME_FN(cudaDeviceSynchronize());                       \
+      }                                                                 \
+                                                                        \
+      cupti_event_data_end(&__e->metric_data->event_data[i]);           \
+    }                                                                   \
+  } while (0)                                                           
 
 typedef struct nvcd {
   CUdevice* devices;
@@ -783,7 +786,6 @@ extern "C" {
     g_event_data.cuda_device = g_nvcd.devices[0];
   
     cupti_event_data_init(&g_event_data);
-    cupti_event_data_begin(&g_event_data);
   }
 
   NVCD_CUDA_EXPORT bool nvcd_host_finished() {
@@ -793,7 +795,7 @@ extern "C" {
   NVCD_CUDA_EXPORT void nvcd_host_end() {
     ASSERT(g_nvcd.initialized == true);
     
-    cupti_event_data_end(&g_event_data);
+    cupti_event_data_calc_metrics(&g_event_data);
 
     g_run_info->update();
     

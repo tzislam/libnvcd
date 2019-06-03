@@ -1611,6 +1611,14 @@ NVCD_EXPORT char* cupti_metric_get_name(CUpti_MetricID metric) {
   return strdup(name);
 }
 
+NVCD_EXPORT void cupti_event_data_calc_metrics(cupti_event_data_t* e) {
+  ASSERT(e != NULL);
+  ASSERT(e->is_root == true);
+  ASSERT(e->metric_data != NULL);
+  
+  calc_cupti_metrics(e->metric_data);
+}
+
 NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e) {
   ASSERT(e->count_event_groups_read
          <= e->num_event_groups /* serious problem if this fails */);
