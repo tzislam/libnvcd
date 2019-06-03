@@ -426,11 +426,12 @@ static bool find_event_group(cupti_event_data_t* e,
 
     if (error_valid) {
       error_valid = err == CUPTI_SUCCESS;
+      CUPTI_FN(err);
     }
         
     if (j == max_egs || error_valid) {
       iterating = false;
-      found = true;
+      found = err == CUPTI_SUCCESS;
     }
   }
 
