@@ -89,8 +89,10 @@ typedef struct cupti_event_data {
 
 typedef struct cupti_metric_data {
   CUpti_MetricID* metric_ids;
+  CUpti_MetricValue* metric_values;
   cupti_event_data_t* event_data;
   bool32_t* computed;
+
   uint32_t num_metrics;
   bool32_t initialized;
 } cupti_metric_data_t;

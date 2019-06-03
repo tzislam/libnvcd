@@ -440,7 +440,7 @@ static bool find_event_group(cupti_event_data_t* e,
   return found;
 }
 
-static cupti_metric_data_t* init_cupti_metric_data(cupti_event_data_t* e) {
+static void init_cupti_metric_data(cupti_event_data_t* e) {
   cupti_metric_data_t* metric_buffer = zallocNN(sizeof(*metric_buffer));
   
 
@@ -455,6 +455,9 @@ static cupti_metric_data_t* init_cupti_metric_data(cupti_event_data_t* e) {
                                   &metric_array_size,
                                   &metric_buffer->metric_ids[0]));
 
+  metric_buffer->metric_values = zallocNN(sizeof(metric_buffer->metric_values[0]) *
+                                          metric_buffer->num_metrics);
+  
   metric_buffer->event_data = zallocNN(sizeof(metric_buffer->event_data[0]) *
                                        metric_buffer->num_metrics);
 
@@ -496,13 +499,140 @@ static cupti_metric_data_t* init_cupti_metric_data(cupti_event_data_t* e) {
   }
 
   metric_buffer->initialized = true;
-  
-  return metric_buffer;
+
+  e->metric_data = metric_buffer;
 }
 
-#if 0
+
 static uint32_t derive_event_count(cupti_event_data_t* e) {
-  return 0;
+  uint32_t ret = 0;
+
+  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+    ret += e->num_events_per_group[i];
+  }
+
+  return ret;
+}
+
+//
+// see https://docs.nvidia.com/cuda/archive/9.2/cupti/group__CUPTI__METRIC__API.html#group__CUPTI__METRIC__API_1gf42dcb1d349f91265e7809bbba2fc01e
+// for more information on why this is needed.
+//
+static void normalize_counters(cupti_event_data_t* e, uint64_t* normalized) {
+  for (uint32_t j = 0; j < e->num_event_groups; ++j) {
+    CUpti_EventDomainID domain_id;
+    size_t domain_id_sz = sizeof(domain_id);
+    CUPTI_FN(cuptiEventGroupGetAttribute(e->event_groups[j],
+                                         CUPTI_EVENT_GROUP_ATTR_EVENT_DOMAIN_ID,
+                                         &domain_id_sz,
+                                         (void*) &domain_id));
+
+    uint32_t total_instance_count = 0;
+    size_t total_instance_count_sz = sizeof(total_instance_count);
+    CUPTI_FN(cuptiEventDomainGetAttribute(domain_id,
+                                          CUPTI_EVENT_DOMAIN_ATTR_TOTAL_INSTANCE_COUNT,
+                                          &total_instance_count_sz,
+                                          (void*) &total_instance_count));
+
+    uint32_t cb_offset = e->event_counter_buffer_offsets[j];
+    uint32_t ib_offset = e->event_id_buffer_offsets[j];
+    uint32_t nepg = e->num_events_per_group[j];
+    uint32_t nipg = e->num_instances_per_group[j];
+      
+    for (uint32_t row = 0; row < nipg; ++row) {
+      for (uint32_t col = 0; col < nepg; ++col) {
+        normalized[ib_offset + col] +=
+          e->event_counter_buffer[cb_offset + row * nepg + col];
+      }
+    }
+
+    for (uint32_t k = 0; k < nepg; ++k) {
+      normalized[ib_offset + k] *= total_instance_count;
+      normalized[ib_offset + k] /= nipg;
+    }
+  }
+}
+
+static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index) {
+  ASSERT(metric_data->computed[index] == true);
+
+  CUpti_MetricID m = metric_data->metric_ids[index];
+  CUpti_MetricValue v = metric_data->metric_values[index];
+  
+  CUpti_MetricValueKind kind;
+  
+  size_t kind_sz = sizeof(kind);
+  
+  CUPTI_FN(cuptiMetricGetAttribute(m,
+                                   CUPTI_METRIC_ATTR_VALUE_KIND,
+                                   &kind_sz,
+                                   (void*) &kind));
+
+  char* name = cupti_metric_get_name(m);
+
+  printf("[%" PRIu32 "] %s = ", index, name);
+  
+  switch (kind) {
+  case CUPTI_METRIC_VALUE_KIND_DOUBLE: {
+    printf("(double) %f", v.metricValueDouble);
+  } break;
+    
+  case CUPTI_METRIC_VALUE_KIND_UINT64: {
+    printf("(uint64) %" PRIu64, v.metricValueUint64);
+  } break;
+    
+  case CUPTI_METRIC_VALUE_KIND_INT64: {
+    printf("(int64) %" PRId64, v.metricValueInt64);
+  } break;
+    
+  case CUPTI_METRIC_VALUE_KIND_PERCENT: {
+    printf("(percent) %f", v.metricValuePercent);
+  } break;
+    
+  case CUPTI_METRIC_VALUE_KIND_THROUGHPUT: {
+    printf("(bytes/second) %" PRId64, v.metricValueThroughput);
+  } break;
+    
+  case CUPTI_METRIC_VALUE_KIND_UTILIZATION_LEVEL: {
+    const char* level = NULL;
+    
+    switch (v.metricValueUtilizationLevel) {
+    case CUPTI_METRIC_VALUE_UTILIZATION_IDLE: { 
+      level = "IDLE";
+    } break;
+      
+    case CUPTI_METRIC_VALUE_UTILIZATION_LOW: { 
+      level = "LOW";
+    } break;
+
+    case CUPTI_METRIC_VALUE_UTILIZATION_MID: { 
+      level = "MID";
+    } break;
+
+    case CUPTI_METRIC_VALUE_UTILIZATION_HIGH: { 
+      level = "HIGH";
+    } break;
+
+    case CUPTI_METRIC_VALUE_UTILIZATION_MAX: { 
+      level = "MAX";
+    } break;
+      
+    default:
+      ASSERT(false /* bad utilization level received */);
+      break;
+    }
+    
+    printf("(utilization level) %s", level);
+  }
+
+  default:
+    ASSERT(false /* bad metric value kind received */);
+    break;
+  }
+
+  printf("%s", "\n");
+
+  free(name);
 }
 
 static void calc_cupti_metrics(cupti_metric_data_t* m) {
@@ -510,10 +640,32 @@ static void calc_cupti_metrics(cupti_metric_data_t* m) {
   ASSERT(m->num_metrics < 2000);
   
   for (uint32_t i = 0; i < m->num_metrics; ++i) {
+    cupti_event_data_t* e = &m->event_data[i];
     
+    ASSERT(e->event_id_buffer_length ==
+           derive_event_count(&m->event_data[i]));
+
+    ASSERT(e->num_kernel_times > 0 && e->num_kernel_times < 100);
+    
+    uint64_t* normalized = zallocNN(e->event_id_buffer_length *
+                                    sizeof(normalized[0]));
+    
+    normalize_counters(e, normalized);
+    
+    CUPTI_FN(cuptiMetricGetValue(e->cuda_device,
+                                 m->metric_ids[i],
+                                 sizeof(e->event_id_buffer[0]) * e->event_id_buffer_length,
+                                 &e->event_id_buffer[0],
+                                 sizeof(normalized[0]) * e->event_id_buffer_length,
+                                 &normalized[0],
+                                 e->kernel_times_nsec[0],
+                                 &m->metric_values[i]));
+
+    ASSERT(m->computed[i] == false);
+    m->computed[i] = true;
   }
 }
-#endif
+
 
 typedef struct group_info {
   uint32_t num_events;
@@ -1127,9 +1279,6 @@ static void print_event_group_aos(cupti_event_data_t* e, uint32_t group) {
 }
 
 NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
-  // sneak in the metrics computation here
-  //  compute_metrics(e);
-  
   if (g_process_group_aos) {
     for (uint32_t i = 0; i < e->num_event_groups; ++i) {
       group_info_t* info = &g_group_info_buffer[i];
@@ -1142,6 +1291,14 @@ NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
     if (g_process_group_aos) {
       print_event_group_aos(e, i);
     }
+  }
+
+  if (e->is_root == true) {
+    ASSERT(e->metric_data != NULL);
+    
+    for (uint32_t i = 0; i < e->metric_data->num_metrics; ++i) {
+      print_cupti_metric(e->metric_data, i);
+    }    
   }
 }
 
