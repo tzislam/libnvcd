@@ -1622,6 +1622,31 @@ NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
 
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
+
+  {
+    char* estr = cupti_event_data_to_string(e);
+    
+    ASSERT(estr != NULL);
+    printf("FREEING %s\n", estr);
+    free(estr);
+  }
+
+  for (size_t i = 0; i < e->num_event_groups; ++i) { 
+    if (e->event_groups[i] != NULL) {
+      
+      if (e->event_groups_enabled[i] == true) {
+        CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
+        e->event_groups_enabled[i] = false; // just good practice...
+      }
+
+      if (cupti_event_group_get_num_events(e->event_groups[i]) > 0) {
+        CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i]));
+      }
+      
+      CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i]));
+    }
+  }
+
   
   safe_free_v(e->event_id_buffer);
   safe_free_v(e->event_counter_buffer);
@@ -1632,25 +1657,34 @@ NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   
   safe_free_v(e->event_counter_buffer_offsets);
   safe_free_v(e->event_id_buffer_offsets);
-  safe_free_v(e->event_groups_read);
-
+  safe_free_v(e->event_group_read_states);
+  
   safe_free_v(e->kernel_times_nsec);
   
-  for (size_t i = 0; i < e->num_event_groups; ++i) { 
-    if (e->event_groups[i] != NULL) {
-      CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
-      CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i]));
-      CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i]));
-    }
-  }
-  
+    
   safe_free_v(e->event_groups);
   
   // TODO: event names may be either a subset of a static buffer
   // initialized in the .data section,
   // or a subset. Should add a flag to determine
   // whether or not the data needs to be freed.
-  memset(e, 0, sizeof(*e));
+
+  if (e->is_root == true) {
+    if (e->metric_data != NULL) {
+      ASSERT(e->metric_data->initialized == true);
+      
+      for (uint32_t i = 0; i < e->metric_data->num_metrics; ++i) {
+        cupti_event_data_free(&e->metric_data->event_data[i]);
+      }
+
+      safe_free_v(e->metric_data->metric_ids);
+      safe_free_v(e->metric_data->metric_values);
+      safe_free_v(e->metric_data->computed);
+      safe_free_v(e->metric_data->metric_get_value_results);
+    }
+  }
+
+  cupti_event_data_set_null(e);
 }
 
 NVCD_EXPORT void cupti_event_data_begin(cupti_event_data_t* e) {
