@@ -2,7 +2,11 @@
 
 cuda_version=9.2
 
-export LD_LIBRARY_PATH=/home/schutth/cs415/Project/bin:$LD_LIBRARY_PATH
+export NVCD_HOME=$HOME/cs415/Project
+export NVCD_BIN_PATH=$NVCD_HOME/bin
+export NVCD_INCLUDE_PATH=$NVCD_HOME/include
+
+export LD_LIBRARY_PATH=$NVCD_BIN_PATH:$LD_LIBRARY_PATH
 
 module purge
 
@@ -27,8 +31,14 @@ export CUDA_ARCH_SM=sm_${arch}
 export CUDA_ARCH_COMPUTE=compute_${arch}
 
 export CUDA_HOME=/usr/local/cuda-$cuda_version
+
+export CUPTI_INCLUDE=$CUDA_HOME/extras/CUPTI/include
+export CUPTI_LIB=$CUDA_HOME/extras/CUPTI/lib64
+
 export PATH=$CUDA_HOME/bin:$PATH
-export LD_LIBRARY_PATH=$CUDA_HOME/extras/CUPTI/lib64:$LD_LIBRARY_PATH
-export JOB_OUTPUT_DIR=$HOME/cs415/Project/xsede-scripts/job_output
+export LD_LIBRARY_PATH=$CUPTI_LIB:$LD_LIBRARY_PATH
+
+export JOB_OUTPUT_DIR=$NVCD_HOME/xsede-scripts/job-output
+
 
 mkdir -p $JOB_OUTPUT_DIR
