@@ -38,8 +38,10 @@ typedef struct cupti_event_data {
 
   uint32_t* event_counter_buffer_offsets;
   uint32_t* event_id_buffer_offsets;
-  uint32_t* event_groups_read; // not all event groups can be read simultaneously
+  uint8_t* event_group_read_states; // not all event groups can be read simultaneously
 
+  uint8_t* event_groups_enabled;
+  
   // arbitrary, has a max size which can grow
   uint64_t* kernel_times_nsec;
   
@@ -110,7 +112,8 @@ typedef struct cupti_metric_data {
     /*.num_instances_per_group =*/ NULL,                                \
       /*.event_counter_buffer_offsets =*/ NULL,                         \
     /*.event_id_buffer_offsets =*/ NULL,                                \
-    /*.event_groups_read =*/ NULL,                                      \
+      /*.event_group_read_states =*/ NULL,                              \
+      /*.event_groups_enabled =*/ NULL,                                 \
     /*.kernel_times_nsec =*/ NULL,                                      \
     /*.event_groups =*/ NULL,                                           \
     /*.event_names =*/ NULL,                                            \

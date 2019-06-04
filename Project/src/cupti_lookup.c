@@ -371,8 +371,9 @@ static void fill_event_groups(cupti_event_data_t* e,
                               uint32_t num_egs) {
   e->num_event_groups = num_egs;
   e->event_groups = zallocNN(sizeof(e->event_groups[0]) * e->num_event_groups);
-  e->event_groups_read = zallocNN(sizeof(e->event_groups_read[0]) * e->num_event_groups);
-    
+  e->event_group_read_states = zallocNN(sizeof(e->event_group_read_states[0]) * e->num_event_groups);
+  e->event_groups_enabled = zallocNN(sizeof(e->event_groups_enabled[0]) * e->num_event_groups);
+  
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
     ASSERT(local_eg_assign[i] != NULL);
       
@@ -1328,7 +1329,7 @@ NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
 
 static void collect_group_events(cupti_event_data_t* e) {
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+    if (e->event_group_read_states[i] == CED_EVENT_GROUP_UNREAD) {
       read_group_all_events(e, i);
 
       if (g_process_group_aos) {
@@ -1346,19 +1347,20 @@ static void collect_group_events(cupti_event_data_t* e) {
   // So, they don't need to be disabled by cupti. Increment is still
   // necessary for the host to be aware that profiling the kernel is finished.
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    if (e->event_groups_read[i] == CED_EVENT_GROUP_SKIP) {
-      e->event_groups_read[i] = CED_EVENT_GROUP_READ;
-      e->count_event_groups_read++;
+    if (e->event_group_read_states[i] == CED_EVENT_GROUP_SKIP) {
+      e->event_group_read_states[i] = CED_EVENT_GROUP_READ;
+      e->count_event_groups_read++;     
     }
   }
 
 
   // Groups which we've read for this particular callback instance
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
-      e->event_groups_read[i] = CED_EVENT_GROUP_READ;
+    if (e->event_group_read_states[i] == CED_EVENT_GROUP_UNREAD) {
+      e->event_group_read_states[i] = CED_EVENT_GROUP_READ;
       e->count_event_groups_read++;
-      
+
+      e->event_groups_enabled[i] = false;
       CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
     }
   }
@@ -1366,8 +1368,8 @@ static void collect_group_events(cupti_event_data_t* e) {
   // Groups which we haven't read yet, but weren't compatible
   // with the ones already enabled
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    if (e->event_groups_read[i] == CED_EVENT_GROUP_DONT_READ) {
-      e->event_groups_read[i] = CED_EVENT_GROUP_UNREAD;
+    if (e->event_group_read_states[i] == CED_EVENT_GROUP_DONT_READ) {
+      e->event_group_read_states[i] = CED_EVENT_GROUP_UNREAD;
     }
   }
 }
@@ -1441,8 +1443,9 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
       // The state tracking is handled in this loop,
       // as well as in collect_group_events()
       //
+
       for (uint32_t i = 0; i < event_data->num_event_groups; ++i) {
-        if (event_data->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+        if (event_data->event_group_read_states[i] == CED_EVENT_GROUP_UNREAD) {
           ASSERT(event_data->event_groups[i] != NULL);
           
           CUptiResult err = cuptiEventGroupEnable(event_data->event_groups[i]);
@@ -1456,16 +1459,28 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                      i,
                      event_data->num_event_groups);
 
-              event_data->event_groups_read[i] = CED_EVENT_GROUP_DONT_READ;
+              event_data->event_group_read_states[i] = CED_EVENT_GROUP_DONT_READ;
             } else if (err == CUPTI_ERROR_INVALID_PARAMETER) {
+              // so far this issue has only occurred the amount of groups
+              // is only one for an event batch. The docs state
+              // that this error is thrown when the group passed
+              // to cuptiEventGroupEnable() is NULL. So far,
+              // this error has only been thrown with non-null
+              // group IDs. Still not sure what's going on, here,
+              // but obvious the more info the better...
+              // error has only occurred on xsede's pascal 100 node
+              // so far.
+              ASSERT(event_data->num_event_groups == 1);
+              ASSERT(event_data->subscriber != NULL);
               
               puts("BAD_GROUP found");
-              event_data->event_groups_read[i] = CED_EVENT_GROUP_SKIP;
+              event_data->event_group_read_states[i] = CED_EVENT_GROUP_SKIP;
               CUPTI_FN_WARN(err);
             } else {
               CUPTI_FN(err);
             }
           } else {
+            event_data->event_groups_enabled[i] = true;
             printf("Group %" PRIu32 " enabled.\n", i);
           }
         }
