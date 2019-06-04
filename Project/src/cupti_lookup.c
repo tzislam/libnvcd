@@ -1712,6 +1712,124 @@ NVCD_EXPORT char* cupti_metric_get_name(CUpti_MetricID metric) {
   return strdup(name);
 }
 
+NVCD_EXPORT uint32_t cupti_event_group_get_num_events(CUpti_EventGroup group) {
+  ASSERT(group != NULL);
+
+  uint32_t count = 0;
+  size_t sz = sizeof(count);
+
+  CUPTI_FN(cuptiEventGroupGetAttribute(group,
+                                       CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS,
+                                       &sz,
+                                       (void*) &count));
+
+  return count;
+}
+
+NVCD_EXPORT char* cupti_event_data_to_string(cupti_event_data_t* e) {
+#define __CED_STR_LEN__ (1 << 14)
+  char buffer[__CED_STR_LEN__] = { 0 };
+
+  sprintf(&buffer[0],
+          STRFMT_STRUCT_PTR_BEGIN(cupti_event_data_t*, e) STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(CUpti_EventID*, e->event_id_buffer) STRFMT_MEMBER_SEP STRFMT_NEWL1 
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint64_t*, e->event_counter_buffer) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint32_t*, e->num_events_per_group) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint32_t*, e->num_events_read_per_group) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint32_t*, e->num_instances_per_group) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint32_t*, e->event_counter_buffer_offsets) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint32_t*, e->event_id_buffer_offsets) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint8_t*, e->event_group_read_states) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint8_t*, e->event_groups_enabled) STRFMT_MEMBER_SEP STRFMT_NEWL1         
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(uint64_t*, e->kernel_times_nsec) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(CUpti_EventGroup*, e->event_groups) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(char * const *, e->event_names) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(cupti_metric_data_t*, e->metric_data) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_UINT64_VALUE(e->stage_time_nsec_start) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(CUcontext, e->cuda_context) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_INT_VALUE(CUdevice, e->cuda_device, PRId32) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_PTR_VALUE(CUpti_SubscriberHandle, e->subscriber) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_INT_VALUE(pthread_t, e->thread_event_data_init, PRIx32) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_INT_VALUE(pthread_t, e->thread_event_callback, PRIx32) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_UINT32_VALUE(e->num_event_groups) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_UINT32_VALUE(e->num_kernel_times) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_UINT32_VALUE(e->count_event_groups_read) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_UINT32_VALUE(e->event_counter_buffer_length) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_UINT32_VALUE(e->event_id_buffer_length) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_UINT32_VALUE(e->kernel_times_nsec_buffer_length) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_UINT32_VALUE(e->event_names_buffer_length) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_TAB1 STRFMT_BOOL_STR_VALUE(e->initialized) STRFMT_MEMBER_SEP STRFMT_NEWL1
+          STRFMT_TAB1 STRFMT_BOOL_STR_VALUE(e->is_root) STRFMT_MEMBER_SEP STRFMT_NEWL1
+
+          STRFMT_STRUCT_PTR_END(e),
+          (void*) e,
+
+          (void*) e->event_id_buffer,
+          (void*) e->event_counter_buffer,
+
+          (void*) e->num_events_per_group,
+          (void*) e->num_events_read_per_group,
+          (void*) e->num_instances_per_group,
+          
+          (void*) e->event_counter_buffer_offsets,
+          (void*) e->event_id_buffer_offsets,
+          (void*) e->event_group_read_states,
+
+          (void*) e->event_groups_enabled,
+          
+          (void*) e->kernel_times_nsec,
+
+          (void*) e->event_groups,
+          
+          (void*) e->event_names,
+
+          (void*) e->metric_data,
+
+          e->stage_time_nsec_start,
+
+          (void*) e->cuda_context,
+          e->cuda_device,
+
+          (uint32_t*) e->subscriber,
+
+          (uint32_t) e->thread_event_data_init,
+          (uint32_t) e->thread_event_callback,
+
+          e->num_event_groups,
+          e->num_kernel_times,
+
+          e->count_event_groups_read,
+
+          e->event_counter_buffer_length,
+          e->event_id_buffer_length,
+          e->kernel_times_nsec_buffer_length,
+
+          e->event_names_buffer_length,
+
+          STRVAL_BOOL_STR_VALUE(e->initialized),
+          STRVAL_BOOL_STR_VALUE(e->is_root));
+  
+#undef __CED_STR_LEN__
+
+  return strdup(buffer);
+}
+
 NVCD_EXPORT void cupti_event_data_calc_metrics(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   ASSERT(e->is_root == true);
