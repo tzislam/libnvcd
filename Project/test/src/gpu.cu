@@ -165,7 +165,7 @@ __host__ void gpu_test_matrix_vec_mul(int num_threads)
     nvcd_host_begin(num_threads);
 
     
-    NVCD_KERNEL_EXEC(gpu_kernel_matrix_vec_int,
+    NVCD_KERNEL_EXEC_KPARAMS_2(gpu_kernel_matrix_vec_int,
                      grid, block,
                      n, m, q, u, v);
 

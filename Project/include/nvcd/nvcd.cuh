@@ -69,41 +69,37 @@
 
 #define DEV_PRINT_PTR(v) printf("&(%s) = %p, %s = %p\n", #v, &v, #v, v)
 
-#define NVCD_KERNEL_EXEC(kname, dim3_grid, dim3_block, ...)       \
-  do {                                                            \
-    while (!nvcd_host_finished()) {                               \
-      kname<<<dim3_grid, dim3_block>>>(__VA_ARGS__);              \
-      CUDA_RUNTIME_FN(cudaDeviceSynchronize());                   \
-    }                                                             \
-  } while (0)
-
 #ifndef NVCD_OMIT_STANDALONE_EVENT_COUNTER
-#define NVCD_KERNEL_EXEC_v2(kname, num_blocks, threads_per_block, ...)  \
+
+#define NVCD_KERNEL_EXEC_KPARAMS_2(kname, kparam_1, kparam_2, ...)      \
   do {                                                                  \
     cupti_event_data_begin(&g_event_data);                              \
     while (!nvcd_host_finished()) {                                     \
-      kname<<<num_blocks, threads_per_block>>>(__VA_ARGS__);            \
+      kname<<<kparam_1, kparam_2>>>(__VA_ARGS__);                       \
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         \
     }                                                                   \
     cupti_event_data_end(&g_event_data);                                \
-    NVCD_KERNEL_EXEC_METRICS(&g_event_data,                             \
+    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(&g_event_data,                             \
                              kname,                                     \
-                             num_blocks,                                \
-                             threads_per_block,                         \
+                             kparam_1,                                  \
+                             kparam_2,                                  \
                              __VA_ARGS__);                              \
   } while (0)
-#else
-#define NVCD_KERNEL_EXEC_v2(kname, num_blocks, threads_per_block, ...)  \
-  do {                                                                  \
-    NVCD_KERNEL_EXEC_METRICS(&g_event_data,                             \
-                             kname,                                     \
-                             num_blocks,                                \
-                             threads_per_block,                         \
-                             __VA_ARGS__);                              \
-  } while (0)
-#endif
 
-#define NVCD_KERNEL_EXEC_METRICS(p_event_data, kname, num_blocks, threads_per_block, ...) \
+#else
+
+#define NVCD_KERNEL_EXEC_KPARAMS_2(kname, kparam_1, kparam_2, ...)      \
+  do {                                                                  \
+    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(&g_event_data,                             \
+                             kname,                                     \
+                             kparam_1,                                  \
+                             kparam_2,                                  \
+                             __VA_ARGS__);                              \
+  } while (0)
+
+#endif // NVCD_OMIT_STANDALONE_EVENT_COUNTER
+
+#define NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(p_event_data, kname, kparam_1, kparam_2, ...) \
   do {                                                                  \
     cupti_event_data_t* __e = (p_event_data);                           \
                                                                         \
@@ -115,7 +111,7 @@
     for (uint32_t i = 0; i < __e->metric_data->num_metrics; ++i) {      \
       cupti_event_data_begin(&__e->metric_data->event_data[i]);         \
       while (!cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) { \
-        kname<<<num_blocks, threads_per_block>>>(__VA_ARGS__);          \
+        kname<<<kparam_1, kparam_2>>>(__VA_ARGS__);                     \
         CUDA_RUNTIME_FN(cudaDeviceSynchronize());                       \
       }                                                                 \
                                                                         \
@@ -845,7 +841,7 @@ extern "C" {
     int threads = num_threads / nblock;
     //    nvcd_kernel_test<<<nblock, threads>>>();
 
-    NVCD_KERNEL_EXEC_v2(nvcd_kernel_test, nblock, threads);
+    NVCD_KERNEL_EXEC_KPARAMS_2(nvcd_kernel_test, nblock, threads);
 
     nvcd_host_end();
   }
