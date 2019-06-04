@@ -791,7 +791,8 @@ extern "C" {
     
     g_event_data.cuda_context = g_nvcd.contexts[0];
     g_event_data.cuda_device = g_nvcd.devices[0];
-  
+    g_event_data.is_root = true;
+    
     cupti_event_data_init(&g_event_data);
   }
 
