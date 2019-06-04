@@ -806,6 +806,8 @@ extern "C" {
     cupti_event_data_calc_metrics(&g_event_data);
 
     g_run_info->update();
+
+    nvcd_report();
     
     nvcd_device_free_mem();
 
