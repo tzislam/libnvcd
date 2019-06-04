@@ -688,6 +688,8 @@ static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index)
 static void calc_cupti_metrics(cupti_metric_data_t* m) {
   ASSERT(m->initialized == true);
   ASSERT(m->num_metrics < 2000);
+
+  puts("======\nmetric calculations\n======");
   
   for (uint32_t i = 0; i < m->num_metrics; ++i) {
     cupti_event_data_t* e = &m->event_data[i];
@@ -703,20 +705,24 @@ static void calc_cupti_metrics(cupti_metric_data_t* m) {
     normalize_counters(e, normalized);
     
     CUptiResult err = cuptiMetricGetValue(e->cuda_device,
-                                 m->metric_ids[i],
-                                 sizeof(e->event_id_buffer[0]) * e->event_id_buffer_length,
-                                 &e->event_id_buffer[0],
-                                 sizeof(normalized[0]) * e->event_id_buffer_length,
-                                 &normalized[0],
-                                 e->kernel_times_nsec[0],
-                                 &m->metric_values[i]);
+                                          m->metric_ids[i],
+                                          sizeof(e->event_id_buffer[0]) * e->event_id_buffer_length,
+                                          &e->event_id_buffer[0],
+                                          sizeof(normalized[0]) * e->event_id_buffer_length,
+                                          &normalized[0],
+                                          e->kernel_times_nsec[0],
+                                          &m->metric_values[i]);
 
     ASSERT(m->computed[i] == false);
 
     if (err == CUPTI_SUCCESS) {
       m->computed[i] = true;
     } else if (err != CUPTI_ERROR_INVALID_METRIC_VALUE) {
-      CUPTI_FN(err);
+      printf("error for metric %" PRIu32 " = 0x%" PRIx32 "\n", i, m->metric_ids[i]);
+      for (uint32_t j = 0; j < e->event_id_buffer_length; ++j) {
+        printf("\tEvent ID %" PRIu32 " = 0x%" PRIx32 "\n", j, e->event_id_buffer[j]);
+      }
+      CUPTI_FN_WARN(err);
     }
 
     m->metric_get_value_results[i] = err;
