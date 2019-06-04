@@ -51,6 +51,11 @@ NVCD_EXPORT void cupti_error_print_exit(CUptiResult status,
                                         const char* file,
                                         const char* expr);
 
+NVCD_EXPORT void cupti_warn_print(CUptiResult status,
+                                  int line,
+                                  const char* file,
+                                  const char* expr);
+
 NVCD_EXPORT void assert_impl(bool cond,
                              const char* expr,
                              const char* file,

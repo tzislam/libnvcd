@@ -150,7 +150,7 @@ NVCD_EXPORT void cupti_error_print_exit(CUptiResult status,
     
     cuptiGetResultString(status, &error_string);
       
-    printf("CUPTI: %s:%i:'%s' failed. [Reason] %s\n",
+    printf("FATAL - CUPTI ERROR: %s:%i:'%s' failed. [Reason] %s\n",
            file,
            line,
            expr,
@@ -159,6 +159,24 @@ NVCD_EXPORT void cupti_error_print_exit(CUptiResult status,
     exit(ECUPTI);
   }
 }
+
+NVCD_EXPORT void cupti_warn_print(CUptiResult status,
+                                  int line,
+                                  const char* file,
+                                  const char* expr) {
+  if (status != CUPTI_SUCCESS) {
+    const char* error_string = NULL;
+    
+    cuptiGetResultString(status, &error_string);
+      
+    printf("WARNING - CUPTI ERROR: %s:%i:'%s' failed. [Reason] %s\n",
+           file,
+           line,
+           expr,
+           error_string);
+  }
+}
+
 
 NVCD_EXPORT void assert_impl(bool cond, const char* expr, const char* file, int line) {
   if (!cond) {

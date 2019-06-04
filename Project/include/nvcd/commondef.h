@@ -4,6 +4,7 @@
 #define CUDA_RUNTIME_FN(expr) cuda_runtime_error_print_exit(expr, __LINE__, __FILE__, #expr)
 #define CUDA_DRIVER_FN(expr) cuda_driver_error_print_exit(expr, __LINE__, __FILE__, #expr)
 #define CUPTI_FN(expr) cupti_error_print_exit(expr, __LINE__, __FILE__, #expr)
+#define CUPTI_FN_WARN(expr) cupti_warn_print(expr, __LINE__, __FILE__, #expr)
 
 /*
  * NOTE: bool appears to automatically be defined for CUDA;
