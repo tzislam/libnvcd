@@ -77,6 +77,7 @@
     }                                                             \
   } while (0)
 
+#ifndef NVCD_OMIT_STANDALONE_EVENT_COUNTER
 #define NVCD_KERNEL_EXEC_v2(kname, num_blocks, threads_per_block, ...)  \
   do {                                                                  \
     cupti_event_data_begin(&g_event_data);                              \
@@ -91,6 +92,16 @@
                              threads_per_block,                         \
                              __VA_ARGS__);                              \
   } while (0)
+#else
+#define NVCD_KERNEL_EXEC_v2(kname, num_blocks, threads_per_block, ...)  \
+  do {                                                                  \
+    NVCD_KERNEL_EXEC_METRICS(&g_event_data,                             \
+                             kname,                                     \
+                             num_blocks,                                \
+                             threads_per_block,                         \
+                             __VA_ARGS__);                              \
+  } while (0)
+#endif
 
 #define NVCD_KERNEL_EXEC_METRICS(p_event_data, kname, num_blocks, threads_per_block, ...) \
   do {                                                                  \

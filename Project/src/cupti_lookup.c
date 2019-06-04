@@ -1504,7 +1504,7 @@ static inline void __cupti_event_data_init_base(cupti_event_data_t* e) {
   e->kernel_times_nsec = zallocNN(sizeof(e->kernel_times_nsec[0]) *
                                   e->kernel_times_nsec_buffer_length);
 
-  init_cupti_event_buffers(e);  
+  init_cupti_event_buffers(e);
 }
 
 NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
@@ -1551,16 +1551,18 @@ NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   ASSERT(e->cuda_context != NULL);
   ASSERT(e->cuda_device >= 0);
-
+  ASSERT(e->is_root == true);
+  
   if (!e->initialized) {
+
+#ifndef NVCD_OMIT_STANDALONE_EVENT_COUNTER
     init_cupti_event_names(e);
     init_cupti_event_groups(e);
 
-    __cupti_event_data_init_base(e); 
-    
-    if (e->is_root == true) {
-      init_cupti_metric_data(e);
-    }
+    __cupti_event_data_init_base(e);
+#endif
+
+    init_cupti_metric_data(e);
     
     e->initialized = true;
   }
