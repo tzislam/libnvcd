@@ -135,6 +135,7 @@ typedef struct cupti_metric_data {
 
 
 
+
 // unread -> can be read, unless an attempt to enable the event group
 //           leads to a compatibility error with other enabled event groups.
 // read   -> transition strictly from unread to read after a successful
@@ -146,10 +147,17 @@ typedef struct cupti_metric_data {
 //              is set back to unread after all enabled and unread groups
 //              have been processed, so it can then be enabled on an attempt
 //              in the future.
+//
+// skip ->      generally used for debugging:
+//              sometimes errors will be triggered for specific groups
+//              which, at the time, have little specific information to go off of.
+//              providing the option to skip enables the event group to be ignored,
+//              which in turn allows us to at least keep everything else working
 enum {
   CED_EVENT_GROUP_UNREAD = 0,
   CED_EVENT_GROUP_READ = 1, 
   CED_EVENT_GROUP_DONT_READ = 2,
+  CED_EVENT_GROUP_SKIP = 3
 };
 
 #define NUM_CUPTI_METRICS_3X 127

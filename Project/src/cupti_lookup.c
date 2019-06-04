@@ -906,36 +906,6 @@ static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {
   group_info_append(info, group);
 }
 
-static void collect_group_events(cupti_event_data_t* e) {
-  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
-      read_group_all_events(e, i);
-
-      if (g_process_group_aos) {
-        read_group_per_event(e, i);
-        group_info_validate(e,
-                            &g_group_info_buffer[i],
-                            i);
-      }
-    }
-  }
-
-  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
-      e->event_groups_read[i] = CED_EVENT_GROUP_READ;
-      e->count_event_groups_read++;
-      
-      CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
-    }
-  }
-
-  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    if (e->event_groups_read[i] == CED_EVENT_GROUP_DONT_READ) {
-      e->event_groups_read[i] = CED_EVENT_GROUP_UNREAD;
-    }
-  }
-}
-
 static void init_cupti_event_groups(cupti_event_data_t* e) {
 #define MAX_EGS 30
   // static default; increase if more groups become necessary
@@ -1357,6 +1327,53 @@ NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
   }
 }
 
+static void collect_group_events(cupti_event_data_t* e) {
+  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+    if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+      read_group_all_events(e, i);
+
+      if (g_process_group_aos) {
+        read_group_per_event(e, i);
+        group_info_validate(e,
+                            &g_group_info_buffer[i],
+                            i);
+      }
+    }
+  }
+
+  // errornous groups;
+  // These were never enabled, and the errors they triggered
+  // don't have anything to do with compatibility with other enabled groups.
+  // So, they don't need to be disabled by cupti. Increment is still
+  // necessary for the host to be aware that profiling the kernel is finished.
+  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+    if (e->event_groups_read[i] == CED_EVENT_GROUP_SKIP) {
+      e->event_groups_read[i] = CED_EVENT_GROUP_READ;
+      e->count_event_groups_read++;
+    }
+  }
+
+
+  // Groups which we've read for this particular callback instance
+  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+    if (e->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+      e->event_groups_read[i] = CED_EVENT_GROUP_READ;
+      e->count_event_groups_read++;
+      
+      CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
+    }
+  }
+
+  // Groups which we haven't read yet, but weren't compatible
+  // with the ones already enabled
+  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+    if (e->event_groups_read[i] == CED_EVENT_GROUP_DONT_READ) {
+      e->event_groups_read[i] = CED_EVENT_GROUP_UNREAD;
+    }
+  }
+}
+
+
 static bool _message_reported = false;
 
 NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
@@ -1416,7 +1433,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                                            CUPTI_EVENT_COLLECTION_MODE_KERNEL));
 
       //
-      // We can get all of the event groups we wish to read,
+      // We try to get all of the event groups we wish to read,
       // but not necessarily at the same time.
       // In this case, it's necessary to repeatedly call the same kernel
       // until
@@ -1427,8 +1444,12 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
       //
       for (uint32_t i = 0; i < event_data->num_event_groups; ++i) {
         if (event_data->event_groups_read[i] == CED_EVENT_GROUP_UNREAD) {
+          ASSERT(event_data->event_groups[i] != NULL);
+          
           CUptiResult err = cuptiEventGroupEnable(event_data->event_groups[i]);
 
+          printf("Enabling Group %" PRIu32 " = %p....\n", i, event_data->event_groups[i]);
+          
           if (err != CUPTI_SUCCESS) {
             if (err == CUPTI_ERROR_NOT_COMPATIBLE) {
               printf("Group %" PRIu32 " out of "
@@ -1437,6 +1458,11 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                      event_data->num_event_groups);
 
               event_data->event_groups_read[i] = CED_EVENT_GROUP_DONT_READ;
+            } else if (err == CUPTI_ERROR_INVALID_PARAMETER) {
+              
+              puts("BAD_GROUP found");
+              event_data->event_groups_read[i] = CED_EVENT_GROUP_SKIP;
+              CUPTI_FN_WARN(err);
             } else {
               CUPTI_FN(err);
             }
