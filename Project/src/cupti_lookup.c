@@ -5,6 +5,8 @@
 #include "nvcd/list.h"
 #include "nvcd/env_var.h"
 
+#define MAX_EVENT_GROUPS_PER_EVENT_DATA 250
+
 /*
  * List of event strings as listed in the CUPTI event documentation
  * for CUDA toolkit v9.2
@@ -907,21 +909,18 @@ static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {
 }
 
 static void init_cupti_event_groups(cupti_event_data_t* e) {
-#define MAX_EGS 30
   // static default; increase if more groups become necessary
-  uint32_t max_egs = MAX_EGS; 
+  uint32_t max_egs = MAX_EVENT_GROUPS_PER_EVENT_DATA; 
   uint32_t num_egs = 0;
 
   // we use a local buffer with an estimate,
   // so when we store the memory we aren't using
   // more than we need
-  CUpti_EventGroup local_eg_assign[MAX_EGS];
+  CUpti_EventGroup local_eg_assign[MAX_EVENT_GROUPS_PER_EVENT_DATA];
 
   // CUpti_EventGroup is just a typedef for a pointer
   for (uint32_t i = 0; i < max_egs; ++i)
     local_eg_assign[i] = NULL;
-    
-#undef MAX_EGS
   
   for (uint32_t i = 0; i < e->event_names_buffer_length; ++i) {
     CUpti_EventID event_id = V_UNSET;
@@ -1546,9 +1545,9 @@ NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
     
     // event group initialization
     {
-      CUpti_EventGroup eg_buf[50] = { 0 };
+      CUpti_EventGroup eg_buf[MAX_EVENT_GROUPS_PER_EVENT_DATA] = { 0 };
       uint32_t num_egs = 0;
-      uint32_t max_egs = 50;
+      uint32_t max_egs = MAX_EVENT_GROUPS_PER_EVENT_DATA;
       
       for (uint32_t i = 0; i < num_event_ids; ++i) {
         volatile bool found = find_event_group(e,
