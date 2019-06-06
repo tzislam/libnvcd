@@ -448,20 +448,121 @@ static bool find_event_group(cupti_event_data_t* e,
   return found;
 }
 
+static CUpti_MetricID* fetch_metric_ids_from_device(CUdevice device, uint32_t* num_metrics) {
+
+  puts("Fetching all metric IDs from device");
+  
+  CUPTI_FN(cuptiDeviceGetNumMetrics(device, num_metrics));
+
+  size_t metric_array_size = sizeof(CUpti_MetricID) * (*num_metrics);
+
+  CUpti_MetricID* out_ids = zallocNN(metric_array_size);
+  
+  CUPTI_FN(cuptiDeviceEnumMetrics(device,
+                                  &metric_array_size,
+                                  &out_ids[0]));
+
+  return out_ids;
+}
+
+static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
+                                                   char** metric_names,
+                                                   uint32_t* num_metrics) {
+
+  fprintf(stderr, "Attempting to fetch metric id values from\n");
+  for (uint32_t i = 0; i < *num_metrics; ++i) {
+    fprintf(stderr, "%s: ", metric_names[i]);
+  }
+  fprintf(stderr, "\n");
+  
+  uint32_t desired = *num_metrics;
+  
+  size_t metric_array_size = sizeof(CUpti_MetricID) * (*num_metrics);
+
+  CUpti_MetricID* out_ids = zallocNN(metric_array_size);
+
+  uint32_t i = 0;
+  uint32_t j = 0;
+  
+  while (i < *num_metrics && j < desired) {
+    CUpti_MetricID id;
+    CUptiResult err = cuptiMetricGetIdFromName(device,
+                                              metric_names[j],
+                                              &id);
+
+    if (err != CUPTI_SUCCESS) {
+      fprintf(stderr, "fetch_metric_ids_from_names: Could not find metric name \'%s\'\n",
+             metric_names[j]);
+      
+      *num_metrics = *num_metrics - 1;
+    } else {
+      fprintf(stderr, "fetch_metric_ids_from_names: Found ID for metric \'%s\'\n",
+             metric_names[j]);
+      out_ids[i] = id;
+      i++;
+    }
+
+    j++;
+
+    CUPTI_FN_WARN(err);
+  }
+
+  ASSERT(j == desired && i == *num_metrics);
+
+  printf("Found %" PRIu32 " / %" PRIu32 " metrics.\n", *num_metrics, desired);
+
+  if (*num_metrics == 0) {
+    free(out_ids);
+    out_ids = NULL;
+  } else if (*num_metrics != desired) {
+    size_t sz = sizeof(CUpti_MetricID) * (*num_metrics);
+    CUpti_MetricID* new_ids = zallocNN(sz);
+    memcpy(new_ids, out_ids, sz);
+    free(out_ids);
+    out_ids = new_ids;
+  }
+
+  return out_ids;
+}
+
+static CUpti_MetricID* fetch_metric_ids(CUdevice device,
+                                        uint32_t* num_metrics) {
+  char* metric_env_value = getenv(ENV_METRICS);
+
+  CUpti_MetricID* buf = NULL;
+  
+  if (metric_env_value != NULL) {
+    size_t count = 0;
+
+    char** list = env_var_list_read(metric_env_value,
+                                    &count);
+
+    if (list != NULL) {
+      ASSERT(count > 0);
+        
+      *num_metrics = (uint32_t) count;
+
+      buf = fetch_metric_ids_from_names(device,
+                                        list,
+                                        num_metrics);
+    } else {
+      ASSERT(count == 0);
+      
+      buf = fetch_metric_ids_from_device(device,
+                                         num_metrics);
+    }
+  } else {
+    buf = fetch_metric_ids_from_device(device,
+                                       num_metrics);
+  }
+
+  return buf;
+}
+
 static void init_cupti_metric_data(cupti_event_data_t* e) {
   cupti_metric_data_t* metric_buffer = zallocNN(sizeof(*metric_buffer));
   
-
-  CUPTI_FN(cuptiDeviceGetNumMetrics(e->cuda_device,
-                                    &metric_buffer->num_metrics));
-
-  size_t metric_array_size = sizeof(CUpti_MetricID) * metric_buffer->num_metrics;
-
-  metric_buffer->metric_ids = zallocNN(metric_array_size);
-
-  CUPTI_FN(cuptiDeviceEnumMetrics(e->cuda_device,
-                                  &metric_array_size,
-                                  &metric_buffer->metric_ids[0]));
+  metric_buffer->metric_ids = fetch_metric_ids(e->cuda_device, &metric_buffer->num_metrics);
 
   metric_buffer->metric_values = zallocNN(sizeof(metric_buffer->metric_values[0]) *
                                           metric_buffer->num_metrics);
@@ -476,8 +577,7 @@ static void init_cupti_metric_data(cupti_event_data_t* e) {
     zallocNN(sizeof(metric_buffer->metric_get_value_results[0]) *
              metric_buffer->num_metrics);
                                                      
-  
-#define _index_ "[%" PRIu32 "] "
+  #define _index_ "[%" PRIu32 "] "
   
   for (uint32_t i = 0; i < metric_buffer->num_metrics; ++i) {
     char* name = cupti_metric_get_name(metric_buffer->metric_ids[i]);
@@ -514,8 +614,8 @@ static void init_cupti_metric_data(cupti_event_data_t* e) {
   metric_buffer->initialized = true;
 
   e->metric_data = metric_buffer;
-}
 
+}
 
 static uint32_t derive_event_count(cupti_event_data_t* e) {
   uint32_t ret = 0;
@@ -916,6 +1016,8 @@ static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {
 }
 
 static void init_cupti_event_groups(cupti_event_data_t* e) {
+  fprintf(stderr, "%s\n", "init_cupti_event_groups_entered");
+  
   // static default; increase if more groups become necessary
   uint32_t max_egs = MAX_EVENT_GROUPS_PER_EVENT_DATA; 
   uint32_t num_egs = 0;
@@ -931,6 +1033,11 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
   
   for (uint32_t i = 0; i < e->event_names_buffer_length; ++i) {
     CUpti_EventID event_id = V_UNSET;
+
+    fprintf(stderr,
+            "Attempting to find ID for event device %" PRId32
+            "; event [%" PRId32"] = %s\n", e->cuda_device,
+            i, e->event_names[i]);
     
     CUptiResult err = cuptiEventGetIdFromName(e->cuda_device,
                                               e->event_names[i],
@@ -1025,11 +1132,11 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
       }
 
       if (!using_all) {
+        fprintf(stream, "(%s) NOT USING ALL", ENV_EVENTS);
         e->event_names = list;
+        printf("event_names[1] = %s\n", e->event_names[1]);
         e->event_names_buffer_length = (uint32_t)count;
       }
-
-      free_strlist(list, count);
     } else {
       exit_msg(stream,
                EBAD_INPUT,
