@@ -1,0 +1,4 @@
+#!/bin/bash
+
+export BENCH_EVENTS="l1_global_load_miss:l2_subp0_write_sector_misses:l2_subp0_read_sector_misses:active_warps:branch:divergent_branch"
+export BENCH_METRICS="branch_efficiency:sm_efficiency:ipc:l1_cache_global_hit_rate:dram_read_throughput:dram_write_throughput"
