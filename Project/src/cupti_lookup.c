@@ -496,8 +496,9 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
       
       *num_metrics = *num_metrics - 1;
     } else {
-      fprintf(stderr, "fetch_metric_ids_from_names: Found ID for metric \'%s\'\n",
-             metric_names[j]);
+      fprintf(stderr, "fetch_metric_ids_from_names: Found ID %" PRIx32 " for metric \'%s\'\n",
+              id,
+              metric_names[j]);
       out_ids[i] = id;
       i++;
     }
@@ -954,19 +955,20 @@ static void read_group_all_events(cupti_event_data_t* e, uint32_t group) {
     e->num_instances_per_group[group] *
     sizeof(uint64_t);
 
-  uint64_t* tmp = zallocNN(cb_size);
+  //  uint64_t* tmp = zallocNN(cb_size);
   
   {
     size_t ib_size = e->num_events_per_group[group] * sizeof(CUpti_EventID);
     size_t ib_offset = e->event_id_buffer_offsets[group];
 
     size_t ids_read = 0;
+
+    size_t cb_offset = e->event_counter_buffer_offsets[group];
     
     CUPTI_FN(cuptiEventGroupReadAllEvents(e->event_groups[group],
                                           CUPTI_EVENT_READ_FLAG_NONE,
                                           &cb_size,
-                                          //&e->event_counter_buffer[cb_offset],
-                                          tmp,
+                                          &e->event_counter_buffer[cb_offset],
                                           &ib_size,
                                           &e->event_id_buffer[ib_offset],
                                           &ids_read));
@@ -976,20 +978,6 @@ static void read_group_all_events(cupti_event_data_t* e, uint32_t group) {
            ids_read,
            (size_t) e->num_events_per_group[group]);
   }
-  
-  {
-    size_t num_counters = cb_size / sizeof(tmp[0]);
-    size_t stride = e->num_instances_per_group[group];
-    size_t cb_offset = e->event_counter_buffer_offsets[group];
-    
-    for (size_t i = 0; i < num_counters; ++i) {
-      size_t base = cb_offset + i * stride;
-      for (size_t j = 0; j < stride; ++j) {
-        e->event_counter_buffer[base + j] += tmp[base + j];
-      }
-    }
-  }
-
 }
 
 // if called, it must be called after read_group_all_events
