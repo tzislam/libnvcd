@@ -13,7 +13,7 @@
 #include <iterator>
 #include <memory>
 #include <string>
-#include <set>
+#include <unordered_set>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -219,12 +219,19 @@ struct kernel_invoke_data {
   }
   
   void write() {
+
+    std::unordered_set<int> smids_used;
+    
     for (size_t i = 0; i < num_threads; ++i) {
-      printf("[%lu] time = %" PRId64 ", smid = % " PRId32 "\n",
-             i,
-             times[i],
-             smids[i]);
+      // printf("[%lu] time = %" PRId64 ", smid = % " PRId32 "\n",
+      //     i,
+      //     times[i],
+      //     smids[i]);
+
+      smids_used.insert(smids[i]);
     }
+
+    printf("Number of SMs used: %" PRIu64 "\n", smids_used.size());
     
     {
       std::vector<block> sorted;
@@ -236,8 +243,6 @@ struct kernel_invoke_data {
       std::sort(sorted.begin(), sorted.end(), [](const block& a, const block& b) -> bool {
           return a.time < b.time;
         });
-
-      print_blockv("sorted", sorted);
 
       size_t qlen = num_threads >> 2;
 
@@ -258,8 +263,11 @@ struct kernel_invoke_data {
       fill_outliers(majorb, q1, q3, sorted, load_major);
     }
 
-    print_blockv("load_minor", load_minor);
-    print_blockv("load_major", load_major);
+    printf("Load Major size: %" PRId64 "\n", load_major.size());
+    printf("Load Minor size: %" PRId64 "\n", load_minor.size());
+    
+    //print_blockv("load_minor", load_minor);
+    //print_blockv("load_major", load_major);
   }
 };
 

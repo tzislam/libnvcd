@@ -11,10 +11,14 @@ C_LINKAGE_START
 
 #define ENV_EVENTS ENV_PREFIX "EVENTS"
 
+#define ENV_METRICS ENV_PREFIX "METRICS"
+
 #define ENV_DELIM ':'
 #define ENV_ALL_EVENTS "ALL"
 
 char** env_var_list_read(const char* env_var_value, size_t* count);
+
+
 
 C_LINKAGE_END
 

@@ -93,6 +93,8 @@ typedef uint32_t bool32_t; // alignment and portability
 
 #define STRVAL_BOOL_STR_VALUE(v) ((v) == 1 ? "true" : ((v) == 0 ? "false" : "GARBAGE"))
 
+#define STRFMT_INDEXU32_HEX32 "[%" PRIu32 "]: %" PRIx32     
+
 enum {
   ENO_ERROR = 0,
   EUNSUPPORTED_EVENTS,
