@@ -6,6 +6,9 @@
 #include <inttypes.h>
 #include <stdarg.h>
 
+#define __USE_GNU // for RTLD_NEXT
+#include <dlfcn.h>
+
 C_LINKAGE_START
 
 void exit_msg(FILE* out, int error, const char* message, ...) {
@@ -185,4 +188,21 @@ NVCD_EXPORT void assert_impl(bool cond, const char* expr, const char* file, int 
   }
 }
 
+#if 0
+typedef cudaError_t (*cudaLaunch_fn_t)(const void* entry);
+
+static cudaLaunch_fn_t real_cudaLaunch = NULL;
+
+NVCD_EXPORT cudaError_t cudaLaunch(const void* entry) {
+  if (real_cudaLaunch == NULL) {
+    real_cudaLaunch = (cudaLaunch_fn_t)dlsym(RTLD_NEXT, "cudaLaunch");
+  }
+  
+  printf("HOOK This is a test: %p\n", fn);
+  
+  return (*real_cudaLaunch)(fn);
+}
+#endif
+
 C_LINKAGE_END
+
