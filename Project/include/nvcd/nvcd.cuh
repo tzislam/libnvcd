@@ -6,6 +6,7 @@
 #include <nvcd/list.h>
 #include <nvcd/env_var.h>
 #include <nvcd/cupti_lookup.h>
+#include <nvcd/nvcd.h>
 
 #include <vector>
 #include <unordered_map>
@@ -73,13 +74,13 @@
 
 #define NVCD_KERNEL_EXEC_KPARAMS_2(kname, kparam_1, kparam_2, ...)      \
   do {                                                                  \
-    cupti_event_data_begin(&g_event_data);                              \
+    cupti_event_data_begin(nvcd_get_events());                              \
     while (!nvcd_host_finished()) {                                     \
       kname<<<kparam_1, kparam_2>>>(__VA_ARGS__);                       \
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         \
     }                                                                   \
-    cupti_event_data_end(&g_event_data);                                \
-    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(&g_event_data,                             \
+    cupti_event_data_end(nvcd_get_events());                                \
+    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(nvcd_get_events(),                   \
                              kname,                                     \
                              kparam_1,                                  \
                              kparam_2,                                  \
@@ -90,7 +91,7 @@
 
 #define NVCD_KERNEL_EXEC_KPARAMS_2(kname, kparam_1, kparam_2, ...)      \
   do {                                                                  \
-    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(&g_event_data,                             \
+    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(nvcd_get_events(),               \
                              kname,                                     \
                              kparam_1,                                  \
                              kparam_2,                                  \
@@ -137,10 +138,11 @@ namespace detail {
   DEV uint* dev_smids = nullptr;
 }
 
+// Hook management
+
+
 extern "C" {
   extern nvcd_t g_nvcd;
-  
-  extern cupti_event_data_t g_event_data;
   
   extern size_t dev_tbuf_size;
   extern size_t dev_num_iter_size;
@@ -534,9 +536,11 @@ struct nvcd_run_info {
       }
     }
 
+    cupti_event_data_t* global = nvcd_get_events();
+    
     memcpy(&cupti_events[num_runs],
-           &g_event_data,
-           sizeof(g_event_data));
+           global,
+           sizeof(*global));
 
     num_runs++;
   }
@@ -783,8 +787,6 @@ extern "C" {
     
     printf("nvcd_init address: %p\n", nvcd_init);
     ASSERT(g_nvcd.initialized == true);
-
-    g_event_data.is_root = true;
   }
 
   NVCD_CUDA_EXPORT void nvcd_host_begin(int num_cuda_threads) {  
@@ -796,22 +798,19 @@ extern "C" {
     nvcd_device_init_mem(num_cuda_threads);
 
     g_run_info->curr_num_threads = static_cast<size_t>(num_cuda_threads);
-    
-    g_event_data.cuda_context = g_nvcd.contexts[0];
-    g_event_data.cuda_device = g_nvcd.devices[0];
-    g_event_data.is_root = true;
-    
-    cupti_event_data_init(&g_event_data);
+
+    nvcd_init_events(g_nvcd.devices[0],
+                     g_nvcd.contexts[0]);
   }
 
   NVCD_CUDA_EXPORT bool nvcd_host_finished() {
-    return cupti_event_data_callback_finished(&g_event_data);
+    return cupti_event_data_callback_finished(nvcd_get_events());
   }
 
   NVCD_CUDA_EXPORT void nvcd_host_end() {
     ASSERT(g_nvcd.initialized == true);
     
-    cupti_event_data_calc_metrics(&g_event_data);
+    nvcd_calc_metrics();
 
     g_run_info->update();
 
@@ -819,7 +818,7 @@ extern "C" {
     
     nvcd_device_free_mem();
 
-    cupti_event_data_set_null(&g_event_data);
+    nvcd_free_events();
   }
   
   NVCD_CUDA_EXPORT nvcd_device_info::ptr_type nvcd_host_get_device_info() {
@@ -829,9 +828,8 @@ extern "C" {
   }
 
   NVCD_CUDA_EXPORT void nvcd_terminate() {
-    cupti_event_data_free(&g_event_data);
-    cupti_event_data_set_null(&g_event_data);
-  
+    nvcd_free_events();
+    
     cupti_name_map_free(); 
 
     g_run_info.reset();
@@ -879,8 +877,6 @@ extern "C" {
     /*.initialized =*/ false
   };
 
-  cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_NULL;
-
   size_t dev_tbuf_size = 0;
   size_t dev_num_iter_size = 0;
   size_t dev_smids_size = 0;
@@ -894,7 +890,7 @@ extern "C" {
 }
 
 std::unique_ptr<nvcd_run_info> g_run_info(nullptr);
-  
+
 #endif // NVCD_HEADER_IMPL
 
 #endif // __NVCD_CUH__

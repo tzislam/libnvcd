@@ -1,9 +1,27 @@
-#include <stdio.h>
-
-#include "nvcd/commondef.h"
+#include "nvcd/nvcd.h"
 #include "nvcd/cupti_lookup.h"
-#include "nvcd/list.h"
-#include "nvcd/env_var.h"
+
+static cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_NULL;
+
+void nvcd_init_events(CUdevice device, CUcontext context) {
+  g_event_data.cuda_context = context;
+  g_event_data.cuda_device = device;
+  g_event_data.is_root = true;
+    
+  cupti_event_data_init(&g_event_data);
+}
+
+void nvcd_calc_metrics() {
+  cupti_event_data_calc_metrics(&g_event_data);
+}
+
+void nvcd_free_events() {
+  cupti_event_data_free(&g_event_data);
+}
+
+cupti_event_data_t* nvcd_get_events() {
+  return &g_event_data;
+}
 
 //#include "device.cuh"
 
