@@ -24,7 +24,7 @@ SRC_C := $(wildcard src/*.c)
 OBJ_C := $(SRC_C:.c=.o)
 PRE_C := $(SRC_C:.c=.c.pre)
 
-LIBS=-L/usr/lib/x86_64-linux-gnu -L$(CUPTI)/lib64 -L$(CUDA_HOME)/lib64 -lcuda -lcudart -lcupti
+LIBS=-L/usr/lib/x86_64-linux-gnu -L$(CUPTI)/lib64 -L$(CUDA_HOME)/lib64 -lcuda -lcudart -lcupti -ldl
 
 SRC_CU := $(wildcard src/*.cu)
 OBJ_CU := $(SRC_CU:.cu=.o)
@@ -166,7 +166,6 @@ util/pre/%.c.pre: util/src/%.c objdep
 
 util/pre/%.cu.pre: util/src/%.cu objdep
 	$(CC) $(UTIL_FLAGS_PRE) $(UTIL_INCLUDE) $(UTIL_CC_FLAGS) $(ARCH) -c $< -o $@
-
 
 # Housekeeping
 objdep:
