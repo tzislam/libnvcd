@@ -2,7 +2,7 @@ INCLUDE=-I. -I../include -I$(CUPTI_INCLUDE)
 
 CU_FLAGS=-std=c++11 --compiler-options "-Wall -lpthread -Werror -g -ggdb"
 
-LD_FLAGS=-L/usr/lib/x86_64-linux-gnu -L../bin -L$(CUDA_HOME)/lib64 -L$(CUPTI_LIB)
+LD_FLAGS=-L/usr/lib/x86_64-linux-gnu -L./../bin -L$(CUDA_HOME)/lib64 -L$(CUPTI_LIB)
 
 ARCH=-arch=$(CUDA_ARCH_SM)
 
