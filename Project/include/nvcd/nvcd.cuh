@@ -846,8 +846,6 @@ extern "C" {
 
   NVCD_CUDA_EXPORT void nvcd_terminate() {
     nvcd_free_events();
-    
-    cupti_name_map_free(); 
 
     g_run_info.reset();
  
