@@ -1551,26 +1551,41 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
   }
 }
 
-NVCD_EXPORT void cupti_event_data_subscribe(cupti_event_data_t* e) {
-  ASSERT(e != NULL && e->subscriber == NULL && e->initialized);
+static inline void cupti_event_data_subscribe_callbacks(cupti_event_data_t* e, bool enable) {
+  uint32_t u32e = (uint32_t) enable;
+  ASSERT(u32e == 0 || u32e == 1);
   
-  CUPTI_FN(cuptiSubscribe(&e->subscriber,
-                          (CUpti_CallbackFunc)cupti_event_callback,
-                          (void*) e));
-
   for (uint32_t i = 0; i < NUM_CUPTI_RUNTIME_CBIDS; ++i) {
-    CUPTI_FN(cuptiEnableCallback(1,
+    CUPTI_FN(cuptiEnableCallback(u32e,
                                  e->subscriber,
                                  CUPTI_CB_DOMAIN_RUNTIME_API,
                                  g_cupti_runtime_cbids[i]));
   }
 }
 
+NVCD_EXPORT void cupti_event_data_subscribe(cupti_event_data_t* e) {
+  ASSERT(e != NULL
+         /*&& e->subscriber == NULL*/
+         && e->initialized);
+
+  if (e->subscriber == NULL) {
+    CUPTI_FN(cuptiSubscribe(&e->subscriber,
+                            (CUpti_CallbackFunc)cupti_event_callback,
+                            (void*) e));
+  
+  }
+
+  cupti_event_data_subscribe_callbacks(e, true);
+}
+
 NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e) {
   ASSERT(e != NULL && e->initialized && e->subscriber != NULL);
+
+  cupti_event_data_subscribe_callbacks(e, false);
+
   CUPTI_FN(cuptiUnsubscribe(e->subscriber));
   //
-  e->subscriber = NULL;
+  //  e->subscriber = NULL;
 }
 
 static inline void __cupti_event_data_init_base(cupti_event_data_t* e) {
