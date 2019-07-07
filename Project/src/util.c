@@ -188,7 +188,6 @@ NVCD_EXPORT void assert_impl(bool cond, const char* expr, const char* file, int 
   }
 }
 
-#if 0
 typedef cudaError_t (*cudaLaunch_fn_t)(const void* entry);
 
 static cudaLaunch_fn_t real_cudaLaunch = NULL;
@@ -198,11 +197,24 @@ NVCD_EXPORT cudaError_t cudaLaunch(const void* entry) {
     real_cudaLaunch = (cudaLaunch_fn_t)dlsym(RTLD_NEXT, "cudaLaunch");
   }
   
-  printf("HOOK This is a test: %p\n", fn);
+  printf("[HOOK %s]\n", __FUNC__);
   
-  return (*real_cudaLaunch)(fn);
+  return (*real_cudaLaunch)(entry);
 }
-#endif
+
+typedef cudaError_t (*cudaSetupArgument_fn_t)(const void* arg, size_t size, size_t offset);
+
+static cudaSetupArgument_fn_t real_cudaSetupArgument;
+
+NVCD_EXPORT cudaError_t cudaSetupArgument(const void* arg, size_t size, size_t offset) {
+  if (real_cudaSetupArgument == NULL) {
+    real_cudaSetupArgument = (cudaSetupArgument_fn_t)dlsym(RTLD_NEXT, "cudaSetupArgument");
+  }
+
+  printf("[HOOK %s]\n", __FUNC__);
+
+  return (*real_cudaSetupArgument)(arg, size, offset);
+}
 
 C_LINKAGE_END
 

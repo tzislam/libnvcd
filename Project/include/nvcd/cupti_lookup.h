@@ -122,8 +122,8 @@ typedef struct cupti_metric_data {
     /*.cuda_context =*/ NULL,                                           \
     /*.cuda_device =*/ CU_DEVICE_INVALID,                               \
     /*.subscriber =*/ NULL,                                             \
-      /*.thread_event_data_init =*/ PTHREAD_INITIALIZER,                     \
-      /*.thread_event_callback =*/ PTHREAD_INITIALIZER,                       \
+      /*.thread_event_data_init =*/ PTHREAD_INITIALIZER,                \
+      /*.thread_event_callback =*/ PTHREAD_INITIALIZER,                 \
     /*.num_event_groups =*/ 0,                                          \
     /*.num_kernel_times =*/ 0,                                          \
     /*.count_event_groups_read =*/ 0,                                   \

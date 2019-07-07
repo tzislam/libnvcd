@@ -36,6 +36,8 @@
 
 #define ARRAY_LENGTH(x) (sizeof((x)) / sizeof((x)[0]))
 
+#define ZERO_MEM(pbuf, length) memset((pbuf), 0, sizeof((pbuf)[0]) * length) 
+
 #define zallocNN(sz) NOT_NULL(zalloc((sz)))
   
 #define mallocNN(sz) NOT_NULL(malloc((sz)))
