@@ -856,6 +856,8 @@ extern "C" {
     }
 
     safe_free_v(g_nvcd.device_names);
+    safe_free_v(g_nvcd.devices);
+    safe_free_v(g_nvcd.contexts);
   }
 
   NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {
