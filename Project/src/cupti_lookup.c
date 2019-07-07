@@ -1098,7 +1098,6 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
       if (!using_all) {
         fprintf(stream, "(%s) NOT USING ALL", ENV_EVENTS);
         e->event_names = list;
-        printf("event_names[1] = %s\n", e->event_names[1]);
         e->event_names_buffer_length = (uint32_t)count;
       }
     } else {
