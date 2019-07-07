@@ -337,14 +337,6 @@ const char* g_cupti_metrics_3x[NUM_CUPTI_METRICS_3X] = {
   "warp_nonpred_execution_efficiency"
 };
 
-typedef struct cupti_name_map {
-  list_t self;
-  char* name;
-  CUpti_EventID id;
-} cupti_name_map_t;
-
-static cupti_name_map_t* g_name_map_list = NULL;
-
 static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
   CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020,
   CUPTI_RUNTIME_TRACE_CBID_cudaLaunchKernel_v7000
@@ -353,18 +345,6 @@ static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
 #define NUM_CUPTI_RUNTIME_CBIDS (sizeof(g_cupti_runtime_cbids) / sizeof(g_cupti_runtime_cbids[0]))
 
 static void init_cupti_event_buffers(cupti_event_data_t* e);
-
-static void cupti_name_map_push(cupti_name_map_t* node) {
-  list_push_fn_impl(&g_name_map_list,
-                    node,
-                    cupti_name_map_t,
-                    self);
-}
-
-static void cupti_name_map_free_node(cupti_name_map_t* n) {
-  free(n->name);
-  n->name = NULL;
-}
 
 static void fill_event_groups(cupti_event_data_t* e,
                               CUpti_EventGroup* local_eg_assign,
@@ -1047,10 +1027,6 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
         // looked at
         CUPTI_FN(err);
       }
-    } else {
-      // in the future we'll only have ids,
-      // so we may as well map them now for output.
-      cupti_map_event_name_to_id(e->event_names[i], event_id);
     }
     
     if (available) {
@@ -1227,49 +1203,6 @@ static void init_cupti_event_buffers(cupti_event_data_t* e) {
   }
 }
 
-NVCD_EXPORT void cupti_name_map_free() {
-  list_free_fn_impl(g_name_map_list,
-                    cupti_name_map_t,
-                    cupti_name_map_free_node,
-                    self);
-}
-
-NVCD_EXPORT void cupti_map_event_name_to_id(const char* event_name, CUpti_EventID event_id) {
-  if (cupti_find_event_name_from_id(event_id) == NULL) {
-    cupti_name_map_t* node = mallocNN(sizeof(cupti_name_map_t));
-
-    node->name = strdup(event_name);
-
-    NOT_NULL(node->name);
-    
-    node->id = event_id;
-    node->self.next = NULL;
-
-    cupti_name_map_push(node);
-  }
-}
-
-NVCD_EXPORT const char* cupti_find_event_name_from_id(CUpti_EventID id) {
-  const char* ret = NULL;
-
-  list_t* n = list_node(g_name_map_list,
-                        cupti_name_map_t,
-                        self);
-
-  while (n != NULL && ret == NULL) {
-    cupti_name_map_t* nm = list_base(n,
-                                     cupti_name_map_t,
-                                     self);
-    if (nm->id == id) {
-      ret = nm->name;
-    }
-    
-    n = n->next;
-  }
-
-  return ret;
-}
-
 static char _peg_buffer[1 << 13] = { 0 };
 
 static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
@@ -1347,13 +1280,15 @@ static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
     CUpti_EventID eid = e->event_id_buffer[ib_offset + i];
     
     {
-      const char* name = cupti_find_event_name_from_id(eid);
+      char* name = cupti_event_get_name(eid);
       
       ptr += sprintf(&_peg_buffer[ptr],
                      "[%" PRIu32 " (eid: 0x%" PRIx32 ")] %s:\n",
                      i,
                      eid,
                      name);
+
+      free(name);
     }
     
     for (uint32_t j = 0; j < nipg; ++j) {
