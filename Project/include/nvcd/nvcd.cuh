@@ -74,13 +74,14 @@
 
 #define NVCD_KERNEL_EXEC_KPARAMS_2(kname, kparam_1, kparam_2, ...)      \
   do {                                                                  \
-    cupti_event_data_begin(nvcd_get_events());                              \
+    cupti_event_data_begin(nvcd_get_events());                          \
     while (!nvcd_host_finished()) {                                     \
       kname<<<kparam_1, kparam_2>>>(__VA_ARGS__);                       \
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         \
+      g_run_info->run_kernel_count_inc();                                      \
     }                                                                   \
-    cupti_event_data_end(nvcd_get_events());                                \
-    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(nvcd_get_events(),                   \
+    cupti_event_data_end(nvcd_get_events());                            \
+    NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(nvcd_get_events(),               \
                              kname,                                     \
                              kparam_1,                                  \
                              kparam_2,                                  \
@@ -114,6 +115,7 @@
       while (!cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) { \
         kname<<<kparam_1, kparam_2>>>(__VA_ARGS__);                     \
         CUDA_RUNTIME_FN(cudaDeviceSynchronize());                       \
+        g_run_info->run_kernel_count_inc();                                    \
       }                                                                 \
                                                                         \
       cupti_event_data_end(&__e->metric_data->event_data[i]);           \
@@ -139,7 +141,6 @@ namespace detail {
 }
 
 // Hook management
-
 
 extern "C" {
   extern nvcd_t g_nvcd;
@@ -180,12 +181,15 @@ struct kernel_invoke_data {
   double time_mean;
 
   size_t num_threads;
+
+  uint32_t exec_count;
   
   kernel_invoke_data(size_t num_threads_)
     : times(num_threads_, 0),
       smids(num_threads_, 0),
       time_stddev(0.0),
-      num_threads(num_threads_)
+      num_threads(num_threads_),
+      exec_count(0)
   {}
 
   ~kernel_invoke_data()
@@ -490,9 +494,11 @@ struct nvcd_device_info {
 struct nvcd_run_info {
   std::vector<kernel_invoke_data> kernel_stats;
   std::vector<cupti_event_data_t> cupti_events;
-
+  
   size_t num_runs;
   size_t curr_num_threads;
+
+  uint32_t run_kernel_exec_count;
   
   nvcd_run_info()
     : num_runs(0),
@@ -503,20 +509,26 @@ struct nvcd_run_info {
       cupti_event_data_free(&data);
     }
   }
+
+  void run_kernel_count_inc() {
+    run_kernel_exec_count++;
+  }
   
   void update() {
     ASSERT(curr_num_threads != 0);
     
-    {
-        
+    {        
       kernel_invoke_data d(curr_num_threads);
 
       nvcd_device_get_smids(&d.smids[0]);
       nvcd_device_get_ttime(&d.times[0]);
       
+      d.exec_count = run_kernel_exec_count;
+      
       kernel_stats.push_back(std::move(d));
 
       curr_num_threads = 0;
+      run_kernel_exec_count = 0;
     }
     
     if (num_runs == cupti_events.size()) {
@@ -778,6 +790,11 @@ extern "C" {
     g_run_info->report();
   }
 
+  NVCD_CUDA_EXPORT uint32_t nvcd_last_kernel_exec_count() {
+    ASSERT(!g_run_info->kernel_stats.empty());
+    return g_run_info->kernel_stats[g_run_info->kernel_stats.size() - 1].exec_count;
+  }
+  
   NVCD_CUDA_EXPORT void nvcd_init() {
     nvcd_init_cuda(&g_nvcd);
 
@@ -817,7 +834,7 @@ extern "C" {
     nvcd_report();
     
     nvcd_device_free_mem();
-
+    
     nvcd_free_events();
   }
   
