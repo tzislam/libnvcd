@@ -499,8 +499,8 @@ struct nvcd_run_info {
       curr_num_threads(0) {}
 
   ~nvcd_run_info() {
-    for (size_t i = 0; i < num_runs; ++i) {
-      cupti_event_data_free(&cupti_events[i]);
+    for (auto& data: cupti_events) {
+      cupti_event_data_free(&data);
     }
   }
   

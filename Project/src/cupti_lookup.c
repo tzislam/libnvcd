@@ -1664,9 +1664,17 @@ NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
   memcpy(e, &tmp, sizeof(tmp));
 }
 
+
+// This frees all memory managed by the CUPTI driver
+// in addition to our middleware managed memory for the
+// given cupti_event_data_t*.
+// Note that the only the root cupti_event_data_t* instance
+// is supposed to have a non-NULL metric_data pointer,
+// so we make an extra check for that and thus handle
+// the freeing of the metric_data memory as well.
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
-
+  
   {
     char* estr = cupti_event_data_to_string(e);
     
@@ -1704,7 +1712,6 @@ NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   safe_free_v(e->event_group_read_states);
   
   safe_free_v(e->kernel_times_nsec);
-  
     
   safe_free_v(e->event_groups);
   

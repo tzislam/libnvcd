@@ -7,7 +7,7 @@ void nvcd_init_events(CUdevice device, CUcontext context) {
   g_event_data.cuda_context = context;
   g_event_data.cuda_device = device;
   g_event_data.is_root = true;
-    
+
   cupti_event_data_init(&g_event_data);
 }
 
@@ -15,8 +15,14 @@ void nvcd_calc_metrics() {
   cupti_event_data_calc_metrics(&g_event_data);
 }
 
+// We delay freeing g_event_data's memory from the most recent call to nvcd_init_events, since it's stored
+// by the client and thus can be read at the user's request.
+// However, we still need ensure proper assumptions are met by the cupti module,
+// which expects a NULL cupti_event_data_t on init.
 void nvcd_free_events() {
-  cupti_event_data_free(&g_event_data);
+    cupti_event_data_set_null(&g_event_data);
+  
+  //cupti_event_data_free(&g_event_data);
 }
 
 cupti_event_data_t* nvcd_get_events() {
