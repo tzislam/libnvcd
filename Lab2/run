@@ -1,8 +1,0 @@
-#!/bin/bash
-
-#export OMP_DISPLAY_ENV=true
-export OMP_NUM_THREADS=12
-#export OMP_SCHEDULE='STATIC'
-#export OMP_PLACES=cores
-#export OMP_PROC_BIND=close
-./app
