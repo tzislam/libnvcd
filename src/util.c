@@ -188,6 +188,11 @@ NVCD_EXPORT void assert_impl(bool cond, const char* expr, const char* file, int 
   }
 }
 
+#if 0
+// if we decide to continue down this path,
+// be sure to declare cudaLaunch and and cudaSetupArgument
+// in util.h with NVCD_EXPORT
+
 typedef cudaError_t (*cudaLaunch_fn_t)(const void* entry);
 
 static cudaLaunch_fn_t real_cudaLaunch = NULL;
@@ -215,6 +220,7 @@ NVCD_EXPORT cudaError_t cudaSetupArgument(const void* arg, size_t size, size_t o
 
   return (*real_cudaSetupArgument)(arg, size, offset);
 }
+#endif
 
 C_LINKAGE_END
 

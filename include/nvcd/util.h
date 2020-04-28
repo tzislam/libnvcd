@@ -64,9 +64,7 @@ NVCD_EXPORT void assert_impl(bool cond,
 NVCD_EXPORT void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
 
 
-NVCD_EXPORT cudaError_t cudaLaunch(const void* entry);
 
-NVCD_EXPORT cudaError_t cudaSetupArgument(const void* arg, size_t size, size_t offset);
 
 C_LINKAGE_END
 
