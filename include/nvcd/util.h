@@ -63,7 +63,82 @@ NVCD_EXPORT void assert_impl(bool cond,
 
 NVCD_EXPORT void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
 
+typedef enum darray_error
+  {
+   DARRAY_ERROR_NONE = 0,
+   DARRAY_ERROR_ENOMEM,
+   DARRAY_ERROR_BAD_ALLOC
+  } darray_error_t;
 
+#define DARRAY_INIT {NULL, 0, 0, DARRAY_ERROR_NONE}
+
+#define darray(type, init_sz, max_growth)	\
+  typedef struct darray_##type {		\
+    type* buf;					\
+    size_t sz;					\
+    size_t len;					\
+    darray_error_t err;				\
+  } darray_##type##_t;				\
+  static inline bool32_t darray_##type##_ok(darray_##type##_t* arr) {\
+    return							 \
+      (arr->err == DARRAY_ERROR_NONE) &&			 \
+      (arr->buf != NULL) &&					 \
+      (arr->sz > 0) &&						 \
+      (arr->len <= arr->sz);					 \
+  }									\
+  static inline bool32_t darray_##type##_clean(darray_##type##_t* arr) { \
+    return							     \
+      (arr->err == DARRAY_ERROR_NONE) &&			     \
+      (arr->buf == NULL) &&					     \
+      (arr->sz == 0) &&						     \
+      (arr->len == 0);						     \
+  }	                                                             \
+  static inline void darray_##type##_alloc(darray_##type##_t* arr) {	\
+    if (darray_##type##_clean(arr)) {					\
+      arr->buf = zalloc(sizeof(type) * (init_sz));			\
+      if (arr->buf != NULL) {						\
+        arr->sz = (init_sz);						\
+      }									\
+      else {								\
+	arr->err = DARRAY_ERROR_BAD_ALLOC;				\
+      }									\
+    }									\
+    else {								\
+      arr->err = DARRAY_ERROR_BAD_ALLOC;				\
+    }									\
+  }									\
+  static inline void darray_##type##_grow(darray_##type##_t* arr, size_t amt) {\
+    if (darray_##type##_ok(arr)) {					\
+      ASSERT(amt <= (max_growth));					\
+      type* newbuf = realloc(arr->buf, (arr->sz + amt) * sizeof(type)); \
+      if (newbuf != NULL) {						\
+        arr->buf = newbuf;						\
+	arr->sz += amt;							\
+      }									\
+      else {								\
+	arr->err = DARRAY_ERROR_ENOMEM;					\
+      }									\
+    }									\
+  }									\
+  static inline void darray_##type##_append(darray_##type##_t* arr, type* elem) {\
+    if (darray_##type##_ok(arr)) {					\
+      if (arr->len == arr->sz) {					\
+	darray_##type##_grow(arr, arr->sz);				\
+      }									\
+      if (darray_##type##_ok(arr)) {					\
+	memcpy(&arr->buf[arr->len], elem, sizeof(type));		\
+	arr->len++;							\
+      }									\
+    }									\
+  }									\
+  static inline void darray_##type##_free(darray_##type##_t* arr) {	\
+    if (darray_##type##_ok(arr)) {					\
+      free(arr->buf);							\
+      arr->buf = NULL;							\
+      arr->sz = 0;							\
+      arr->len = 0;							\
+    }									\
+  }									\
 
 
 C_LINKAGE_END
