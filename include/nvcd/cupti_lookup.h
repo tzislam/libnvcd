@@ -9,18 +9,6 @@
 
 C_LINKAGE_START
 
-// TODO:
-// these should probably just be internal
-// to the module and accessed via their
-// respective get functions
-extern const uint32_t g_cupti_event_names_2x_length;
-
-extern char* g_cupti_event_names_2x[];
-
-NVCD_EXPORT char** cupti_get_event_names();
-
-NVCD_EXPORT uint32_t cupti_get_num_event_names();
-
 typedef struct cupti_metric_data cupti_metric_data_t;
 
 typedef struct cupti_event_data {
