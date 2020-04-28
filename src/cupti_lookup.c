@@ -36,7 +36,9 @@ NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
     darray_cupti_event_id_alloc(&event_id_list);
     
     if (darray_cupti_event_id_ok(&event_id_list)) {
-      for (uint32_t i = 0; i < num_event_domains; ++i) {
+      bool32_t ok = true;
+      uint32_t i = 0;
+      while (ok && i < num_event_domains) {
 	CUpti_EventID* event_buffer = NULL;
 	size_t event_buffer_size = 0;
 	uint32_t num_events = 0;
@@ -49,21 +51,30 @@ NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
 	if ((event_id_list.len + num_events) >= event_id_list.sz) {
 	  darray_cupti_event_id_grow(&event_id_list, num_events << 4);
 	}
-	
-	CUPTI_FN(cuptiEventDomainEnumEvents(domain_buffer[i],
-					    &event_buffer_size,
-					    &event_id_list.buf[event_id_list.len]));
 
-	event_id_list.len += num_events;
-	num_event_names += num_events;
+	ok = darray_cupti_event_id_ok(&event_id_list);
+
+	// a call to grow may have failed, so we just
+	// check every iteration
+	if (ok) {       	
+	  CUPTI_FN(cuptiEventDomainEnumEvents(domain_buffer[i],
+					      &event_buffer_size,
+					      &event_id_list.buf[event_id_list.len]));
+
+	  event_id_list.len += num_events;
+	  num_event_names += num_events;
+
+	  i++;
+	}
       }
 
-      event_names = mallocNN(num_event_names * sizeof(char*));
-
-      if (event_names != NULL) {    
-	for (uint32_t i = 0; i < num_event_domains; ++i) {
+      if (ok) {
+	event_names = mallocNN(num_event_names * sizeof(char*));
+	if (event_names != NULL) {    
+	  for (uint32_t i = 0; i < num_event_domains; ++i) {
+	  }
 	}
-      }   
+      }
     }
   }
 
