@@ -7,17 +7,71 @@
 
 #define MAX_EVENT_GROUPS_PER_EVENT_DATA 250
 
+typedef CUpti_EventID cupti_event_id;
+darray(cupti_event_id, 128, 128);
 
+NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
+  ASSERT(e != NULL);
 
-
-
+  // immediately fail since this isn't finished yet
+  ASSERT(false);
   
+  char** event_names = NULL;
+  uint32_t num_event_names = 0;
   
+  CUpti_EventDomainID* domain_buffer = NULL;
+  size_t domain_buffer_size = 0;
+  uint32_t num_event_domains = 0;
   
+  CUPTI_FN(cuptiDeviceGetNumEventDomains(e->cuda_device, &num_event_domains));
+  ASSERT(num_event_domains != 0);
 
+  domain_buffer_size = sizeof(domain_buffer[0]) * (size_t)num_event_domains;
+  domain_buffer = malloc(domain_buffer_size);
 
+  if (domain_buffer != NULL) {
+    CUPTI_FN(cuptiDeviceEnumEventDomains(e->cuda_device, &domain_buffer_size, &domain_buffer[0]));
+
+    darray_cupti_event_id_t event_id_list = DARRAY_INIT;
+    darray_cupti_event_id_alloc(&event_id_list);
+    
+    if (darray_cupti_event_id_ok(&event_id_list)) {
+      for (uint32_t i = 0; i < num_event_domains; ++i) {
+	CUpti_EventID* event_buffer = NULL;
+	size_t event_buffer_size = 0;
+	uint32_t num_events = 0;
+
+	CUPTI_FN(cuptiEventDomainGetNumEvents(domain_buffer[i], &num_events));
+	ASSERT(num_events != 0);
+
+	event_buffer_size = sizeof(event_buffer[0]) * (size_t)num_events;
+
+	if ((event_id_list.len + num_events) >= event_id_list.sz) {
+	  darray_cupti_event_id_grow(&event_id_list, num_events << 4);
+	}
+	
+	CUPTI_FN(cuptiEventDomainEnumEvents(domain_buffer[i],
+					    &event_buffer_size,
+					    &event_id_list.buf[event_id_list.len]));
+
+	event_id_list.len += num_events;
+	num_event_names += num_events;
+      }
+
+      event_names = mallocNN(num_event_names * sizeof(char*));
+
+      if (event_names != NULL) {    
+	for (uint32_t i = 0; i < num_event_domains; ++i) {
+	}
+      }   
+    }
+  }
+
+  return event_names;
 }
 
+NVCD_EXPORT uint32_t cupti_get_num_event_names(cupti_event_data_t* e) {
+  return 0;
 }
 
 static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
@@ -766,6 +820,8 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
                   ENV_EVENTS,
                   ENV_ALL_EVENTS);
           
+          e->event_names = cupti_get_event_names(e);
+          e->event_names_buffer_length = cupti_get_num_event_names(e);
 
           scanning = false;
           using_all = true;
@@ -793,6 +849,8 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
             "%s undefined; defaulting to all event counters.\n",
             ENV_EVENTS);
     
+    e->event_names = cupti_get_event_names(e);
+    e->event_names_buffer_length = cupti_get_num_event_names(e);
   }
 }
 

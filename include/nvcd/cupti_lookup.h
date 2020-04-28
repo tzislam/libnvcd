@@ -200,7 +200,9 @@ NVCD_EXPORT void cupti_event_data_calc_metrics(cupti_event_data_t* e);
 
 NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e);
 
+NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e);
 
+NVCD_EXPORT uint32_t cupti_get_num_event_names(cupti_event_data_t* e);
 
 C_LINKAGE_END
 #endif //__CUPTI_LOOKUP_H__
