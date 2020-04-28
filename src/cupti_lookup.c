@@ -69,10 +69,8 @@ NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
       }
 
       if (ok) {
-	event_names = mallocNN(num_event_names * sizeof(char*));
-	if (event_names != NULL) {    
-	  for (uint32_t i = 0; i < num_event_domains; ++i) {
-	  }
+	event_names = mallocNN(num_event_names * sizeof(char*));	
+	for (uint32_t i = 0; i < num_event_domains; ++i) {
 	}
       }
     }
