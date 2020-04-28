@@ -1,19 +1,26 @@
 CC=nvcc
 
 CUDA_HOME ?= /usr/local/cuda-9.2
-CUDA_ARCH_SM ?= sm_37
+CUDA_ARCH_SM ?= sm_50
 
 CUPTI := $(CUDA_HOME)/extras/CUPTI
+
+CC_FLAGS :=
+CU_FLAGS :=
+
+ifeq ($(DEBUG),1)
+	CC_FLAGS := --compiler-options "-Wall -lpthread -Werror -std=gnu99 -g -ggdb"
+	CU_FLAGS :=-std=c++11 --compiler-options "-Wall -lpthread -Werror -g -ggdb"
+else
+	CC_FLAGS := --compiler-options "-Wall -lpthread -Werror -std=gnu99"
+	CU_FLAGS :=-std=c++11 --compiler-options "-Wall -lpthread -Werror"
+endif
 
 ##
 # Library
 ##
 
 INCLUDE=-I./include -I$(CUPTI)/include
-
-CC_FLAGS=--compiler-options "-Wall -lpthread -Werror -g -ggdb -std=gnu99"
-
-CU_FLAGS=-std=c++11 --compiler-options "-Wall -lpthread -Werror -g -ggdb"
 
 LD_FLAGS=--compiler-options "-shared"
 
