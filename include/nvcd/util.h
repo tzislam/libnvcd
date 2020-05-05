@@ -86,11 +86,12 @@ typedef enum darray_error
     darray_error_t err;				\
   } darray_##type##_t;				\
   static inline bool32_t darray_##type##_ok(darray_##type##_t* arr) {\
-    return							 \
-      (arr->err == DARRAY_ERROR_NONE) &&			 \
-      (arr->buf != NULL) &&					 \
-      (arr->sz > 0) &&						 \
-      (arr->len <= arr->sz);					 \
+    ASSERT(arr != NULL);					     \
+    return							     \
+      (arr->err == DARRAY_ERROR_NONE) &&			     \
+      (arr->buf != NULL) &&					     \
+      (arr->sz > 0) &&						     \
+      (arr->len <= arr->sz);						\
   }									\
   static inline bool32_t darray_##type##_clean(darray_##type##_t* arr) { \
     return							     \
