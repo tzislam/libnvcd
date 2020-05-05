@@ -157,6 +157,39 @@ typedef enum darray_error
       arr->len = 0;							\
     }									\
   }									\
+  static inline type darray_##type##_at(darray_##type##_t* arr, size_t i) { \
+    ASSERT(i < arr->len);						\
+    type r;								\
+    if (darray_##type##_ok(arr) && i < arr->len) {			\
+      r = arr->buf[i];							\
+    }									\
+    return r;								\
+  }									\
+  static inline size_t darray_##type##_size(darray_##type##_t* arr) {	\
+    size_t i = UINT64_MAX;						\
+    if (darray_##type##_ok(arr)) {					\
+      i = arr->len;							\
+    }									\
+    return i;								\
+  }									\
+  static inline size_t darray_##type##_capacity(darray_##type##_t* arr) { \
+    size_t i = UINT64_MAX;						\
+    if (darray_##type##_ok(arr)) {					\
+      i = arr->sz;							\
+    }									\
+    return i;								\
+  }									\
+  static inline type* darray_##type##_data(darray_##type##_t* arr) {	\
+    type* i = NULL;							\
+    if (darray_##type##_ok(arr)) {					\
+      i = arr->buf;							\
+    }									\
+    return i;								\
+  }									
+  
+  
+
+
 
 
 C_LINKAGE_END
