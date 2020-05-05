@@ -8,7 +8,7 @@
 #define MAX_EVENT_GROUPS_PER_EVENT_DATA 250
 
 typedef CUpti_EventID cupti_event_id;
-darray(cupti_event_id, 128, 128);
+DARRAY(cupti_event_id, 128, 128);
 
 NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
   ASSERT(e != NULL);

@@ -78,7 +78,53 @@ typedef enum darray_error
 
 #define DARRAY_INIT {NULL, 0, 0, DARRAY_ERROR_NONE}
 
-#define darray(type, init_sz, max_growth)	\
+//
+// @DARRAY():
+//
+// This macro defines a generic, type safe interface
+// over a buffer that grows dynamically at the user's request,
+// or when capacity has been exceeded when inserting an element
+// to an instance of the buffer through this API.
+//
+// The implementation is trivial, with the one exception being that
+// there is a small set of error constants that's provided alongside this
+// API.
+//
+// At the time of this writing, there are only 3 error values (including
+// the success value), and the simplest way to determine if an error has
+// occurred is by calling darray_##type##_ok() on the given instance.
+//
+// Currently, there is no need for anything sophisticated as far as this
+// data structure is concerned.
+//
+// Some other parameters (apart from the type itself) for the macro are provided.
+// These are here to make runtime checks easier and to ensure
+// nothing out of the ordinary is happening. The goal is predictablity and making
+// bugs easier to find. The less one has to use GDB, the better.
+//
+// @darray_##type##_ok():
+//
+// The code in this library is simple. Execution paths
+// aren't dynamic or unpredictable enough to warrant a NULL check on the array itself.
+//
+// So, 1) there is really no reason for a segfault to occur,
+// and 2) if a segfault DOES occur, then we can debug it easily enough.
+//
+// Bottom line: if NULL is actually passed to any one of these routines,
+// it's a problem and it needs to be detected.
+//
+// If, for some reason, external
+// third party code is interacting with this directly, or we have some other reason to
+// provide a null check, then we can change direction.
+//
+// @darray_##type##_free():
+//
+// The reader might be wondering why we don't simply ensure that buf != NULL
+// before choosing to free. This is again part of the choice for correctness:
+// it is the author's opinion that it's much better in this case to have memory
+// leaked because it is more likely to be available in the event of a core dump
+//
+#define DARRAY(type, init_sz, max_growth)	\
   typedef struct darray_##type {		\
     type* buf;					\
     size_t sz;					\
