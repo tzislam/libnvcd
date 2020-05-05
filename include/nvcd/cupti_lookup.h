@@ -66,7 +66,6 @@ typedef struct cupti_event_data {
   uint32_t event_counter_buffer_length;
   uint32_t event_id_buffer_length;
   uint32_t kernel_times_nsec_buffer_length;
-
     
   // may not be the amount of events actually used;
   // dependent on target device/compute capability
@@ -200,7 +199,7 @@ NVCD_EXPORT void cupti_event_data_calc_metrics(cupti_event_data_t* e);
 
 NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e);
 
-NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e);
+NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e, size_t* out_len);
 
 NVCD_EXPORT uint32_t cupti_get_num_event_names(cupti_event_data_t* e);
 

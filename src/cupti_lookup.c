@@ -10,11 +10,14 @@
 typedef CUpti_EventID cupti_event_id;
 DARRAY(cupti_event_id, 128, 128);
 
-NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
+static darray_cupti_event_id_t* query_event_list(cupti_event_data_t* e) {
   ASSERT(e != NULL);
-
-  // immediately fail since this isn't finished yet
-  ASSERT(false);
+  
+  
+  // in the event that there is a problem,
+  // NULL is returned.
+  darray_cupti_event_id_t* ret = NULL;
+  
   
   char** event_names = NULL;
   uint32_t num_event_names = 0;
@@ -32,10 +35,13 @@ NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
   if (domain_buffer != NULL) {
     CUPTI_FN(cuptiDeviceEnumEventDomains(e->cuda_device, &domain_buffer_size, &domain_buffer[0]));
 
-    darray_cupti_event_id_t event_id_list = DARRAY_INIT;
-    darray_cupti_event_id_alloc(&event_id_list);
+    // if everything is OK at the end of this routine,
+    // we set 'ret' to this pointer.
     
-    if (darray_cupti_event_id_ok(&event_id_list)) {
+    darray_cupti_event_id_t* event_id_list = zallocNN(sizeof(*event_id_list));
+    darray_cupti_event_id_alloc(event_id_list);
+    
+    if (darray_cupti_event_id_ok(event_id_list)) {
       bool32_t ok = true;
       uint32_t i = 0;
       while (ok && i < num_event_domains) {
@@ -48,20 +54,27 @@ NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
 
 	event_buffer_size = sizeof(event_buffer[0]) * (size_t)num_events;
 
-	if ((event_id_list.len + num_events) >= event_id_list.sz) {
-	  darray_cupti_event_id_grow(&event_id_list, num_events << 4);
+	// there isn't a simple means of preallocating everything up front,
+	// so we check every iteration if we need to grow to add more
+	// events to the list
+	if ((darray_cupti_event_id_size(event_id_list) + num_events) >=
+	    darray_cupti_event_id_capacity(event_id_list)) {
+	  
+	  darray_cupti_event_id_grow(event_id_list, num_events << 4);
 	}
 
-	ok = darray_cupti_event_id_ok(&event_id_list);
+	ok = darray_cupti_event_id_ok(event_id_list);
 
 	// a call to grow may have failed, so we just
 	// check every iteration
 	if (ok) {       	
 	  CUPTI_FN(cuptiEventDomainEnumEvents(domain_buffer[i],
 					      &event_buffer_size,
-					      &event_id_list.buf[event_id_list.len]));
+					      darray_cupti_event_id_data(event_id_list) +
+					      darray_cupti_event_id_size(event_id_list)
+					      ));
 
-	  event_id_list.len += num_events;
+	  event_id_list->len += num_events;
 	  num_event_names += num_events;
 
 	  i++;
@@ -69,18 +82,46 @@ NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e) {
       }
 
       if (ok) {
-	event_names = mallocNN(num_event_names * sizeof(char*));	
-	for (uint32_t i = 0; i < num_event_domains; ++i) {
-	}
+	ret = event_id_list;
       }
-    }
+    } // darray_cupti_event_id_ok
   }
+
+  return ret;
+}
+
+NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e, size_t* out_len) {  
+  char** event_names = NULL;
+  
+  darray_cupti_event_id_t* event_id_list = query_event_list(e);
+  
+  if (darray_cupti_event_id_ok(event_id_list)) {    
+    event_names = mallocNN(darray_cupti_event_id_size(event_id_list) * sizeof(char*));	
+    for (uint32_t i = 0; i < darray_cupti_event_id_size(event_id_list); ++i) {
+      event_names[i] = cupti_event_get_name(darray_cupti_event_id_data(event_id_list)[i]);
+    }
+
+    IF_NN_THEN(out_len,
+	       *out_len = darray_cupti_event_id_size(event_id_list));	       
+  }
+
+  darray_cupti_event_id_free(event_id_list);
 
   return event_names;
 }
 
 NVCD_EXPORT uint32_t cupti_get_num_event_names(cupti_event_data_t* e) {
-  return 0;
+  uint32_t ret = UINT32_MAX;
+
+  darray_cupti_event_id_t* event_id_list = query_event_list(e);
+  
+  if (darray_cupti_event_id_ok(event_id_list)) {
+    ret = (uint32_t) darray_cupti_event_id_size(event_id_list);
+  }
+
+  darray_cupti_event_id_free(event_id_list);
+  
+  return ret;
 }
 
 static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
@@ -828,9 +869,10 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
                   "(%s) Found %s in list. All event counters will be used.\n",
                   ENV_EVENTS,
                   ENV_ALL_EVENTS);
-          
-          e->event_names = cupti_get_event_names(e);
-          e->event_names_buffer_length = cupti_get_num_event_names(e);
+
+	  size_t num_event_names = 0;
+          e->event_names = cupti_get_event_names(e, &num_event_names);
+	  e->event_names_buffer_length = num_event_names;
 
           scanning = false;
           using_all = true;
@@ -858,8 +900,9 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
             "%s undefined; defaulting to all event counters.\n",
             ENV_EVENTS);
     
-    e->event_names = cupti_get_event_names(e);
-    e->event_names_buffer_length = cupti_get_num_event_names(e);
+    size_t num_event_names = 0;
+    e->event_names = cupti_get_event_names(e, &num_event_names);
+    e->event_names_buffer_length = num_event_names;
   }
 }
 

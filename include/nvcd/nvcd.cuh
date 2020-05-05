@@ -416,18 +416,26 @@ struct nvcd_device_info {
   
   nvcd_device_info() {
     ASSERT(g_nvcd.initialized == true);
-
+    
     // no need to free this list
-    char** event_names = cupti_get_event_names();
-    
-    auto num_event_names = cupti_get_num_event_names();
-    
     for (auto i = 0; i < g_nvcd.num_devices; ++i) {
       std::string device(g_nvcd.device_names[i]);
       CUdevice device_handle = g_nvcd.devices[i];
+
+      // TODO: this initializes a global event struct that will not be reinitialized
+      // when this function is called again. So, only one iteration of this loop is actually useful
+      // at this time. We need to map the device/context pair
+      // to its own cupti_event_data_t instance, and nvcd_get_events should take the
+      // device/context pair as a parameter to return the corresponding pointer.
+      nvcd_init_events(g_nvcd.devices[i], g_nvcd.contexts[i]);
       
       device_names.push_back(device);
 
+      cupti_event_data_t* global = nvcd_get_events();
+
+      size_t num_event_names = 0;
+      char** event_names = cupti_get_event_names(global, &num_event_names);      
+      
       // device events
       {
         events[device] = name_list_type();
@@ -487,6 +495,8 @@ struct nvcd_device_info {
 
         free(metric_ids);
       }
+
+      free_strlist(event_names, num_event_names);
     }
   }
 };
