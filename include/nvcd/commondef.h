@@ -34,6 +34,8 @@
 
 #define NOT_NULL(p_expr) assert_not_null_impl((p_expr), #p_expr, __FILE__, __LINE__) 
 
+#define LOGF(msg, ...) write_logf_impl(__FUNC__, __FILE__, __LINE__, msg, __VA_ARGS__) 
+  
 #define ARRAY_LENGTH(x) (sizeof((x)) / sizeof((x)[0]))
 
 #define ZERO_MEM(pbuf, length) memset((pbuf), 0, sizeof((pbuf)[0]) * length) 
@@ -55,6 +57,13 @@
     }                                                 \
   } while (0)
 
+
+//
+// We macro this out, because:
+// 1) we can add tags quickly if we want to in order to spot bugs
+// 2) we can add multiple variations to alter the behvaior (e.g., disable checks for performance)
+//
+#define IF_NN_THEN(p, expr) do { if ((p) != NULL) { expr ; } else { ASSERT(0); } } while (0)
 
 #define safe_free_v(p) safe_free((void**) &(p))
 

@@ -188,6 +188,24 @@ NVCD_EXPORT void assert_impl(bool cond, const char* expr, const char* file, int 
   }
 }
 
+NVCD_EXPORT void write_logf_impl(const char* func,
+				 const char* file,
+				 int line,
+				 const char* message,
+				 ...) {  
+  size_t len = strlen(message) + 256;
+  char* buffer = zallocNN(len * sizeof(char));  
+  
+  va_list ap;
+  va_start(ap, message);
+  vsprintf(buffer, message, ap);
+  va_end(ap);
+
+  fprintf(stdout, "[%s:%s:%i]: %s\n", func, file, line, buffer);
+
+  free(buffer);
+}
+
 #if 0
 // if we decide to continue down this path,
 // be sure to declare cudaLaunch and and cudaSetupArgument

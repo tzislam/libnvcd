@@ -63,6 +63,12 @@ NVCD_EXPORT void assert_impl(bool cond,
 
 NVCD_EXPORT void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
 
+NVCD_EXPORT void write_logf_impl(const char* func,
+				 const char* file,
+				 int line,
+				 const char* message,
+				 ...);
+
 typedef enum darray_error
   {
    DARRAY_ERROR_NONE = 0,
