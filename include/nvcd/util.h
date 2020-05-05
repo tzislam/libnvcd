@@ -127,13 +127,24 @@ typedef enum darray_error
       }									\
     }									\
   }									\
-  static inline void darray_##type##_append(darray_##type##_t* arr, type* elem) {\
+  static inline void darray_##type##_appendp(darray_##type##_t* arr, type* elem) {\
     if (darray_##type##_ok(arr)) {					\
       if (arr->len == arr->sz) {					\
 	darray_##type##_grow(arr, arr->sz);				\
       }									\
       if (darray_##type##_ok(arr)) {					\
 	memcpy(&arr->buf[arr->len], elem, sizeof(type));		\
+	arr->len++;							\
+      }									\
+    }									\
+  }									\
+    static inline void darray_##type##_append(darray_##type##_t* arr, type elem) {\
+    if (darray_##type##_ok(arr)) {					\
+      if (arr->len == arr->sz) {					\
+	darray_##type##_grow(arr, arr->sz);				\
+      }									\
+      if (darray_##type##_ok(arr)) {					\
+	memcpy(&arr->buf[arr->len], &elem, sizeof(type));		\
 	arr->len++;							\
       }									\
     }									\
