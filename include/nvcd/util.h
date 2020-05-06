@@ -141,7 +141,7 @@ typedef enum darray_error
     ASSERT(r != 0);							\
     return r;								\
   }									\
-  static inline bool32_t darray_##type##_clean(darray_##type##_t* arr) { \
+  static inline bool32_t darray_##type##_needs_alloc(darray_##type##_t* arr) { \
     return							     \
       (arr->err == DARRAY_ERROR_NONE) &&			     \
       (arr->buf == NULL) &&					     \
@@ -149,7 +149,7 @@ typedef enum darray_error
       (arr->len == 0);						     \
   }	                                                             \
   static inline void darray_##type##_alloc(darray_##type##_t* arr) {	\
-    if (darray_##type##_clean(arr)) {					\
+    if (darray_##type##_needs_alloc(arr)) {					\
       arr->buf = zalloc(sizeof(type) * (init_sz));			\
       if (arr->buf != NULL) {						\
         arr->sz = (init_sz);						\
