@@ -552,6 +552,9 @@ struct nvcd_run_info {
       }
     }
 
+    // Here we have to copy the data over
+    // since it will be NULL'd by the
+    // NVCD module.
     cupti_event_data_t* global = nvcd_get_events();
     
     memcpy(&cupti_events[num_runs],
