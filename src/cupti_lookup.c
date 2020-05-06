@@ -1449,7 +1449,7 @@ NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
 
 
 NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
-  cupti_event_data_t tmp = CUPTI_EVENT_DATA_NULL;
+  cupti_event_data_t tmp = CUPTI_EVENT_DATA_INIT;
   memcpy(e, &tmp, sizeof(tmp));
 }
 

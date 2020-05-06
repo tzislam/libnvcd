@@ -1,7 +1,7 @@
 #include "nvcd/nvcd.h"
 #include "nvcd/cupti_lookup.h"
 
-static cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_NULL;
+static cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_INIT;
 
 void nvcd_init_events(CUdevice device, CUcontext context) {
   g_event_data.cuda_context = context;

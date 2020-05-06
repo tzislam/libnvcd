@@ -91,7 +91,7 @@ typedef struct cupti_metric_data {
 #define PTHREAD_INITIALIZER (unsigned long)0
 #endif
 
-#define CUPTI_EVENT_DATA_NULL {                                         \
+#define CUPTI_EVENT_DATA_INIT {                                         \
   /*.event_id_buffer =*/ NULL,                                          \
     /*.event_counter_buffer =*/ NULL,                                   \
     /*.num_events_per_group =*/ NULL,                                   \
