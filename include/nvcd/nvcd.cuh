@@ -880,7 +880,7 @@ extern "C" {
 //
 // Define this in only one source file,
 // and then include this header right after,
-// and then undef it it
+// and then undefine it
 //
 #ifdef NVCD_HEADER_IMPL
 
