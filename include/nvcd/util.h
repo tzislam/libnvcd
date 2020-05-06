@@ -233,8 +233,14 @@ typedef enum darray_error
       i = arr->buf;							\
     }									\
     return i;								\
-  }									
-  
+  }									\
+  static inline type* darray_##type##_tail(darray_##type##_t* arr) {	\
+    type* i = NULL;							\
+    if (darray_##type##_ok(arr)) {					\
+      i = &arr->buf[arr->len - 1];					\
+    }									\
+    return i;								\
+  }	
   
 
 
