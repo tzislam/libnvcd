@@ -422,13 +422,13 @@ struct nvcd_device_info {
       CUdevice device_handle = g_nvcd.devices[i];
 
       nvcd_init_events(g_nvcd.devices[i], g_nvcd.contexts[i]);
-      
+            
       device_names.push_back(device);
 
       cupti_event_data_t* global = nvcd_get_events();
 
       size_t num_event_names = 0;
-      char** event_names = cupti_get_event_names(global, &num_event_names);      
+      char** event_names = cupti_get_event_names(global, &num_event_names);
       
       // device events
       {
