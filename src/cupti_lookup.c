@@ -872,7 +872,7 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
 
 	  size_t num_event_names = 0;
           e->event_names = cupti_get_event_names(e, &num_event_names);
-	  e->event_names_buffer_length = num_event_names;
+	  e->event_names_buffer_length = (uint32_t)num_event_names;
 
           scanning = false;
           using_all = true;
@@ -902,7 +902,7 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
     
     size_t num_event_names = 0;
     e->event_names = cupti_get_event_names(e, &num_event_names);
-    e->event_names_buffer_length = num_event_names;
+    e->event_names_buffer_length = (uint32_t)num_event_names;
   }
 }
 
