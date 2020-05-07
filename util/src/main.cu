@@ -18,6 +18,8 @@ int main(void) {
   nvcd_device_info::ptr_type info =
     nvcd_host_get_device_info();
 
+  info->multiplex(0, 10);
+
   std::stringstream ss;
 
   auto print_metrics = [&ss](const std::string& title,

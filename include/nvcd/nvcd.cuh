@@ -464,6 +464,79 @@ struct nvcd_device_info {
       }    
     } 
   };  
+
+  struct group_bits {
+    CUpti_EventGroup group_id;
+    std::vector<bool> bits;
+
+    group_bits(size_t n)
+      : group_id(nullptr) {      
+      bits.resize(n, false);
+    }    
+  };
+  
+  struct domain_info {
+    std::vector<CUpti_EventID> events;
+    std::vector<group_bits> event_groups;
+    const CUdevice device;
+    const CUpti_EventDomainID domain;
+    
+    domain_info(CUdevice device, CUpti_EventDomainID domain)
+      : device(device),
+	domain(domain) {}
+
+    domain_info& load_events() {      
+      cupti_data_enum<CUpti_EventDomainID,
+		      CUpti_EventID,		      
+		      true>::fill<&cuptiEventDomainGetNumEvents,
+				  &cuptiEventDomainEnumEvents>(domain,
+							       events);     
+
+      printf("\tNum Events: %" PRIu64 "\n", events.size());      
+      return *this;
+    }
+
+    domain_info& split_groups() {
+      //      group_bits gb{};            
+      return *this;
+    }
+  };
+    
+
+  void multiplex(uint32_t device_index, uint32_t max_num) {
+    std::string device_name(g_nvcd.device_names[device_index]);
+    CUdevice device_handle = g_nvcd.devices[device_index];
+    
+    std::vector<CUpti_EventDomainID> domain_buffer{};
+
+    cupti_data_enum<CUdevice,
+		    CUpti_EventDomainID,
+		    true>::fill<&cuptiDeviceGetNumEventDomains,
+				&cuptiDeviceEnumEventDomains>(device_handle,
+							      domain_buffer);
+
+    puts("=======multiplex=========");
+    for (CUpti_EventDomainID domain: domain_buffer) {
+      printf("domain: %" PRIx32 "\n", domain);
+      domain_info(device_handle, domain).load_events();
+    }
+    
+    #if 0 
+    uint32_t num_event_domains = 0;
+    CUPTI_FN(cuptiDeviceGetNumEventDomains(device_handle,
+					   &num_event_domains));
+
+    domain_buffer.resize(num_event_domains, cupti_unset<CUpti_EventDomainID>::value);
+
+    size_t domain_buf_sz = domain_buffer.size() * sizeof(CUpti_EventDomainID);
+    
+    CUPTI_FN(cuptiDeviceEnumEventDomains(device_handle,
+					 &domain_buf_sz,
+					 domain_buffer.data()));
+    #endif
+    
+    //for (CUpti)
+  } 
   
   nvcd_device_info() {
     ASSERT(g_nvcd.initialized == true);
