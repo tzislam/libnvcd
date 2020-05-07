@@ -49,8 +49,9 @@ int main(void) {
 
 
     ss << SECTION_BLOCK
-    << title
-    << SECTION_BLOCK;
+       << title
+       << "|Count = " << events.size() 
+       << SECTION_BLOCK;
 
     for (size_t j = 0; j < events.size(); ++j) {
       ss << "[" << j << "]: " << events.at(j) << "\n";
@@ -81,7 +82,7 @@ int main(void) {
       print_events("EVENTS - SUPPORTED", supported);
       
       print_events("EVENTS - UNSUPPORTED", unsupported);
-
+      
       ss << SECTION_BLOCK;
     }
 
