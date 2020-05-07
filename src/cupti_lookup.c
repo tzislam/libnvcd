@@ -190,6 +190,7 @@ static bool find_event_group(cupti_event_data_t* e,
     // event groups cannot have
     // events from different domains;
     // in these cases we just find another group.
+    // see https://docs.nvidia.com/cuda/cupti/group__CUPTI__EVENT__API.html#group__CUPTI__EVENT__API_1g649750f363752bccbf9e98582d5f6925
     error_valid =
       !(err == CUPTI_ERROR_MAX_LIMIT_REACHED
         || err == CUPTI_ERROR_NOT_COMPATIBLE);
