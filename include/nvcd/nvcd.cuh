@@ -15,6 +15,8 @@
 #include <memory>
 #include <string>
 #include <unordered_set>
+#include <limits>
+#include <type_traits>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -284,6 +286,16 @@ NVCD_CUDA_EXPORT void __buf_to_vec(std::vector<T>& vec, T* buf, uint32_t length)
   free(buf);
 }
 
+template <class T>
+struct cupti_unset {
+  static_assert(std::is_integral<T>::value,
+		"CUpti handle should be numeric to some degree. Otherwise, an alternative will be necessary");
+
+  static const T value;
+};
+
+template <class T>
+const T cupti_unset<T>::value = std::numeric_limits<T>::max(); 
 struct nvcd_device_info {
   struct entry {
     static constexpr uint32_t id_unset = static_cast<uint32_t>(-1);
@@ -413,6 +425,45 @@ struct nvcd_device_info {
     
     return all_supported;
   }
+
+
+  template <class S,
+	    class T>
+  using cupti_enum_fn_type = CUptiResult (*)(S, size_t*, T*);
+
+  template <class S>
+  using cupti_get_num_fn_type = CUptiResult (*)(S, uint32_t*);
+  
+  template <class S,
+	    class T,
+	    bool assertFull>
+  struct cupti_data_enum {
+    using src_type = S;
+    using dst_buf_type = T;
+    using enum_fn_type = cupti_enum_fn_type<src_type, dst_buf_type>;
+    using get_num_fn_type = cupti_get_num_fn_type<src_type>;
+
+    static const bool assert_full = assertFull;
+    
+    template <get_num_fn_type get_fn,
+	      enum_fn_type enum_fn>
+    static void fill(src_type src,
+		     std::vector<dst_buf_type>& v) {
+      uint32_t cnt = 0;
+      CUPTI_FN(get_fn(src, &cnt));
+
+      v.resize(cnt, cupti_unset<dst_buf_type>::value);
+
+      size_t sz = sizeof(dst_buf_type) * static_cast<size_t>(cnt);
+      size_t sz_o = sz;
+      
+      CUPTI_FN(enum_fn(src, &sz, v.data()));
+
+      if (assert_full) {
+	ASSERT(sz == sz_o);
+      }    
+    } 
+  };  
   
   nvcd_device_info() {
     ASSERT(g_nvcd.initialized == true);
