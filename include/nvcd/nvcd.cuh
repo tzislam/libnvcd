@@ -472,6 +472,12 @@ struct nvcd_device_info {
       std::string device(g_nvcd.device_names[i]);
       CUdevice device_handle = g_nvcd.devices[i];
 
+      // TODO:
+      // this really should be created outside of the standard global framework,
+      // using a "one-shot" kind of allocation that can be freely allocated
+      // using strictly cupti_event_data functions.
+      // This way we don't need to call nvcd_get_events()
+      // and worry about how the underlying state is affected.
       nvcd_init_events(g_nvcd.devices[i], g_nvcd.contexts[i]);
             
       device_names.push_back(device);
@@ -542,6 +548,12 @@ struct nvcd_device_info {
       }
 
       free_strlist(event_names, num_event_names);
+
+      // will be set to NULL, so the next call to nvcd_init_events() will be OK.
+      // note that every time nvcd_init_events() is called, the cupti_event_data_t*
+      // instance that's allocated needs to be "nulled" out before nvcd_init_events() is called again.
+      // we do this with cupti_event_data_set_null()
+      cupti_event_data_free(global);
     }
   }
 };
