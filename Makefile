@@ -9,8 +9,8 @@ CC_FLAGS :=
 CU_FLAGS :=
 
 ifeq ($(DEBUG),1)
-	CC_FLAGS := --compiler-options "-Wall -lpthread -Werror -std=gnu99 -g -ggdb"
-	CU_FLAGS :=-std=c++11 --compiler-options "-Wall -lpthread -Werror -g -ggdb"
+	CC_FLAGS := --compiler-options "-Wall -lpthread -Werror -std=gnu99 -g -ggdb -O0"
+	CU_FLAGS :=-std=c++11 --compiler-options "-Wall -lpthread -Werror -g -ggdb -O0" 
 else
 	CC_FLAGS := --compiler-options "-Wall -lpthread -Werror -std=gnu99"
 	CU_FLAGS :=-std=c++11 --compiler-options "-Wall -lpthread -Werror"
