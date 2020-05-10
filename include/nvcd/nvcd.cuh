@@ -568,7 +568,7 @@ struct nvcd_device_info {
     }
 
     // returns false when all bytes are 0
-    operator bool() {
+    operator bool() const { 
       bool k = true;
       size_t i = 0;
       while (k && i < bytes.size()) {
