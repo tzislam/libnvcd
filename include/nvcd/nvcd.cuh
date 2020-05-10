@@ -17,6 +17,8 @@
 #include <unordered_set>
 #include <limits>
 #include <type_traits>
+#include <sstream>
+#include <iomanip>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -70,6 +72,7 @@
 #define NVCD_CUDA_EXPORT static inline HOST
 #define NVCD_GLOBAL_EXPORT static GLOBAL
 
+#define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
 #define DEV_PRINT_PTR(v) printf("&(%s) = %p, %s = %p\n", #v, &v, #v, v)
 
 #ifndef NVCD_OMIT_STANDALONE_EVENT_COUNTER

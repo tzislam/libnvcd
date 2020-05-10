@@ -5,12 +5,9 @@
 #include <vector>
 #include <string>
 #include <sstream>
-#include <iomanip>
 
 #define DEVICE_BLOCK "\n===================================\n"
 #define SECTION_BLOCK "\n----------------------------------\n"
-
-#define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
 
 int main(void) {
   nvcd_init();
