@@ -84,25 +84,25 @@
     while (!nvcd_host_finished()) {                                     \
       kname<<<kparam_1, kparam_2>>>(__VA_ARGS__);                       \
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         \
-      g_run_info->run_kernel_count_inc();                                      \
+      g_run_info->run_kernel_count_inc();				\
     }                                                                   \
     cupti_event_data_end(nvcd_get_events());                            \
     NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(nvcd_get_events(),               \
-                             kname,                                     \
-                             kparam_1,                                  \
-                             kparam_2,                                  \
-                             __VA_ARGS__);                              \
+				       kname,				\
+				       kparam_1,			\
+				       kparam_2,			\
+				       __VA_ARGS__);			\
   } while (0)
 
-#else
+  #else
 
 #define NVCD_KERNEL_EXEC_KPARAMS_2(kname, kparam_1, kparam_2, ...)      \
   do {                                                                  \
     NVCD_KERNEL_EXEC_METRICS_KPARAMS_2(nvcd_get_events(),               \
-                             kname,                                     \
-                             kparam_1,                                  \
-                             kparam_2,                                  \
-                             __VA_ARGS__);                              \
+				       kname,				\
+				       kparam_1,			\
+				       kparam_2,			\
+				       __VA_ARGS__);			\
   } while (0)
 
 #endif // NVCD_OMIT_STANDALONE_EVENT_COUNTER
@@ -121,23 +121,23 @@
       while (!cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) { \
         kname<<<kparam_1, kparam_2>>>(__VA_ARGS__);                     \
         CUDA_RUNTIME_FN(cudaDeviceSynchronize());                       \
-        g_run_info->run_kernel_count_inc();                                    \
+        g_run_info->run_kernel_count_inc();				\
       }                                                                 \
                                                                         \
       cupti_event_data_end(&__e->metric_data->event_data[i]);           \
     }                                                                   \
   } while (0)                                                           
 
-typedef struct nvcd {
-  CUdevice* devices;
-  CUcontext* contexts;
+  typedef struct nvcd {
+    CUdevice* devices;
+    CUcontext* contexts;
 
-  char** device_names;
+    char** device_names;
   
-  int num_devices;
+    int num_devices;
   
-  bool32_t initialized;
-} nvcd_t;
+    bool32_t initialized;
+  } nvcd_t;
 
 namespace detail {
   DEV clock64_t* dev_tstart = nullptr;
@@ -253,8 +253,8 @@ struct kernel_invoke_data {
       }
       
       std::sort(sorted.begin(), sorted.end(), [](const block& a, const block& b) -> bool {
-          return a.time < b.time;
-        });
+						return a.time < b.time;
+					      });
 
       size_t qlen = num_threads >> 2;
 
@@ -329,7 +329,7 @@ static inline bool cmp_events(const event_list_type& a, const event_list_type& b
   }
   return bfound;
 }
-  
+
 static inline bool operator == (const event_group& a, const event_group& b) {
   return
     (a.events.size() == b.events.size())
@@ -374,7 +374,7 @@ struct nvcd_device_info {
     metric_entry(const std::string& name, bool supported, event_name_id_map_type events_)
       : entry(name, supported),
         events(std::move(events_))
-      {}
+    {}
   };
   
   using name_list_type = std::vector<entry>;
@@ -618,7 +618,7 @@ struct nvcd_device_info {
     const size_t max_events_per_group;
     const CUdevice device;
     const CUcontext context;
-    const CUpti_EventDomainID domain;
+    const CUpti_EventDomainID domain;    
 
     void load_events() {      
       cupti_data_enum<CUpti_EventDomainID,
@@ -1262,10 +1262,10 @@ extern "C" {
   // so these are commented out.
   //
   nvcd_t g_nvcd = {
-    /*.devices =*/ NULL,
-    /*.contexts =*/ NULL,
-    /*.num_devices =*/ 0,
-    /*.initialized =*/ false
+		   /*.devices =*/ NULL,
+		   /*.contexts =*/ NULL,
+		   /*.num_devices =*/ 0,
+		   /*.initialized =*/ false
   };
 
   size_t dev_tbuf_size = 0;

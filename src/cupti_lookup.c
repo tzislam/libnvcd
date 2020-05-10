@@ -148,12 +148,12 @@ static void fill_event_groups(cupti_event_data_t* e,
 
     // enabling this (on the GTX 980M, at least, will cause a SIGBUS error for event groups
     // that are tied to events which are used by metrics)
-    #if 0
+#if 0
     uint32_t profile_all = 1;
     CUPTI_FN(cuptiEventGroupSetAttribute(e->event_groups[i],
                                          CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES,
                                          sizeof(profile_all), &profile_all));
-    #endif
+#endif
   }
 }
 
@@ -255,12 +255,12 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
   while (i < *num_metrics && j < desired) {
     CUpti_MetricID id;
     CUptiResult err = cuptiMetricGetIdFromName(device,
-                                              metric_names[j],
-                                              &id);
+					       metric_names[j],
+					       &id);
 
     if (err != CUPTI_SUCCESS) {
       fprintf(stderr, "fetch_metric_ids_from_names: Could not find metric name \'%s\'\n",
-             metric_names[j]);
+	      metric_names[j]);
       
       *num_metrics = *num_metrics - 1;
     } else {
@@ -346,7 +346,7 @@ static void init_cupti_metric_data(cupti_event_data_t* e) {
     zallocNN(sizeof(metric_buffer->metric_get_value_results[0]) *
              metric_buffer->num_metrics);
                                                      
-  #define _index_ "[%" PRIu32 "] "
+#define _index_ "[%" PRIu32 "] "
   
   for (uint32_t i = 0; i < metric_buffer->num_metrics; ++i) {
     char* name = cupti_metric_get_name(metric_buffer->metric_ids[i]);
@@ -419,13 +419,13 @@ static void normalize_counters(cupti_event_data_t* e, uint64_t* normalized) {
     // since it appears to cause problems with specific configurations
     // (at least, for the metrics - event counters that are recorded without
     // interfacing with teh metrics appear to be fine)
-    #if 0    
+#if 0    
     size_t total_instance_count_sz = sizeof(total_instance_count);
     CUPTI_FN(cuptiEventDomainGetAttribute(domain_id,
                                           CUPTI_EVENT_DOMAIN_ATTR_TOTAL_INSTANCE_COUNT,
                                           &total_instance_count_sz,
                                           (void*) &total_instance_count));
-    #endif
+#endif
     
     uint32_t cb_offset = e->event_counter_buffer_offsets[j];
     uint32_t ib_offset = e->event_id_buffer_offsets[j];
@@ -542,7 +542,7 @@ static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index)
     //
     //
     CUPTI_FN(cuptiGetResultString(metric_data->metric_get_value_results[index],
-                                 &result_string));
+				  &result_string));
     
     printf("[NOT computed - Error code received: %" PRIu32 " = %s]",
            metric_data->metric_get_value_results[index],
@@ -669,8 +669,8 @@ static void group_info_validate(cupti_event_data_t* e,
 }
 
 static void group_info_make(cupti_event_data_t* e,
-                        group_info_t* info,
-                        uint32_t group) {
+			    group_info_t* info,
+			    uint32_t group) {
 
   CUpti_EventGroup g = e->event_groups[group];
   
@@ -1464,9 +1464,8 @@ NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
 // the freeing of the metric_data memory as well.
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
-  
 
-  #ifdef NVCD_DEBUG_CUPTI_LOOKUP
+#ifdef NVCD_DEBUG_CUPTI_LOOKUP
   {
     char* estr = cupti_event_data_to_string(e);
     
@@ -1474,7 +1473,7 @@ NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
     printf("FREEING %s\n", estr);
     free(estr);
   }
-  #endif
+#endif
 
   for (size_t i = 0; i < e->num_event_groups; ++i) { 
     if (e->event_groups[i] != NULL) {
