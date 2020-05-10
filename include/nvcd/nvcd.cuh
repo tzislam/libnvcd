@@ -299,6 +299,43 @@ struct cupti_unset {
 
 template <class T>
 const T cupti_unset<T>::value = std::numeric_limits<T>::max(); 
+
+using event_list_type = std::vector<CUpti_EventID>;
+
+struct event_group {
+  event_list_type events;
+  CUpti_EventGroup group;
+};
+
+using event_group_list_type = std::vector<event_group>;
+
+//
+// these two routines are used for testing and nothing more.
+//
+static inline bool cmp_events(const event_list_type& a, const event_list_type& b) {
+  ASSERT(a.size() == b.size());
+  bool bfound = true;
+  size_t i = 0; 
+  while (bfound && i < a.size()) {
+    bool found = false;
+    size_t j = 0;
+    while (!found && j < b.size()) {
+      found = a.at(i) == b.at(j);
+      j++;
+    }
+    bfound = found;
+    i++;
+  }
+  return bfound;
+}
+  
+static inline bool operator == (const event_group& a, const event_group& b) {
+  return
+    (a.events.size() == b.events.size())
+    ? cmp_events(a.events, b.events)
+    : false;
+}
+
 struct nvcd_device_info {
   struct entry {
     static constexpr uint32_t id_unset = static_cast<uint32_t>(-1);
