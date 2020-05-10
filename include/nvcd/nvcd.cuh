@@ -567,6 +567,18 @@ struct nvcd_device_info {
       }
     }
 
+    size_t bits_set() const {
+      size_t n = 0;
+      size_t b = 0;
+      while (b < nbits) {
+	if (value(b) != 0) {
+	  n++;
+	}
+	b++;
+      }
+      return n;
+    }
+
     // returns false when all bytes are 0
     operator bool() const { 
       bool k = true;
@@ -603,6 +615,7 @@ struct nvcd_device_info {
   class domain_group_gen {
     event_list_type events;
     event_group_list_type groupings;
+    const size_t max_events_per_group;
     const CUdevice device;
     const CUcontext context;
     const CUpti_EventDomainID domain;
@@ -671,14 +684,17 @@ struct nvcd_device_info {
       b.next();
       
       while (static_cast<bool>(b)) {
-	try_events(find_events(b));	
+	if (b.bits_set() <= max_events_per_group) {
+	  try_events(find_events(b));
+	}
 	b.next();
       }     
     }
     
   public:
-    domain_group_gen(CUdevice device, CUcontext context, CUpti_EventDomainID domain)
-      : device(device),
+    domain_group_gen(CUdevice device, CUcontext context, CUpti_EventDomainID domain, size_t max_events)
+      : max_events_per_group(max_events),
+	device(device),
 	context(context),
 	domain(domain) {
 
@@ -724,7 +740,8 @@ struct nvcd_device_info {
 
       domain_group_gen generator(g_nvcd.devices[nvcd_index],
 				 g_nvcd.contexts[nvcd_index],
-				 domain);
+				 domain,
+				 static_cast<size_t>(max_num));
 
       auto groupings = generator();
       
