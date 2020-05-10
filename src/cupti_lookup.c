@@ -1465,6 +1465,8 @@ NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   
+
+  #ifdef NVCD_DEBUG_CUPTI_LOOKUP
   {
     char* estr = cupti_event_data_to_string(e);
     
@@ -1472,6 +1474,7 @@ NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
     printf("FREEING %s\n", estr);
     free(estr);
   }
+  #endif
 
   for (size_t i = 0; i < e->num_event_groups; ++i) { 
     if (e->event_groups[i] != NULL) {
