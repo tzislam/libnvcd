@@ -685,6 +685,9 @@ struct nvcd_device_info {
       load_events();
       find_groups();
 
+      // unit test to make sure we don't have any duplicates;
+      // the operator == overload (defined above the nvcd_device_info class declaration)
+      // is used here.
       size_t i = 0;
       while (i < groupings.size()) {
 	size_t j = 0;
