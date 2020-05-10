@@ -73,6 +73,7 @@
 #define NVCD_GLOBAL_EXPORT static GLOBAL
 
 #define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
+
 #define DEV_PRINT_PTR(v) printf("&(%s) = %p, %s = %p\n", #v, &v, #v, v)
 
 #ifndef NVCD_OMIT_STANDALONE_EVENT_COUNTER
@@ -503,79 +504,249 @@ struct nvcd_device_info {
 	ASSERT(sz == sz_o);
       }    
     } 
-  };  
+  };
 
-  struct group_bits {
-    CUpti_EventGroup group_id;
-    std::vector<bool> bits;
+  //
+  // Some event sizes for a given domain are as large as 36 or more.
+  // This means that 2^36 - 1 possibilities need to be assessed.
+  // The problem with this is that, on most hardware, the computation
+  // will take several hours at least (likely more, to be honest)
+  //
+  // So, if you're looking to assess propoerties about the multiplex code
+  // without having to wait for a potentially really long time for the
+  // routine to finish, set this to true.
+  //
+  static constexpr bool MULTIPLEX_LIMIT_BITSIZE = false;
 
-    group_bits(size_t n)
-      : group_id(nullptr) {      
-      bits.resize(n, false);
-    }    
+  class bitset {    
+    std::vector<uint8_t> bytes;
+    size_t nbits;
+    
+  public:
+    bitset(size_t n)
+      : nbits(MULTIPLEX_LIMIT_BITSIZE
+	      ? std::min(n, static_cast<size_t>(10ul))
+	      : n) {
+      size_t m = nbits >> 3;
+      if ((nbits & 0x7) != 0) {
+	m++;
+      }
+      printf("m = %" PRIu64 "\n", m);
+      bytes.resize(m, 0);
+    }
+
+    size_t num_bits() const { return nbits; }
+
+    uint8_t value(size_t bit) const {
+      size_t r = static_cast<size_t>(bytes.at(bit >> 3)) & (1ull << (bit & 0x7ull));
+      return static_cast<uint8_t>(r);
+    }
+    
+    uint8_t mask() const {
+      uint8_t rem = static_cast<uint8_t>(nbits) & 0x7;
+
+      return 0xFF >> (8 - rem);
+    }
+    
+    void next() {
+      ASSERT(!bytes.empty());
+      ASSERT(nbits > 0);
+
+      size_t biter = 0;
+      
+      while ((((bytes[biter] + 1) & 0xFF) == 0) &&
+	     (biter < (bytes.size() - 1))) {
+	bytes[biter] = 0;
+	biter++;	
+      }
+
+      bytes[biter] = bytes[biter] + 1;
+      
+      if (biter == bytes.size() - 1) {
+	bytes[biter] &= mask();
+      }
+    }
+
+    // returns false when all bytes are 0
+    operator bool() {
+      bool k = true;
+      size_t i = 0;
+      while (k && i < bytes.size()) {
+	k = bytes[i] == 0;
+	i++;
+      }
+      return !k;
+    }
+
+    std::string to_string() const {
+      std::stringstream ss;
+
+      ss << "0b";
+
+      size_t m = bytes.size() << 3;
+      ssize_t i = static_cast<ssize_t>(m - 1);
+      size_t j = 0;
+      while (i >= 0) {
+	if (
+	    ((m - j) & 0x7) == 0
+	    ) {
+	  ss << " ";
+	}
+	ss << ((value(i) != 0) ? "1" : "0");
+	i--;
+	j++;
+      }
+      return ss.str();
+    }   
   };
   
-  struct domain_info {
-    std::vector<CUpti_EventID> events;
-    std::vector<group_bits> event_groups;
+  class domain_group_gen {
+    event_list_type events;
+    event_group_list_type groupings;
     const CUdevice device;
+    const CUcontext context;
     const CUpti_EventDomainID domain;
-    
-    domain_info(CUdevice device, CUpti_EventDomainID domain)
-      : device(device),
-	domain(domain) {}
 
-    domain_info& load_events() {      
+    void load_events() {      
       cupti_data_enum<CUpti_EventDomainID,
 		      CUpti_EventID,		      
 		      true>::fill<&cuptiEventDomainGetNumEvents,
 				  &cuptiEventDomainEnumEvents>(domain,
 							       events);     
-
+      
       printf("\tNum Events: %" PRIu64 "\n", events.size());      
-      return *this;
+    }
+    
+    event_list_type find_events(const bitset& b) {
+      ASSERT(
+	     (b.num_bits() == events.size())
+	     ||
+	     (MULTIPLEX_LIMIT_BITSIZE && b.num_bits() <= events.size())
+	     );
+      event_list_type ret;           
+      size_t i = 0;
+      while (i < b.num_bits()) {
+	if (b.value(i) != 0) {
+	  ret.push_back(events.at(i));
+	}
+	i++;
+      }
+      return ret;
     }
 
-    domain_info& split_groups() {
-      //      group_bits gb{};            
-      return *this;
+    void try_events(event_list_type e) {      
+      ASSERT(!e.empty());
+      
+      CUpti_EventGroup group = nullptr;
+      CUPTI_FN(cuptiEventGroupCreate(context, &group, 0));
+      CUptiResult result = CUPTI_SUCCESS;
+      size_t i = 0;
+      while (i < e.size() && result == CUPTI_SUCCESS) {
+	result = cuptiEventGroupAddEvent(group, e.at(i));
+	if (result == CUPTI_SUCCESS) {
+	  i++;
+	}
+      }
+      ASSERT((
+	      (i == e.size())
+	      &&
+	      (result == CUPTI_SUCCESS)
+	      )
+	     ||
+	     (
+	      (i < e.size())
+	      &&
+	      (result != CUPTI_SUCCESS)
+	      ));
+      
+      if (result == CUPTI_SUCCESS) {
+	groupings.push_back({ e, group });	    
+      } else {
+	CUPTI_FN(cuptiEventGroupDestroy(group));
+      }
+    }
+
+    void find_groups() {
+      bitset b(events.size());
+      b.next();
+      
+      while (static_cast<bool>(b)) {
+	try_events(find_events(b));	
+	b.next();
+      }     
+    }
+    
+  public:
+    domain_group_gen(CUdevice device, CUcontext context, CUpti_EventDomainID domain)
+      : device(device),
+	context(context),
+	domain(domain) {
+
+      load_events();
+      find_groups();
+
+      size_t i = 0;
+      while (i < groupings.size()) {
+	size_t j = 0;
+	while (j < groupings.size()) {
+	  if (groupings.at(i).group != groupings.at(j).group) {
+	    bool issame = groupings.at(i) == groupings.at(j);
+	    ASSERT(!issame);
+	  }
+	  j++;
+	}
+	i++;
+      }
+    }
+
+    event_group_list_type operator()() {
+      return groupings;
     }
   };
-    
-
-  void multiplex(uint32_t device_index, uint32_t max_num) {
-    std::string device_name(g_nvcd.device_names[device_index]);
-    CUdevice device_handle = g_nvcd.devices[device_index];
-    
+  
+  void multiplex(uint32_t nvcd_index, uint32_t max_num) {        
     std::vector<CUpti_EventDomainID> domain_buffer{};
 
+    // fill domain buffer with all domain IDs corresponding to
+    // the device referenced by nvcd_index.
     cupti_data_enum<CUdevice,
 		    CUpti_EventDomainID,
 		    true>::fill<&cuptiDeviceGetNumEventDomains,
-				&cuptiDeviceEnumEventDomains>(device_handle,
+				&cuptiDeviceEnumEventDomains>(g_nvcd.devices[nvcd_index],
 							      domain_buffer);
 
     puts("=======multiplex=========");
     for (CUpti_EventDomainID domain: domain_buffer) {
       printf("domain: %" PRIx32 "\n", domain);
-      domain_info(device_handle, domain).load_events();
-    }
-    
-    #if 0 
-    uint32_t num_event_domains = 0;
-    CUPTI_FN(cuptiDeviceGetNumEventDomains(device_handle,
-					   &num_event_domains));
 
-    domain_buffer.resize(num_event_domains, cupti_unset<CUpti_EventDomainID>::value);
+      domain_group_gen generator(g_nvcd.devices[nvcd_index],
+				 g_nvcd.contexts[nvcd_index],
+				 domain);
 
-    size_t domain_buf_sz = domain_buffer.size() * sizeof(CUpti_EventDomainID);
-    
-    CUPTI_FN(cuptiDeviceEnumEventDomains(device_handle,
-					 &domain_buf_sz,
-					 domain_buffer.data()));
-    #endif
-    
-    //for (CUpti)
+      auto groupings = generator();
+      
+      std::stringstream ss;
+      ss << "---\n\tnum combinations: " << groupings.size() << "\n---\n";
+      size_t i = 0;
+      for (const auto& group: groupings) {
+	ss << "\tgroup[" << (i + 1) <<"] = { ";
+	size_t j = 0;
+	for (const auto& e: group.events) {
+	  char buffer[128] = {0};
+	  size_t buffer_size = sizeof(buffer);	 
+	  CUPTI_FN(cuptiEventGetAttribute(e, CUPTI_EVENT_ATTR_NAME, &buffer_size, &buffer[0]));
+	  ss << static_cast<const char*>(&buffer[0])
+	     << "(" << STREAM_HEX(sizeof(e)) << e << std::dec << ")";
+	  if (j < (group.events.size() - 1)) {
+	    ss << ", ";
+	  }
+	  j++;
+	}
+	ss << " }\n";
+	i++;
+      }
+      printf("%s\n", ss.str().c_str());
+    }    
   } 
   
   nvcd_device_info() {
