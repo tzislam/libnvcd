@@ -620,6 +620,16 @@ struct nvcd_device_info {
     } 
   };
 
+  using cupti_device_domain_enum_t =
+    cupti_data_enum<CUdevice,
+		    CUpti_EventDomainID,
+		    true>;
+  
+  using cupti_domain_event_enum_t =
+    cupti_data_enum<CUpti_EventDomainID,
+		    CUpti_EventID,
+		    true>;
+
   using cupti_attr_str_t = std::array<char, 128>;
   
   //
@@ -737,12 +747,9 @@ struct nvcd_device_info {
     const CUpti_EventDomainID domain;    
 
     void load_events() {      
-      cupti_data_enum<CUpti_EventDomainID,
-		      CUpti_EventID,		      
-		      true>::fill<&cuptiEventDomainGetNumEvents,
-				  &cuptiEventDomainEnumEvents>(domain,
-							       events);     
-      
+      cupti_domain_event_enum_t::fill<&cuptiEventDomainGetNumEvents,
+				      &cuptiEventDomainEnumEvents>(domain,
+								   events);           
       printf("\tNum Events: %" PRIu64 "\n", events.size());      
     }
     
@@ -861,11 +868,10 @@ struct nvcd_device_info {
 
     // fill domain buffer with all domain IDs corresponding to
     // the device referenced by nvcd_index.
-    cupti_data_enum<CUdevice,
-		    CUpti_EventDomainID,
-		    true>::fill<&cuptiDeviceGetNumEventDomains,
-				&cuptiDeviceEnumEventDomains>(g_nvcd.devices[nvcd_index],
-							      domain_buffer);
+    cupti_device_domain_enum_t::fill<&cuptiDeviceGetNumEventDomains,
+				     &cuptiDeviceEnumEventDomains>(g_nvcd.devices[nvcd_index],
+								   domain_buffer);
+
 
     puts("=======multiplex=========");
     for (CUpti_EventDomainID domain: domain_buffer) {
