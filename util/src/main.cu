@@ -22,9 +22,13 @@ static void exit_with_help(int code) {
 static uint32_t g_max = UINT32_MAX;
 static uint32_t g_dev = 0;
 
-uint32_t parse_uint() {
+uint32_t parse_uint(long int min, long int max) {
   long int n = strtol(optarg, nullptr, 10);
-  if (n <= 0) {
+  if (!(min <= n && n <= max)) {
+    printf("Invalid range specified for integer value %" PRId64 ". Accepted range is (%" PRId64", %" PRId64 ")\n",
+	   n,
+	   min,
+	   max);
     exit_with_help(EBAD_INPUT);
   }
   return static_cast<uint32_t>(n);
@@ -38,15 +42,10 @@ void parse_args(int argc, char** argv) {
       exit_with_help(EHELP);
       break;
     case 'd':
-      g_dev = parse_uint();
-      if (g_dev > 3) {
-	printf("invalid -d option: %" PRIu32 ". device index must be in the range [0, 3]\n",
-	       g_dev);
-	exit_with_help(EHELP);
-      }
+      g_dev = parse_uint(0, 3);
       break;
     case 'n':
-      g_max = parse_uint();
+      g_max = parse_uint(1, 100);
       break;
     default:
       puts("Unrecognized input");
