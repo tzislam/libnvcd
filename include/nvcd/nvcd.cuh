@@ -29,6 +29,9 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 #include <errno.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <ftw.h>
 
 #include <pthread.h>
 
@@ -337,6 +340,119 @@ NVCD_CUDA_EXPORT bool operator == (const event_group& a, const event_group& b) {
     : false;
 }
 
+NVCD_CUDA_EXPORT void print_path_error(const std::string& fn,
+		      const std::string& path) {
+  std::string err(fn);
+  err.append(" on \'");
+  err.append(path);
+  err.append("\'");	     
+  perror(err.c_str());
+}
+
+#if defined(NVCD_DUMP_CSV_FOLDER)
+
+NVCD_CUDA_EXPORT std::string mygetcwd() {
+  char buf[PATH_MAX] = {0};
+  getcwd(&buf[0], PATH_MAX);
+  std::string p(&buf[0]);
+  return p;
+}
+
+
+NVCD_CUDA_EXPORT std::string modestr(mode_t st_mode) {
+  char buf[10] = {0};
+#define mread(f) ((st_mode & (f)) != 0) ? 'r' : '-';
+#define mwrite(f) ((st_mode & (f)) != 0) ? 'w' : '-';
+#define mexec(f) ((st_mode & (f)) != 0) ? 'x' : '-';
+    
+  buf[0] = mread(S_IRUSR);
+  buf[1] = mwrite(S_IWUSR);
+  buf[2] = mexec(S_IXUSR);
+
+  buf[3] = mread(S_IRGRP);
+  buf[4] = mwrite(S_IWGRP);
+  buf[5] = mexec(S_IXGRP);
+
+  buf[6] = mread(S_IROTH);
+  buf[7] = mwrite(S_IWOTH);
+  buf[8] = mexec(S_IXOTH);
+
+  return std::string(&buf[0]);
+#undef mread
+#undef mwrite
+#undef mexec
+}
+
+NVCD_CUDA_EXPORT std::string csv_dir() {
+  return mygetcwd().append("/csv");
+}
+  
+NVCD_CUDA_EXPORT bool csv_dir_exists() {
+  std::string p = csv_dir();
+
+  DIR* d = opendir(p.c_str());
+
+  bool ok = d != nullptr;
+    
+  if (ok) {      
+    closedir(d);
+  } else  {
+    print_path_error("opendir", p);
+  }
+
+  return ok;
+}
+
+NVCD_CUDA_EXPORT bool csv_dir_perms_ok() {
+  std::string p = csv_dir();
+  // make sure permissions are correct
+  struct stat st;
+  bool ok = stat(p.c_str(), &st) == 0;
+  if (ok) {
+    mode_t required =
+      S_IRUSR | S_IWUSR | S_IXUSR |
+      S_IRGRP | S_IWGRP | S_IXGRP |
+      S_IROTH | S_IXOTH;	
+    ok = (required & st.st_mode) == required;
+    if (!ok) {
+      printf("Stat on \'%s\' has insufficient permissions: %s. Need at least %s\n",
+	     p.c_str(),
+	     modestr(st.st_mode & required).c_str(),
+	     modestr(required).c_str());
+    }
+  } else {
+    print_path_error("stat", p);
+  }
+  return ok;
+}
+
+NVCD_CUDA_EXPORT void make_csv_dir(std::string which) {
+  std::string c = csv_dir();
+  if (mkdir(c.c_str(), 0775) != 0) {
+    print_path_error("mkdir(csv_dir(), 0775)[" + which + "]", c);
+  }      
+}
+
+// remove_dir calls this in post order traversal,
+// so the directory itself won't be read
+// until all the other files/subdirectories have been processed.
+// also symlinks aren't followed.
+NVCD_CUDA_EXPORT int tree_walk(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
+  int rv = remove(fpath);
+  if (rv != 0) {
+    print_path_error("tree_walk->remove", fpath);
+  }
+  return rv;
+}
+  
+NVCD_CUDA_EXPORT int remove_dir(const std::string& path) {
+  return nftw(path.c_str(),
+	      &tree_walk,
+	      64,
+	      FTW_DEPTH | FTW_PHYS);
+}
+
+#endif // NVCD_DUMP_CSV_FOLDER
 struct nvcd_device_info {
   struct entry {
     static constexpr uint32_t id_unset = static_cast<uint32_t>(-1);
