@@ -620,6 +620,8 @@ struct nvcd_device_info {
     } 
   };
 
+  using cupti_attr_str_t = std::array<char, 128>;
+  
   //
   // Some event sizes for a given domain are as large as 36 or more.
   // This means that 2^36 - 1 possibilities need to be assessed.
@@ -836,6 +838,23 @@ struct nvcd_device_info {
       return groupings;
     }
   };
+
+  cupti_attr_str_t event_name(CUpti_EventID e) {
+    cupti_attr_str_t r{};
+    r.fill(0);
+    size_t sz = r.size() * sizeof(r[0]);
+    CUPTI_FN(cuptiEventGetAttribute(e, CUPTI_EVENT_ATTR_NAME, &sz, r.data()));
+    return r;
+  }
+
+  cupti_attr_str_t event_domain_name(CUpti_EventDomainID e) {
+    cupti_attr_str_t r{};
+    r.fill(0);
+    size_t sz = r.size() * sizeof(r[0]);
+    CUPTI_FN(cuptiEventDomainGetAttribute(e, CUPTI_EVENT_DOMAIN_ATTR_NAME, &sz, r.data()));
+    ASSERT(sz < r.size());
+    return r;
+  }
   
   void multiplex(uint32_t nvcd_index, uint32_t max_num) {        
     std::vector<CUpti_EventDomainID> domain_buffer{};
