@@ -313,7 +313,7 @@ using event_group_list_type = std::vector<event_group>;
 //
 // these two routines are used for testing and nothing more.
 //
-static inline bool cmp_events(const event_list_type& a, const event_list_type& b) {
+NVCD_CUDA_EXPORT bool cmp_events(const event_list_type& a, const event_list_type& b) {
   ASSERT(a.size() == b.size());
   bool bfound = true;
   size_t i = 0; 
@@ -330,7 +330,7 @@ static inline bool cmp_events(const event_list_type& a, const event_list_type& b
   return bfound;
 }
 
-static inline bool operator == (const event_group& a, const event_group& b) {
+NVCD_CUDA_EXPORT bool operator == (const event_group& a, const event_group& b) {
   return
     (a.events.size() == b.events.size())
     ? cmp_events(a.events, b.events)
