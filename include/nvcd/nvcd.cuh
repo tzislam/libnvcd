@@ -863,6 +863,71 @@ struct nvcd_device_info {
     return r;
   }
   
+  void cupti_domain_csv_write(const cupti_attr_str_t& domain_name,
+			      const event_group_list_type& groupings) {
+    //
+    // This should work fine on most Linux systems. That said,
+    // it's worth noting that this hasn't been tested in a clustered environment.
+    //
+    // All it does is check for the existence of a csv folder (relative to the current workign directory)
+    // and, if it exists, it ensures the permissions are (at least) 755. If they aren't,
+    // the user is prompted for the folder to be removed. They can either follow through with deletion or exit at this point.
+    //
+    // If this feature isn't used, then the CSV files will be written out to the current working directory.
+    //
+#if defined(NVCD_DUMP_CSV_FOLDER)
+    if (!csv_dir_exists()) {
+      make_csv_dir("exists");
+    }
+
+    if (!csv_dir_perms_ok()) {
+      puts("BAD csv permissions, removing and then recreating (NOTE: all files in csv folder will be deleted). Press \'y\' to continue or any other key to abort.\n");
+      char ch = static_cast<char>(getc(stdin));
+      if (ch == 'y') {      
+	remove_dir(csv_dir());
+	make_csv_dir("perms");
+      }
+      else {
+	puts("Exiting. Please re-run...");
+	exit(EUSER_EXIT);
+      }
+    }
+    
+    std::string output_path(mygetcwd());
+    output_path.append("/csv/");
+#else   
+    std::string output_path("./");
+#endif
+    
+    output_path.append(domain_name.data());
+    output_path.append(".csv");
+    
+    FILE* f = fopen(output_path.c_str(),
+		    "wb");
+    
+    if (f != nullptr) {
+      std::stringstream ss;      
+      for (const auto& g: groupings) {
+	size_t j = 0;
+	for (const auto& e: g.events) {
+	  auto name = event_name(e);
+	  ss << name.data();
+	  if (j < g.events.size() - 1) {
+	    ss << ",";
+	  }
+	  j++;
+	}
+	ss << "\n";
+      }
+      fprintf(f, "%s", ss.str().c_str());
+    } else {
+      
+      print_path_error("cupti_domain_csv_write->fopen",
+		       output_path.c_str());
+    }
+
+  }
+  
   void multiplex(uint32_t nvcd_index, uint32_t max_num) {        
     std::vector<CUpti_EventDomainID> domain_buffer{};
 
@@ -874,37 +939,57 @@ struct nvcd_device_info {
 
 
     puts("=======multiplex=========");
-    for (CUpti_EventDomainID domain: domain_buffer) {
-      printf("domain: %" PRIx32 "\n", domain);
 
+    size_t smax_num =
+      max_num != UINT32_MAX
+      ? static_cast<size_t>(max_num)
+      : std::numeric_limits<size_t>::max();
+    
+    for (CUpti_EventDomainID domain: domain_buffer) {
+      cupti_attr_str_t domain_name = event_domain_name(domain);
+      
+            
+      printf("processing domain: %s\n", domain_name.data());
+      
       domain_group_gen generator(g_nvcd.devices[nvcd_index],
 				 g_nvcd.contexts[nvcd_index],
 				 domain,
-				 static_cast<size_t>(max_num));
+				 smax_num);
 
       auto groupings = generator();
-      
-      std::stringstream ss;
-      ss << "---\n\tnum combinations: " << groupings.size() << "\n---\n";
-      size_t i = 0;
-      for (const auto& group: groupings) {
-	ss << "\tgroup[" << (i + 1) <<"] = { ";
-	size_t j = 0;
-	for (const auto& e: group.events) {
-	  char buffer[128] = {0};
-	  size_t buffer_size = sizeof(buffer);	 
-	  CUPTI_FN(cuptiEventGetAttribute(e, CUPTI_EVENT_ATTR_NAME, &buffer_size, &buffer[0]));
-	  ss << static_cast<const char*>(&buffer[0])
-	     << "(" << STREAM_HEX(sizeof(e)) << e << std::dec << ")";
-	  if (j < (group.events.size() - 1)) {
-	    ss << ", ";
+
+      cupti_domain_csv_write(domain_name,
+			     groupings);
+
+      // user output
+      constexpr bool verbose = false;
+      if (verbose) {
+	std::stringstream ss;
+	ss << "---\n\tnum combinations: " << groupings.size() << "\n---\n";
+	size_t i = 0;
+	for (const auto& group: groupings) {
+	  ss << "\tgroup[" << (i + 1) <<"] = { ";
+	  size_t j = 0;
+	  for (const auto& e: group.events) {
+	    cupti_attr_str_t buffer = event_name(e);	      
+	    
+	    ss << static_cast<const char*>(&buffer[0])
+	       << "("
+	       << STREAM_HEX(sizeof(e))
+	       << e
+	       << std::dec
+	       << ")";
+
+	    if (j < (group.events.size() - 1)) {
+	      ss << ", ";
+	    }
+	    j++;
 	  }
-	  j++;
+	  ss << " }\n";
+	  i++;
 	}
-	ss << " }\n";
-	i++;
-      }
-      printf("%s\n", ss.str().c_str());
+	printf("%s\n", ss.str().c_str());
+      }      
     }    
   } 
   
