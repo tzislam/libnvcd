@@ -453,6 +453,7 @@ NVCD_CUDA_EXPORT int remove_dir(const std::string& path) {
 }
 
 #endif // NVCD_DUMP_CSV_FOLDER
+
 struct nvcd_device_info {
   struct entry {
     static constexpr uint32_t id_unset = static_cast<uint32_t>(-1);
@@ -582,8 +583,7 @@ struct nvcd_device_info {
     
     return all_supported;
   }
-
-
+  
   template <class S,
 	    class T>
   using cupti_enum_fn_type = CUptiResult (*)(S, size_t*, T*);
@@ -599,8 +599,6 @@ struct nvcd_device_info {
     using dst_buf_type = T;
     using enum_fn_type = cupti_enum_fn_type<src_type, dst_buf_type>;
     using get_num_fn_type = cupti_get_num_fn_type<src_type>;
-
-    static const bool assert_full = assertFull;
     
     template <get_num_fn_type get_fn,
 	      enum_fn_type enum_fn>
@@ -616,7 +614,7 @@ struct nvcd_device_info {
       
       CUPTI_FN(enum_fn(src, &sz, v.data()));
 
-      if (assert_full) {
+      if (assertFull) {
 	ASSERT(sz == sz_o);
       }    
     } 
