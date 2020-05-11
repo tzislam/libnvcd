@@ -114,7 +114,9 @@ enum {
   ECUDA_DRIVER,
   ECUDA_RUNTIME,
   ECUPTI,
-  ERACE_CONDITION
+  ERACE_CONDITION,
+  EUSER_EXIT,
+  EHELP
 };
 
 #ifdef __cplusplus
