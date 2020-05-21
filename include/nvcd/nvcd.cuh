@@ -577,7 +577,10 @@ struct nvcd_device_info {
       return result == CUPTI_SUCCESS;
     }
 
-    void find_groups() {      
+    void find_groups() {
+      // greedy brute force algorithm to grab as many events as possible
+      // for a single group. events are not duplicated across group
+      // combinations.
       bool grouped = false;
       std::vector<int> visited;
       auto in_visited =
@@ -602,6 +605,9 @@ struct nvcd_device_info {
 	}
 	if (!ptrs.empty()) {
 	  CUpti_EventGroup largest = ptrs.back();
+	  // 'largest' is a group that contains the events
+	  // that these other groups contain, so we can do
+	  // without them.
 	  ptrs.pop_back();
 	  for (CUpti_EventGroup less: ptrs) {
 	    CUPTI_FN(cuptiEventGroupDestroy(less));
@@ -609,6 +615,32 @@ struct nvcd_device_info {
 	  groupings.push_back({ try_group, largest });
 	}
 	grouped = visited.size() == events.size();
+      }
+
+      // just a good faith brute force test to
+      // ensure we haven't duplicated events across multiple groups.
+      constexpr bool do_the_test = true;
+      if (do_the_test) {
+	// ensure we have the same size in the CSV file
+	volatile size_t count = 0;
+	for (const auto& g: groupings) {
+	  count += g.events.size();
+	}
+	ASSERT(count == events.size());
+
+	// ensure no duplicates; assuming both of these are true,
+	// we have what we want.
+	for (volatile size_t i = 0; i < groupings.size(); i++) {
+	  for (volatile size_t j = 0; j < groupings.size(); ++j) {
+	    if (i != j) {
+	      for (const auto& e0: groupings.at(i).events) {
+		for (const auto& e1: groupings.at(j).events) {
+		  ASSERT(e0 != e1);
+		}
+	      }
+	    }
+	  }
+	}
       }
     }
     
