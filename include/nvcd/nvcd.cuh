@@ -542,7 +542,7 @@ struct nvcd_device_info {
       printf("\tNum Events: %" PRIu64 "\n", events.size());      
     }   
 
-    bool try_events(event_list_type e) {      
+    bool try_events(event_list_type e, std::vector<CUpti_EventGroup>& ptrs) {      
       ASSERT(!e.empty());
       
       CUpti_EventGroup group = nullptr;
@@ -569,15 +569,15 @@ struct nvcd_device_info {
 	      ));
       
       if (result == CUPTI_SUCCESS) {
-	groupings.push_back({ e, group });	    
-      } else {
+	ptrs.push_back(group);
+      } else {	
 	CUPTI_FN(cuptiEventGroupDestroy(group));
       }
 
       return result == CUPTI_SUCCESS;
     }
 
-    void find_groups() {
+    void find_groups() {      
       bool grouped = false;
       std::vector<int> visited;
       auto in_visited =
@@ -587,15 +587,26 @@ struct nvcd_device_info {
 	};
       while (!grouped) {
 	event_list_type try_group{};
-	for (uint32_t i = 0; i < events.size(); ++i) {
+	std::vector<CUpti_EventGroup> ptrs;
+	uint32_t i = 0;
+	while (i < events.size() && try_group.size() < max_events_per_group) {
 	  if (!in_visited(i)) {
 	    try_group.push_back(events.at(i));
-	    if (try_events(try_group)) {
+	    if (try_events(try_group, ptrs)) {
 	      visited.push_back(i);
 	    } else {
 	      try_group.pop_back();
 	    }	    	    
 	  }
+	  i++;
+	}
+	if (!ptrs.empty()) {
+	  CUpti_EventGroup largest = ptrs.back();
+	  ptrs.pop_back();
+	  for (CUpti_EventGroup less: ptrs) {
+	    CUPTI_FN(cuptiEventGroupDestroy(less));
+	  }	  
+	  groupings.push_back({ try_group, largest });
 	}
 	grouped = visited.size() == events.size();
       }
