@@ -538,15 +538,17 @@ struct nvcd_device_info {
     void load_events() {      
       cupti_domain_event_enum_t::fill<&cuptiEventDomainGetNumEvents,
 				      &cuptiEventDomainEnumEvents>(domain,
+								   events);      
       printf("\tNum Events: %" PRIu64 "\n", events.size());      
     }   
 
-    void try_events(event_list_type e) {      
+    bool try_events(event_list_type e) {      
       ASSERT(!e.empty());
       
       CUpti_EventGroup group = nullptr;
       CUPTI_FN(cuptiEventGroupCreate(context, &group, 0));
       CUptiResult result = CUPTI_SUCCESS;
+      
       size_t i = 0;
       while (i < e.size() && result == CUPTI_SUCCESS) {
 	result = cuptiEventGroupAddEvent(group, e.at(i));
@@ -571,10 +573,32 @@ struct nvcd_device_info {
       } else {
 	CUPTI_FN(cuptiEventGroupDestroy(group));
       }
+
+      return result == CUPTI_SUCCESS;
     }
 
     void find_groups() {
+      bool grouped = false;
+      std::vector<int> visited;
+      auto in_visited =
+	[&visited](int i) -> bool {	  
+	  for (int k : visited) if (i == k) return true;
+	  return false;
+	};
+      while (!grouped) {
+	event_list_type try_group{};
+	for (uint32_t i = 0; i < events.size(); ++i) {
+	  if (!in_visited(i)) {
+	    try_group.push_back(events.at(i));
+	    if (try_events(try_group)) {
+	      visited.push_back(i);
+	    } else {
+	      try_group.pop_back();
+	    }	    	    
+	  }
 	}
+	grouped = visited.size() == events.size();
+      }
     }
     
   public:
