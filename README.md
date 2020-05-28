@@ -2,11 +2,12 @@
 This is an easy-to-use, performance measurement tool for NVIDIA based GPUs. The tool queries CUPTI APIs for reading both events and metrics for functions or selected regions in a GPU (or CPU+GPU) code. As of now, the tools only report the events and metrics that CUPTI provides. In future, we will add a separate analysis module that combines these events and metrics to compute our own derived measures.
 
 *Currently, libNVCD only supports Nvidia GPUs and CUDA.*
-** This tool is actively being developed. We will try out best to keep the current API as is. However, there is no guarantee. Please use with caution. **
+
+**This tool is actively being developed. We will try out best to keep the current API as is. However, there is no guarantee. Please use with caution.**
 
 There are mainly two tools:
-* 1. Source-code based annotation library
-* 2. Standalone tool for automatically finding groups of counters available on a given firmware. 
+* Source-code based annotation library
+* Standalone tool for automatically finding groups of counters available on a given firmware. 
 
 
 ## Compile
