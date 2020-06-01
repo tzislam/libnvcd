@@ -349,111 +349,6 @@ NVCD_CUDA_EXPORT void print_path_error(const std::string& fn,
   perror(err.c_str());
 }
 
-#if defined(NVCD_DUMP_CSV_FOLDER)
-
-NVCD_CUDA_EXPORT std::string mygetcwd() {
-  char buf[PATH_MAX] = {0};
-  getcwd(&buf[0], PATH_MAX);
-  std::string p(&buf[0]);
-  return p;
-}
-
-
-NVCD_CUDA_EXPORT std::string modestr(mode_t st_mode) {
-  char buf[10] = {0};
-#define mread(f) ((st_mode & (f)) != 0) ? 'r' : '-';
-#define mwrite(f) ((st_mode & (f)) != 0) ? 'w' : '-';
-#define mexec(f) ((st_mode & (f)) != 0) ? 'x' : '-';
-    
-  buf[0] = mread(S_IRUSR);
-  buf[1] = mwrite(S_IWUSR);
-  buf[2] = mexec(S_IXUSR);
-
-  buf[3] = mread(S_IRGRP);
-  buf[4] = mwrite(S_IWGRP);
-  buf[5] = mexec(S_IXGRP);
-
-  buf[6] = mread(S_IROTH);
-  buf[7] = mwrite(S_IWOTH);
-  buf[8] = mexec(S_IXOTH);
-
-  return std::string(&buf[0]);
-#undef mread
-#undef mwrite
-#undef mexec
-}
-
-NVCD_CUDA_EXPORT std::string csv_dir() {
-  return mygetcwd().append("/csv");
-}
-  
-NVCD_CUDA_EXPORT bool csv_dir_exists() {
-  std::string p = csv_dir();
-
-  DIR* d = opendir(p.c_str());
-
-  bool ok = d != nullptr;
-    
-  if (ok) {      
-    closedir(d);
-  } else  {
-    print_path_error("opendir", p);
-  }
-
-  return ok;
-}
-
-NVCD_CUDA_EXPORT bool csv_dir_perms_ok() {
-  std::string p = csv_dir();
-  // make sure permissions are correct
-  struct stat st;
-  bool ok = stat(p.c_str(), &st) == 0;
-  if (ok) {
-    mode_t required =
-      S_IRUSR | S_IWUSR | S_IXUSR |
-      S_IRGRP | S_IWGRP | S_IXGRP |
-      S_IROTH | S_IXOTH;	
-    ok = (required & st.st_mode) == required;
-    if (!ok) {
-      printf("Stat on \'%s\' has insufficient permissions: %s. Need at least %s\n",
-	     p.c_str(),
-	     modestr(st.st_mode & required).c_str(),
-	     modestr(required).c_str());
-    }
-  } else {
-    print_path_error("stat", p);
-  }
-  return ok;
-}
-
-NVCD_CUDA_EXPORT void make_csv_dir(std::string which) {
-  std::string c = csv_dir();
-  if (mkdir(c.c_str(), 0775) != 0) {
-    print_path_error("mkdir(csv_dir(), 0775)[" + which + "]", c);
-  }      
-}
-
-// remove_dir calls this in post order traversal,
-// so the directory itself won't be read
-// until all the other files/subdirectories have been processed.
-// also symlinks aren't followed.
-NVCD_CUDA_EXPORT int tree_walk(const char *fpath, const struct stat *sb, int typeflag, struct FTW *ftwbuf) {
-  int rv = remove(fpath);
-  if (rv != 0) {
-    print_path_error("tree_walk->remove", fpath);
-  }
-  return rv;
-}
-  
-NVCD_CUDA_EXPORT int remove_dir(const std::string& path) {
-  return nftw(path.c_str(),
-	      &tree_walk,
-	      64,
-	      FTW_DEPTH | FTW_PHYS);
-}
-
-#endif // NVCD_DUMP_CSV_FOLDER
-
 struct nvcd_device_info {
   struct entry {
     static constexpr uint32_t id_unset = static_cast<uint32_t>(-1);
@@ -631,113 +526,7 @@ struct nvcd_device_info {
 		    true>;
 
   using cupti_attr_str_t = std::array<char, 128>;
-  
-  //
-  // Some event sizes for a given domain are as large as 36 or more.
-  // This means that 2^36 - 1 possibilities need to be assessed.
-  // The problem with this is that, on most hardware, the computation
-  // will take several hours at least (likely more, to be honest)
-  //
-  // So, if you're looking to assess propoerties about the multiplex code
-  // without having to wait for a potentially really long time for the
-  // routine to finish, set this to true.
-  //
-  static constexpr bool MULTIPLEX_LIMIT_BITSIZE = false;
-
-  class bitset {    
-    std::vector<uint8_t> bytes;
-    size_t nbits;
     
-  public:
-    bitset(size_t n)
-      : nbits(MULTIPLEX_LIMIT_BITSIZE
-	      ? std::min(n, static_cast<size_t>(10ul))
-	      : n) {
-      size_t m = nbits >> 3;
-      if ((nbits & 0x7) != 0) {
-	m++;
-      }
-      printf("m = %" PRIu64 "\n", m);
-      bytes.resize(m, 0);
-    }
-
-    size_t num_bits() const { return nbits; }
-
-    uint8_t value(size_t bit) const {
-      size_t r = static_cast<size_t>(bytes.at(bit >> 3)) & (1ull << (bit & 0x7ull));
-      return static_cast<uint8_t>(r);
-    }
-    
-    uint8_t mask() const {
-      uint8_t rem = static_cast<uint8_t>(nbits) & 0x7;
-
-      return 0xFF >> (8 - rem);
-    }
-    
-    void next() {
-      ASSERT(!bytes.empty());
-      ASSERT(nbits > 0);
-
-      size_t biter = 0;
-      
-      while ((((bytes[biter] + 1) & 0xFF) == 0) &&
-	     (biter < (bytes.size() - 1))) {
-	bytes[biter] = 0;
-	biter++;	
-      }
-
-      bytes[biter] = bytes[biter] + 1;
-      
-      if (biter == bytes.size() - 1) {
-	bytes[biter] &= mask();
-      }
-    }
-
-    size_t bits_set() const {
-      size_t n = 0;
-      size_t b = 0;
-      while (b < nbits) {
-	if (value(b) != 0) {
-	  n++;
-	}
-	b++;
-      }
-      return n;
-    }
-
-    // returns false when all bytes are 0
-    operator bool() const { 
-      bool k = true;
-      size_t i = 0;
-      while (k && i < bytes.size()) {
-	k = bytes[i] == 0;
-	i++;
-      }
-      return !k;
-    }
-
-    std::string to_string() const {
-      std::stringstream ss;
-
-      ss << "0b";
-
-      size_t m = bytes.size() << 3;
-      ssize_t i = static_cast<ssize_t>(m - 1);
-      size_t j = 0;
-      while (i >= 0) {
-	if (
-	    ((m - j) & 0x7) == 0
-	    ) {
-	  ss << " ";
-	}
-	ss << ((value(i) != 0) ? "1" : "0");
-	i--;
-	j++;
-      }
-      return ss.str();
-    }   
-  };
-  
   class domain_group_gen {
     event_list_type events;
     event_group_list_type groupings;
@@ -749,33 +538,17 @@ struct nvcd_device_info {
     void load_events() {      
       cupti_domain_event_enum_t::fill<&cuptiEventDomainGetNumEvents,
 				      &cuptiEventDomainEnumEvents>(domain,
-								   events);           
+								   events);      
       printf("\tNum Events: %" PRIu64 "\n", events.size());      
-    }
-    
-    event_list_type find_events(const bitset& b) {
-      ASSERT(
-	     (b.num_bits() == events.size())
-	     ||
-	     (MULTIPLEX_LIMIT_BITSIZE && b.num_bits() <= events.size())
-	     );
-      event_list_type ret;           
-      size_t i = 0;
-      while (i < b.num_bits()) {
-	if (b.value(i) != 0) {
-	  ret.push_back(events.at(i));
-	}
-	i++;
-      }
-      return ret;
-    }
+    }   
 
-    void try_events(event_list_type e) {      
+    bool try_events(event_list_type e, std::vector<CUpti_EventGroup>& ptrs) {      
       ASSERT(!e.empty());
       
       CUpti_EventGroup group = nullptr;
       CUPTI_FN(cuptiEventGroupCreate(context, &group, 0));
       CUptiResult result = CUPTI_SUCCESS;
+      
       size_t i = 0;
       while (i < e.size() && result == CUPTI_SUCCESS) {
 	result = cuptiEventGroupAddEvent(group, e.at(i));
@@ -796,22 +569,79 @@ struct nvcd_device_info {
 	      ));
       
       if (result == CUPTI_SUCCESS) {
-	groupings.push_back({ e, group });	    
-      } else {
+	ptrs.push_back(group);
+      } else {	
 	CUPTI_FN(cuptiEventGroupDestroy(group));
       }
+
+      return result == CUPTI_SUCCESS;
     }
 
     void find_groups() {
-      bitset b(events.size());
-      b.next();
-      
-      while (static_cast<bool>(b)) {
-	if (b.bits_set() <= max_events_per_group) {
-	  try_events(find_events(b));
+      // greedy brute force algorithm to grab as many events as possible
+      // for a single group. events are not duplicated across group
+      // combinations.
+      bool grouped = false;
+      std::vector<int> visited;
+      auto in_visited =
+	[&visited](int i) -> bool {	  
+	  for (int k : visited) if (i == k) return true;
+	  return false;
+	};
+      while (!grouped) {
+	event_list_type try_group{};
+	std::vector<CUpti_EventGroup> ptrs;
+	uint32_t i = 0;
+	while (i < events.size() && try_group.size() < max_events_per_group) {
+	  if (!in_visited(i)) {
+	    try_group.push_back(events.at(i));
+	    if (try_events(try_group, ptrs)) {
+	      visited.push_back(i);
+	    } else {
+	      try_group.pop_back();
+	    }	    	    
+	  }
+	  i++;
 	}
-	b.next();
-      }     
+	if (!ptrs.empty()) {
+	  CUpti_EventGroup largest = ptrs.back();
+	  // 'largest' is a group that contains the events
+	  // that these other groups contain, so we can do
+	  // without them.
+	  ptrs.pop_back();
+	  for (CUpti_EventGroup less: ptrs) {
+	    CUPTI_FN(cuptiEventGroupDestroy(less));
+	  }	  
+	  groupings.push_back({ try_group, largest });
+	}
+	grouped = visited.size() == events.size();
+      }
+
+      // just a good faith brute force test to
+      // ensure we haven't duplicated events across multiple groups.
+      constexpr bool do_the_test = true;
+      if (do_the_test) {
+	// ensure we have the same size in the CSV file
+	volatile size_t count = 0;
+	for (const auto& g: groupings) {
+	  count += g.events.size();
+	}
+	ASSERT(count == events.size());
+
+	// ensure no duplicates; assuming both of these are true,
+	// we have what we want.
+	for (volatile size_t i = 0; i < groupings.size(); i++) {
+	  for (volatile size_t j = 0; j < groupings.size(); ++j) {
+	    if (i != j) {
+	      for (const auto& e0: groupings.at(i).events) {
+		for (const auto& e1: groupings.at(j).events) {
+		  ASSERT(e0 != e1);
+		}
+	      }
+	    }
+	  }
+	}
+      }
     }
     
   public:
@@ -823,22 +653,6 @@ struct nvcd_device_info {
 
       load_events();
       find_groups();
-
-      // unit test to make sure we don't have any duplicates;
-      // the operator == overload (defined above the nvcd_device_info class declaration)
-      // is used here.
-      size_t i = 0;
-      while (i < groupings.size()) {
-	size_t j = 0;
-	while (j < groupings.size()) {
-	  if (groupings.at(i).group != groupings.at(j).group) {
-	    bool issame = groupings.at(i) == groupings.at(j);
-	    ASSERT(!issame);
-	  }
-	  j++;
-	}
-	i++;
-      }
     }
 
     event_group_list_type operator()() {
@@ -865,39 +679,7 @@ struct nvcd_device_info {
   
   void cupti_domain_csv_write(const cupti_attr_str_t& domain_name,
 			      const event_group_list_type& groupings) {
-    //
-    // This should work fine on most Linux systems. That said,
-    // it's worth noting that this hasn't been tested in a clustered environment.
-    //
-    // All it does is check for the existence of a csv folder (relative to the current workign directory)
-    // and, if it exists, it ensures the permissions are (at least) 755. If they aren't,
-    // the user is prompted for the folder to be removed. They can either follow through with deletion or exit at this point.
-    //
-    // If this feature isn't used, then the CSV files will be written out to the current working directory.
-    //
-#if defined(NVCD_DUMP_CSV_FOLDER)
-    if (!csv_dir_exists()) {
-      make_csv_dir("exists");
-    }
-
-    if (!csv_dir_perms_ok()) {
-      puts("BAD csv permissions, removing and then recreating (NOTE: all files in csv folder will be deleted). Press \'y\' to continue or any other key to abort.\n");
-      char ch = static_cast<char>(getc(stdin));
-      if (ch == 'y') {      
-	remove_dir(csv_dir());
-	make_csv_dir("perms");
-      }
-      else {
-	puts("Exiting. Please re-run...");
-	exit(EUSER_EXIT);
-      }
-    }
-    
-    std::string output_path(mygetcwd());
-    output_path.append("/csv/");
-#else   
     std::string output_path("./");
-#endif
     
     output_path.append(domain_name.data());
     output_path.append(".csv");
