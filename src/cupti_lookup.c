@@ -1086,59 +1086,60 @@ static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
   uint32_t nepg = e->num_events_per_group[group];
   uint32_t nipg = e->num_instances_per_group[group];
 
-  uint32_t next_cb_offset = 0;
-  uint32_t next_ib_offset = 0;
+  IF_ASSERTS_ENABLED(volatile uint32_t next_cb_offset = 0;
+		     volatile uint32_t next_ib_offset = 0;);
+
 
   int ptr = 0;
   
-  // bounds check ordering for
-  // event_counter_buffer_offsets
-  {
-    uint32_t prev_cb_offset = (group > 0) ?
+  IF_ASSERTS_ENABLED({
+      // bounds check ordering for
+      // event_counter_buffer_offsets      
+      volatile uint32_t prev_cb_offset = (group > 0) ?
       
-      e->event_counter_buffer_offsets[group - 1] :
-      0;
+	e->event_counter_buffer_offsets[group - 1] :
+	0;
 
-    uint32_t prev_cb_offset_add = (group > 0) ?
+      volatile uint32_t prev_cb_offset_add = (group > 0) ?
 
-      (e->num_events_per_group[group - 1] *
-       e->num_instances_per_group[group - 1]) :
-      0;
+	(e->num_events_per_group[group - 1] *
+	 e->num_instances_per_group[group - 1]) :
+	0;
 
-    ASSERT(prev_cb_offset + prev_cb_offset_add == cb_offset);
-  }
+      ASSERT(prev_cb_offset + prev_cb_offset_add == cb_offset);
+    }
 
-  // bounds check ordering for
-  // event_id_buffer_offsets
-  {
-    uint32_t prev_ib_offset = (group > 0) ?
+    {    
+      // bounds check ordering for
+      // event_id_buffer_offsets
+      volatile uint32_t prev_ib_offset = (group > 0) ?
 
-      e->event_id_buffer_offsets[group - 1] :
-      0;
+	e->event_id_buffer_offsets[group - 1] :
+	0;
 
-    uint32_t prev_ib_offset_add = (group > 0) ?
+      volatile uint32_t prev_ib_offset_add = (group > 0) ?
       
-      e->num_events_per_group[group - 1] :
-      0;
+	e->num_events_per_group[group - 1] :
+	0;
 
-    ASSERT(prev_ib_offset + prev_ib_offset_add == ib_offset);
-  }
+      ASSERT(prev_ib_offset + prev_ib_offset_add == ib_offset);
+    }
 
-  // used for iterative bounds checking
-  {
-    next_cb_offset =
-      group < (e->num_event_groups - 1) ?
-      e->event_counter_buffer_offsets[group + 1] :
-      e->event_counter_buffer_length;
-  }
+    {
+      // used for iterative bounds checking
+      next_cb_offset =
+	group < (e->num_event_groups - 1) ?
+	e->event_counter_buffer_offsets[group + 1] :
+	e->event_counter_buffer_length;
+    }
   
-  // used for iterative bounds checking
-  {
-    next_ib_offset =
-      group < (e->num_event_groups - 1) ?
-      e->event_id_buffer_offsets[group + 1] :
-      e->event_id_buffer_length;
-  }
+    {
+      // used for iterative bounds checking
+      next_ib_offset =
+	group < (e->num_event_groups - 1) ?
+	e->event_id_buffer_offsets[group + 1] :
+	e->event_id_buffer_length;
+    });
   
   for (uint32_t i = 0; i < nepg; ++i) {
     ASSERT(ib_offset + i < next_ib_offset);

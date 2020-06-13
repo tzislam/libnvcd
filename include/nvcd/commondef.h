@@ -1,6 +1,10 @@
 #ifndef __COMMONDEF_H__
 #define __COMMONDEF_H__
 
+#ifndef NVCD_ENABLE_ASSERTS
+#define NVCD_ENABLE_ASSERTS 1
+#endif
+
 #define CUDA_RUNTIME_FN(expr) cuda_runtime_error_print_exit(expr, __LINE__, __FILE__, #expr)
 #define CUDA_DRIVER_FN(expr) cuda_driver_error_print_exit(expr, __LINE__, __FILE__, #expr)
 #define CUPTI_FN(expr) cupti_error_print_exit(expr, __LINE__, __FILE__, #expr)
@@ -30,7 +34,13 @@
 #define NVCD_EXPORT
 #endif
 
+#if NVCD_ENABLE_ASSERTS == 1
 #define ASSERT(cond) assert_impl((cond), #cond, __FILE__, __LINE__)
+#define IF_ASSERTS_ENABLED(code) code
+#else
+#define ASSERT(cond)
+#define IF_ASSERTS_ENABLED(code)
+#endif
 
 #define NOT_NULL(p_expr) assert_not_null_impl((p_expr), #p_expr, __FILE__, __LINE__) 
 
