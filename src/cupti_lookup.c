@@ -10,6 +10,72 @@
 typedef CUpti_EventID cupti_event_id;
 DARRAY(cupti_event_id, 128, 128);
 
+#define PRINT_GROUP_ATTR_SCALAR(group, type, enum_value)	do {\
+  type v##enum_value = 0; \
+  size_t sz = sizeof(v##enum_value); \
+  CUPTI_FN(cuptiEventGroupGetAttribute(group, \
+                                       enum_value,\
+                                       &sz,\
+                                       &(v##enum_value)));		\
+  printf(STRFMT_TAB1 STRFMT_UINT32_VALUE(v##enum_value) STRFMT_NEWL1,\
+	 (v##enum_value));					     \
+  } while (0)
+
+static void print_event_group_attr_info(CUpti_EventGroup group, const char* opt_tag) {
+  if (group != NULL) {
+    if (opt_tag != NULL) {
+      printf("[%s] ", opt_tag);
+    }
+    
+    printf("CUPTI attributes for group %p {\n", group);
+
+    PRINT_GROUP_ATTR_SCALAR(group,
+			    CUpti_EventDomainID,
+			    CUPTI_EVENT_GROUP_ATTR_EVENT_DOMAIN_ID);
+    PRINT_GROUP_ATTR_SCALAR(group,
+			    int32_t,
+			    CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES);
+    PRINT_GROUP_ATTR_SCALAR(group,
+			    uint32_t,
+			    CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS);
+
+    // enumerate events:
+    {
+      uint32_t event_count = 0;
+      size_t sz_count = sizeof(event_count);
+      CUPTI_FN(cuptiEventGroupGetAttribute(group,
+					   CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS,
+					   &sz_count,
+					   &event_count));
+      
+      size_t sz_buf = sizeof(CUpti_EventID) * event_count;
+      CUpti_EventID* event_ids = zallocNN(sz_buf);
+      CUPTI_FN(cuptiEventGroupGetAttribute(group,
+					   CUPTI_EVENT_GROUP_ATTR_EVENTS,
+					   &sz_buf,
+					   event_ids));
+
+      printf(STRFMT_TAB1 STRFMT_STRUCT_PTR_BEGIN(CUpti_EventID*, event_ids) STRFMT_NEWL1,
+	     event_ids);
+      for (uint32_t i = 0; i < event_count; ++i) {
+	
+	const char* n = cupti_event_get_name(event_ids[i]);
+	  
+	printf("\t\tevent_ids[%" PRIu32 "] = %" PRIu32 ", %s" STRFMT_NEWL1,
+	       i, event_ids[i], n);
+	
+      }
+      printf(STRFMT_TAB1 STRFMT_STRUCT_PTR_END(event_ids) STRFMT_NEWL1);
+
+      free(event_ids);
+    }
+
+    PRINT_GROUP_ATTR_SCALAR(group,
+			    uint32_t,
+			    CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT);
+  }
+}
+
 static darray_cupti_event_id_t* query_event_list(cupti_event_data_t* e) {
   ASSERT(e != NULL);
   
