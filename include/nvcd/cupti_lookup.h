@@ -13,9 +13,14 @@ typedef struct cupti_metric_data cupti_metric_data_t;
 
 typedef struct cupti_event_data {
   // one large contiguous buffer,
-  // for all groups, constant size.
+  // for all groups, allocated once.
   // Offsets of these are sent to
-  // cuptiEventGroupReadAllEvents()
+  // cuptiEventGroupReadAllEvents().
+  // Each offset represents the beginning
+  // of a contiguous region of events
+  // for a single group.
+  // is meant to be written to after the counter measurements
+  // have been taken.
   CUpti_EventID*  event_id_buffer;
   uint64_t* event_counter_buffer;
 

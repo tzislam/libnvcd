@@ -146,8 +146,8 @@ static void fill_event_groups(cupti_event_data_t* e,
       
     e->event_groups[i] = local_eg_assign[i];
 
-    // enabling this (on the GTX 980M, at least, will cause a SIGBUS error for event groups
-    // that are tied to events which are used by metrics)
+    // enabling this (on the GTX 960M, at least) will cause a SIGBUS error for event groups
+    // that are tied to events which are used by metrics
 #if 0
     uint32_t profile_all = 1;
     CUPTI_FN(cuptiEventGroupSetAttribute(e->event_groups[i],
@@ -799,6 +799,16 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
                                               e->event_names[i],
                                               &event_id);
 
+    //-------------------------------------------------
+    // FIXME(?): this routine was written when a static list of counters
+    // was being used for testing. Now that we're querying for them directly through
+    // the device/driver itself, it's questionable how much the following
+    // error checks are needed.
+    //
+    // Still, for now, this code is harmless, and will at least act as
+    // a buffer for anything that's been overlooked.
+    //-------------------------------------------------
+    
     // even if the compute capability being targeted
     // is technically larger than the capability of the
     // set of events queried against, there is still variation between
@@ -959,6 +969,8 @@ static void init_cupti_event_buffers(cupti_event_data_t* e) {
       e->event_id_buffer_length += e->num_events_per_group[i];
     }
 
+    // is meant to be written to after the counter measurements
+    // have been taken.
     e->event_id_buffer = zallocNN(sizeof(e->event_id_buffer[0]) *
                                   e->event_id_buffer_length);
     
@@ -1286,16 +1298,15 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
 
               event_data->event_group_read_states[i] = CED_EVENT_GROUP_DONT_READ;
             } else if (err == CUPTI_ERROR_INVALID_PARAMETER) {
-              // so far this issue has only occurred the amount of groups
+              // This issue (so far) will only occurr if the amount of groups
               // is only one for an event batch. The docs state
               // that this error is thrown when the group passed
               // to cuptiEventGroupEnable() is NULL. So far,
               // this error has only been thrown with non-null
               // group IDs. Still not sure what's going on, here,
-              // but obvious the more info the better...
-              // error has only occurred on xsede's pascal 100 node
-              // so far.
-              ASSERT(event_data->num_event_groups == 1);
+              // but obviously the more info the better...
+              // At this point, error has only occurred on xsede's pascal 100 node
+              // a GTX 960 M. 
               ASSERT(event_data->subscriber != NULL);
               
               puts("BAD_GROUP found");
