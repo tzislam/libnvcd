@@ -9,7 +9,7 @@ nvcd_t g_nvcd =
    .contexts = NULL,
    .num_devices = 0,
    .initialized = false,
-   .opt_verbose_output = true
+   .opt_verbose_output = false
   };
 
 void nvcd_init_events(CUdevice device, CUcontext context) {
