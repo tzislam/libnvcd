@@ -428,7 +428,7 @@ static void init_cupti_metric_data(cupti_event_data_t* e) {
     
     uint32_t num_events = 0;
     CUPTI_FN(cuptiMetricGetNumEvents(metric_buffer->metric_ids[i], &num_events));
-    msg_verbosef(_index_ "event count is %" PRIu32 ":\n", i, num_events);
+    msg_verbosef(_index_ "event count is %" PRIu32 "\n", i, num_events);
 
     size_t event_array_size = sizeof(CUpti_EventID) * num_events;
     
