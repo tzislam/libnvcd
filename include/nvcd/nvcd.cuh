@@ -1052,42 +1052,6 @@ NVCD_CUDA_EXPORT void* __cuda_zalloc_sym(size_t size, const T& sym, const char* 
 //
 
 extern "C" {
-  NVCD_CUDA_EXPORT void nvcd_init_cuda(nvcd_t* nvcd) {
-    if (!nvcd->initialized) {
-      CUDA_DRIVER_FN(cuInit(0));
-  
-      CUDA_RUNTIME_FN(cudaGetDeviceCount(&nvcd->num_devices));
-
-      nvcd->devices = (CUdevice*)zallocNN(sizeof(*(nvcd->devices)) *
-                                          nvcd->num_devices);
-
-      nvcd->contexts = (CUcontext*)zallocNN(sizeof(*(nvcd->contexts)) *
-                                            nvcd->num_devices);
-
-      nvcd->device_names = (char**)zallocNN(sizeof(*(nvcd->device_names)) *
-                                            nvcd->num_devices);
-
-      const size_t MAX_STRING_LENGTH = 128;
-      
-      for (int i = 0; i < nvcd->num_devices; ++i) {
-        CUDA_DRIVER_FN(cuDeviceGet(&nvcd->devices[i], i));
-        
-        CUDA_DRIVER_FN(cuCtxCreate(&nvcd->contexts[i],
-                                   0,
-                                   nvcd->devices[i]));
-        
-        nvcd->device_names[i] = (char*) zallocNN(sizeof(nvcd->device_names[i][0]) *
-                                                 MAX_STRING_LENGTH);
-        
-        CUDA_DRIVER_FN(cuDeviceGetName(&nvcd->device_names[i][0],
-                                       MAX_STRING_LENGTH,
-                                       nvcd->devices[i]));
-      }
-
-      nvcd->initialized = true;
-    }
-  }
-
   NVCD_CUDA_EXPORT void nvcd_device_free_mem() {
     cuda_safe_free(d_dev_tstart);
     cuda_safe_free(d_dev_ttime);
@@ -1160,7 +1124,7 @@ extern "C" {
   }
   
   NVCD_CUDA_EXPORT void nvcd_init() {
-    nvcd_init_cuda(&g_nvcd);
+    nvcd_init_cuda();
 
     if (!g_run_info) {
       g_run_info.reset(new nvcd_run_info());

@@ -1,5 +1,6 @@
 #include "nvcd/nvcd.h"
 #include "nvcd/cupti_lookup.h"
+#include "nvcd/util.h"
 
 static cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_INIT;
 
@@ -12,6 +13,49 @@ nvcd_t g_nvcd =
    .opt_verbose_output = false
   };
 
+void nvcd_init_cuda() {
+  if (!g_nvcd.initialized) {
+    CUDA_DRIVER_FN(cuInit(0));
+  
+    CUDA_RUNTIME_FN(cudaGetDeviceCount(&g_nvcd.num_devices));
+
+    g_nvcd.devices = (CUdevice*)zallocNN(sizeof(*(g_nvcd.devices)) *
+					g_nvcd.num_devices);
+
+    g_nvcd.contexts = (CUcontext*)zallocNN(sizeof(*(g_nvcd.contexts)) *
+					  g_nvcd.num_devices);
+
+    g_nvcd.device_names = (char**)zallocNN(sizeof(*(g_nvcd.device_names)) *
+					  g_nvcd.num_devices);
+
+    g_nvcd.device_uuids = (uuid_t*)zallocNN(sizeof(g_nvcd.device_uuids[0]) *
+					   g_nvcd.num_devices);
+
+    const size_t MAX_STRING_LENGTH = 128;
+      
+    for (int i = 0; i < g_nvcd.num_devices; ++i) {
+      CUDA_DRIVER_FN(cuDeviceGet(&g_nvcd.devices[i], i));
+        
+      CUDA_DRIVER_FN(cuCtxCreate(&g_nvcd.contexts[i],
+				 0,
+				 g_nvcd.devices[i]));
+        
+      g_nvcd.device_names[i] = (char*) zallocNN(sizeof(g_nvcd.device_names[i][0]) *
+					       MAX_STRING_LENGTH);
+        
+      CUDA_DRIVER_FN(cuDeviceGetName(&g_nvcd.device_names[i][0],
+				     MAX_STRING_LENGTH,
+				     g_nvcd.devices[i]));
+
+      CUDA_DRIVER_FN(cuDeviceGetUuid(&g_nvcd.device_uuids[i],
+				     g_nvcd.devices[i]));
+
+
+    }
+    
+    g_nvcd.initialized = true;
+  }
+}
 void nvcd_init_events(CUdevice device, CUcontext context) {
   g_event_data.cuda_context = context;
   g_event_data.cuda_device = device;
