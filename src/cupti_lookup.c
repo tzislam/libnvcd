@@ -288,7 +288,7 @@ static bool find_event_group(cupti_event_data_t* e,
 
 static CUpti_MetricID* fetch_metric_ids_from_device(CUdevice device, uint32_t* num_metrics) {
 
-  puts("Fetching all metric IDs from device");
+  msg_verboses("Fetching all metric IDs from device");
   
   CUPTI_FN(cuptiDeviceGetNumMetrics(device, num_metrics));
 
