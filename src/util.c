@@ -1,4 +1,5 @@
 #include "nvcd/util.h"
+#include "nvcd/nvcd.h"
 
 #include <stdio.h>
 #include <time.h>
@@ -23,6 +24,65 @@ void exit_msg(FILE* out, int error, const char* message, ...) {
   
   exit(error);
 }
+
+static inline bool msg_ok(msg_level_t m) {
+  return
+    (m == MSG_LEVEL_VERBOSE && g_nvcd.opt_verbose_output == true) ||
+    (m != MSG_LEVEL_VERBOSE);
+}
+
+void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const char* msg, ...) {
+  if (msg_ok(m)) {  
+    char buffer[1 << 14] = {0};
+#if defined (NVCD_DEBUG)
+    char prefix[1024 + 256] = {0};
+    char sig[1024] = {0};
+#else
+    char prefix[256] = {0};
+#endif
+    
+    va_list ap;
+    va_start(ap, msg);
+    vsprintf(buffer, msg, ap);
+    va_end(ap); 
+  
+    strcat(prefix, "[");
+    switch (m) {
+    case MSG_LEVEL_VERBOSE:
+      strcat(prefix, "VERBOSE");
+      break;
+    case MSG_LEVEL_ERROR:
+      strcat(prefix, "ERROR");
+      break;
+      // no need to burden user with
+      // detailed information - if anyone wishes to
+      // override this, we can change the behavior quickly.
+    case MSG_LEVEL_USER:
+      break;
+    case MSG_LEVEL_WARNING:
+      strcat(prefix, "WARNING");
+      break;
+    }
+
+    strcat(prefix, "]");
+  
+#if defined(NVCD_DEBUG)
+    if (m != MSG_LEVEL_USER) {
+      strcat(prefix, "[");
+      snprintf(&sig[0], 1024, "%s:%s:%i", fn, file, line);
+      strcat(prefix, sig);
+      strcat(prefix, "]");
+    }
+#endif
+
+    if (m != MSG_LEVEL_USER) {
+      fprintf(stdout, "%s:%s", prefix, buffer);
+    } else {
+      fprintf(stdout, "%s", buffer);
+    }
+  }
+}
+
 
 #define SANITY_CHECK_TOTAL_SIZE 0x07FFFFFF
 #define SANITY_CHECK_ELEM (16 << 6)

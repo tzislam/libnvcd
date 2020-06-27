@@ -6,7 +6,22 @@
 
 C_LINKAGE_START
 
+typedef struct nvcd {
+  CUdevice* devices;
+  CUcontext* contexts;
+
+  char** device_names;
+  
+  int num_devices;
+  
+  bool32_t initialized;
+  bool32_t opt_verbose_output; 
+} nvcd_t;
+
 typedef struct cupti_event_data cupti_event_data_t;
+
+// see nvcd.cuh
+extern nvcd_t g_nvcd;
 
 NVCD_EXPORT void nvcd_init_events(CUdevice device, CUcontext context);
 

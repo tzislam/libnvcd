@@ -131,17 +131,6 @@
     }                                                                   \
   } while (0)                                                           
 
-  typedef struct nvcd {
-    CUdevice* devices;
-    CUcontext* contexts;
-
-    char** device_names;
-  
-    int num_devices;
-  
-    bool32_t initialized;
-  } nvcd_t;
-
 namespace detail {
   DEV clock64_t* dev_tstart = nullptr;
   DEV clock64_t* dev_ttime = nullptr;
@@ -1267,12 +1256,14 @@ extern "C" {
   // struct init syntax,
   // so these are commented out.
   //
-  nvcd_t g_nvcd = {
-		   /*.devices =*/ NULL,
-		   /*.contexts =*/ NULL,
-		   /*.num_devices =*/ 0,
-		   /*.initialized =*/ false
-  };
+  nvcd_t g_nvcd =
+    {
+     /*.devices =*/ NULL,
+     /*.contexts =*/ NULL,
+     /*.num_devices =*/ 0,
+     /*.initialized =*/ false,
+     /*.opt_verbose_output =*/ false
+    };
 
   size_t dev_tbuf_size = 0;
   size_t dev_num_iter_size = 0;

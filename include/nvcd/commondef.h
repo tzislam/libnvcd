@@ -10,6 +10,27 @@
 #define CUPTI_FN(expr) cupti_error_print_exit(expr, __LINE__, __FILE__, #expr)
 #define CUPTI_FN_WARN(expr) cupti_warn_print(expr, __LINE__, __FILE__, #expr)
 
+#define msg_userf(msg, ...) msg_impl(MSG_LEVEL_USER, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
+#define msg_users(msg) msg_impl(MSG_LEVEL_USER, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
+#define msg_userline() msg_impl(MSG_LEVEL_USER, __LINE__, __FILE__, __FUNC__, "%s", "\n")
+
+// TODO: implement these.
+// these are designed to be used for
+// messages that are chained together,
+// but they aren't required to log
+// verbose output.
+#define msg_verbose_begin() {  }
+#define msg_verbose_end() {  }  
+
+#define msg_verbosef(msg, ...) msg_impl(MSG_LEVEL_VERBOSE, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
+#define msg_verboses(msg) msg_impl(MSG_LEVEL_VERBOSE, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
+#define msg_verboseline() msg_impl(MSG_LEVEL_VERBOSE, __LINE__, __FILE__, __FUNC__, "%s", "\n")
+  
+#define msg_errorf(msg, ...) msg_impl(MSG_LEVEL_ERROR, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
+#define msg_errors(msg) msg_impl(MSG_LEVEL_ERROR, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
+
+#define msg_warnf(msg, ...) msg_impl(MSG_LEVEL_WARNING, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
+#define msg_warns(msg) msg_impl(MSG_LEVEL_WARNING, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
 /*
  * NOTE: bool appears to automatically be defined for CUDA;
  * because nvcc proxies through gcc, the C source modules

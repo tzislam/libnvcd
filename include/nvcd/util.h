@@ -28,6 +28,16 @@ void* double_buffer_size(void* buffer,
                          size_t elem_size,
                          size_t* current_length);
 
+typedef enum msg_level
+  {
+   MSG_LEVEL_VERBOSE=0,
+   MSG_LEVEL_ERROR,
+   MSG_LEVEL_USER,
+   MSG_LEVEL_WARNING
+  } msg_level_t;
+
+NVCD_EXPORT void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const char* msg, ...);
+
 NVCD_EXPORT void* zalloc(size_t sz);
 
 NVCD_EXPORT void safe_free(void** p); // safer, but not "safe"
