@@ -200,7 +200,7 @@ struct kernel_invoke_data {
     
     clock64_t max = static_cast<clock64_t>(q3) + static_cast<clock64_t>(bounds);
     
-    msg_userf(STATISTICS_TAG "{q1, q3, bounds, %s outlier threshold} = {%f, %f, %f, %" PRId64 "}\n",
+    msg_userf(STATISTICS_TAG " [ticks measured for the region]{q1, q3, bounds, %s outlier threshold} = {%f, %f, %f, %" PRId64 "}\n",
 	      threshold.c_str(),
 	      q1, q3, bounds, max);
 
