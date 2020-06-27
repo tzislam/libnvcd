@@ -3,6 +3,15 @@
 
 static cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_INIT;
 
+nvcd_t g_nvcd =
+  {
+   .devices = NULL,
+   .contexts = NULL,
+   .num_devices = 0,
+   .initialized = false,
+   .opt_verbose_output = true
+  };
+
 void nvcd_init_events(CUdevice device, CUcontext context) {
   g_event_data.cuda_context = context;
   g_event_data.cuda_device = device;

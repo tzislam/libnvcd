@@ -21,7 +21,7 @@ typedef struct nvcd {
 typedef struct cupti_event_data cupti_event_data_t;
 
 // see nvcd.cuh
-extern nvcd_t g_nvcd;
+NVCD_EXPORT extern nvcd_t g_nvcd;
 
 NVCD_EXPORT void nvcd_init_events(CUdevice device, CUcontext context);
 

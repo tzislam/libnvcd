@@ -8,7 +8,6 @@
 #include <nvcd/cupti_lookup.h>
 #include <nvcd/nvcd.h>
 
-
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
@@ -141,9 +140,7 @@ namespace detail {
 
 // Hook management
 
-extern "C" {
-  extern nvcd_t g_nvcd;
-  
+extern "C" {  
   extern size_t dev_tbuf_size;
   extern size_t dev_num_iter_size;
   extern size_t dev_smids_size;
@@ -1246,20 +1243,6 @@ extern "C" {
 #ifdef NVCD_HEADER_IMPL
 
 extern "C" {
-
-  //
-  // C++ doesn't support the nice
-  // struct init syntax,
-  // so these are commented out.
-  //
-  nvcd_t g_nvcd =
-    {
-     /*.devices =*/ NULL,
-     /*.contexts =*/ NULL,
-     /*.num_devices =*/ 0,
-     /*.initialized =*/ false,
-     /*.opt_verbose_output =*/ false
-    };
 
   size_t dev_tbuf_size = 0;
   size_t dev_num_iter_size = 0;
