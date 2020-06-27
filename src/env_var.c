@@ -31,7 +31,7 @@ static const char* env_var_list_start(const char* list) {
   const char* ret = p + 1;
 
   if (!isalpha(*ret)) {
-    printf("ERROR: %s must begin with a letter.\n", ret);
+    msg_errorf("%s must begin with a letter.\n", ret);
     ret = NULL;
   }
 
@@ -47,7 +47,7 @@ static const char* env_var_list_scan_entry(const char* p, size_t* p_count) {
     error = !isalnum(*p) && !(*p == '_');
     
     if (error) {
-      printf("ERROR: invalid character found: %s.\n", p);
+      msg_errorf("invalid character found: %s.\n", p);
     } else {
       count++;
       p++;

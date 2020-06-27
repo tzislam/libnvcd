@@ -64,10 +64,10 @@ struct test {
 
 void test_env_var(char* str, size_t expected_count, bool should_null) {
   if (g_test_params.print_info) {
-    printf("Testing %s. Expecting %s with a count of %lu\n",
-           str,
-           should_null ? "failure" : "success",
-           expected_count);
+    msg_verbosef("Testing %s. Expecting %s with a count of %lu\n",
+		 str,
+		 should_null ? "failure" : "success",
+		 expected_count);
   }
   
   size_t count = 0;
@@ -78,14 +78,14 @@ void test_env_var(char* str, size_t expected_count, bool should_null) {
     ASSERT(count == 0);
 
     if (g_test_params.print_info) {
-      printf("env_var_list_read for %s returned NULL\n", str);
+      msg_verbosef("env_var_list_read for %s returned NULL\n", str);
     }
   } else {
     ASSERT(count == expected_count);
     ASSERT(list != NULL);
 
     for (size_t i = 0; i < count; ++i) {
-      printf("[%lu]: %s\n", i, list[i]);
+      msg_verbosef("[%lu]: %s\n", i, list[i]);
     }
 
     for (size_t i = 0; i < count; ++i) {

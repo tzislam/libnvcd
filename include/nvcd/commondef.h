@@ -31,6 +31,7 @@
 
 #define msg_warnf(msg, ...) msg_impl(MSG_LEVEL_WARNING, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
 #define msg_warns(msg) msg_impl(MSG_LEVEL_WARNING, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
+
 /*
  * NOTE: bool appears to automatically be defined for CUDA;
  * because nvcc proxies through gcc, the C source modules
@@ -62,6 +63,11 @@
 #define ASSERT(cond)
 #define IF_ASSERTS_ENABLED(code)
 #endif
+
+#define METRICS_TAG "|METRICS|"
+#define STATISTICS_TAG "|STATISTCS|"
+#define EVENTS_TAG "|EVENTS|"
+#define INFO_TAG "|INFO|"
 
 #define NOT_NULL(p_expr) assert_not_null_impl((p_expr), #p_expr, __FILE__, __LINE__) 
 

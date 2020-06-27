@@ -10,24 +10,26 @@
 typedef CUpti_EventID cupti_event_id;
 DARRAY(cupti_event_id, 128, 128);
 
-#define PRINT_GROUP_ATTR_SCALAR(group, type, enum_value)	do {\
-  type v##enum_value = 0; \
-  size_t sz = sizeof(v##enum_value); \
-  CUPTI_FN(cuptiEventGroupGetAttribute(group, \
-                                       enum_value,\
-                                       &sz,\
+#define PRINT_GROUP_ATTR_SCALAR(group, type, enum_value)	do {	\
+    type v##enum_value = 0;						\
+  size_t sz = sizeof(v##enum_value);					\
+  CUPTI_FN(cuptiEventGroupGetAttribute(group,				\
+                                       enum_value,			\
+                                       &sz,				\
                                        &(v##enum_value)));		\
-  printf(STRFMT_TAB1 STRFMT_UINT32_VALUE(v##enum_value) STRFMT_NEWL1,\
-	 (v##enum_value));					     \
+  msg_verbosef(STRFMT_TAB1 STRFMT_UINT32_VALUE(v##enum_value) STRFMT_NEWL1,\
+	       (v##enum_value));					\
   } while (0)
 
 static void print_event_group_attr_info(CUpti_EventGroup group, const char* opt_tag) {
   if (group != NULL) {
+    msg_verbose_begin();
+    
     if (opt_tag != NULL) {
-      printf("[%s] ", opt_tag);
+      msg_verbosef("[%s] ", opt_tag);
     }
     
-    printf("CUPTI attributes for group %p {\n", group);
+    msg_verbosef("CUPTI attributes for group %p {\n", group);
 
     PRINT_GROUP_ATTR_SCALAR(group,
 			    CUpti_EventDomainID,
@@ -37,7 +39,7 @@ static void print_event_group_attr_info(CUpti_EventGroup group, const char* opt_
 			    CUPTI_EVENT_GROUP_ATTR_PROFILE_ALL_DOMAIN_INSTANCES);
     PRINT_GROUP_ATTR_SCALAR(group,
 			    uint32_t,
-			    CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS);
+			    CUPTI_EVENT_GROUP_ATTR_NUM_EVENTS);   
 
     // enumerate events:
     {
@@ -55,17 +57,17 @@ static void print_event_group_attr_info(CUpti_EventGroup group, const char* opt_
 					   &sz_buf,
 					   event_ids));
 
-      printf(STRFMT_TAB1 STRFMT_STRUCT_PTR_BEGIN(CUpti_EventID*, event_ids) STRFMT_NEWL1,
+      msg_verbosef(STRFMT_TAB1 STRFMT_STRUCT_PTR_BEGIN(CUpti_EventID*, event_ids) STRFMT_NEWL1,
 	     event_ids);
       for (uint32_t i = 0; i < event_count; ++i) {
 	
 	const char* n = cupti_event_get_name(event_ids[i]);
 	  
-	printf("\t\tevent_ids[%" PRIu32 "] = %" PRIu32 ", %s" STRFMT_NEWL1,
-	       i, event_ids[i], n);
+        msg_verbosef("\t\tevent_ids[%" PRIu32 "] = %" PRIu32 ", %s" STRFMT_NEWL1,
+		     i, event_ids[i], n);
 	
       }
-      printf(STRFMT_TAB1 STRFMT_STRUCT_PTR_END(event_ids) STRFMT_NEWL1);
+      msg_verboses(STRFMT_TAB1 STRFMT_STRUCT_PTR_END(event_ids) STRFMT_NEWL1);
 
       free(event_ids);
     }
@@ -73,6 +75,8 @@ static void print_event_group_attr_info(CUpti_EventGroup group, const char* opt_
     PRINT_GROUP_ATTR_SCALAR(group,
 			    uint32_t,
 			    CUPTI_EVENT_GROUP_ATTR_INSTANCE_COUNT);
+
+    msg_verbose_end();
   }
 }
 
@@ -303,11 +307,13 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
                                                    char** metric_names,
                                                    uint32_t* num_metrics) {
 
-  fprintf(stderr, "Attempting to fetch metric id values from\n");
+  msg_verbose_begin();
+  
+  msg_verboses("Attempting to fetch metric id values from");
   for (uint32_t i = 0; i < *num_metrics; ++i) {
-    fprintf(stderr, "%s: ", metric_names[i]);
+    msg_verbosef("%s: ", metric_names[i]);
   }
-  fprintf(stderr, "\n");
+  msg_verboseline();
   
   uint32_t desired = *num_metrics;
   
@@ -325,14 +331,14 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
 					       &id);
 
     if (err != CUPTI_SUCCESS) {
-      fprintf(stderr, "fetch_metric_ids_from_names: Could not find metric name \'%s\'\n",
-	      metric_names[j]);
+      msg_verbosef("fetch_metric_ids_from_names: Could not find metric name \'%s\'\n",
+		   metric_names[j]);
       
       *num_metrics = *num_metrics - 1;
     } else {
-      fprintf(stderr, "fetch_metric_ids_from_names: Found ID %" PRIx32 " for metric \'%s\'\n",
-              id,
-              metric_names[j]);
+      msg_verbosef("fetch_metric_ids_from_names: Found ID %" PRIx32 " for metric \'%s\'\n",
+		   id,
+		   metric_names[j]);
       out_ids[i] = id;
       i++;
     }
@@ -344,7 +350,7 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
 
   ASSERT(j == desired && i == *num_metrics);
 
-  printf("Found %" PRIu32 " / %" PRIu32 " metrics.\n", *num_metrics, desired);
+  msg_verbosef("Found %" PRIu32 " / %" PRIu32 " metrics.\n", *num_metrics, desired);
 
   if (*num_metrics == 0) {
     free(out_ids);
@@ -356,6 +362,8 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
     free(out_ids);
     out_ids = new_ids;
   }
+
+  msg_verbose_end();
 
   return out_ids;
 }
@@ -413,14 +421,14 @@ static void init_cupti_metric_data(cupti_event_data_t* e) {
              metric_buffer->num_metrics);
                                                      
 #define _index_ "[%" PRIu32 "] "
-  
+  msg_verbose_begin();
   for (uint32_t i = 0; i < metric_buffer->num_metrics; ++i) {
     char* name = cupti_metric_get_name(metric_buffer->metric_ids[i]);
-    printf( _index_ "Processing metric %s...\n", i, name);
+    msg_verbosef( _index_ "Processing metric %s...\n", i, name);
     
     uint32_t num_events = 0;
     CUPTI_FN(cuptiMetricGetNumEvents(metric_buffer->metric_ids[i], &num_events));
-    printf(_index_ "event count is %" PRIu32 ":\n", i, num_events);
+    msg_verbosef(_index_ "event count is %" PRIu32 ":\n", i, num_events);
 
     size_t event_array_size = sizeof(CUpti_EventID) * num_events;
     
@@ -443,9 +451,10 @@ static void init_cupti_metric_data(cupti_event_data_t* e) {
     
     free(name);
 
-    puts("---");
+    msg_verboses("---");
   }
-
+  msg_verbose_end();
+  
   metric_buffer->initialized = true;
 
   e->metric_data = metric_buffer;
@@ -520,7 +529,7 @@ static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index)
 
   char* name = cupti_metric_get_name(m);
     
-  printf("[%" PRIu32 "] %s = ", index, name);
+  msg_userf(METRICS_TAG "index[%" PRIu32 "] %s = ", index, name);
   
   if (metric_data->computed[index] == true) {
   
@@ -535,23 +544,23 @@ static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index)
   
     switch (kind) {
     case CUPTI_METRIC_VALUE_KIND_DOUBLE: {
-      printf("(double) %f", v.metricValueDouble);
+      msg_userf("(double) %f", v.metricValueDouble);
     } break;
     
     case CUPTI_METRIC_VALUE_KIND_UINT64: {
-      printf("(uint64) %" PRIu64, v.metricValueUint64);
+      msg_userf("(uint64) %" PRIu64, v.metricValueUint64);
     } break;
     
     case CUPTI_METRIC_VALUE_KIND_INT64: {
-      printf("(int64) %" PRId64, v.metricValueInt64);
+      msg_userf("(int64) %" PRId64, v.metricValueInt64);
     } break;
     
     case CUPTI_METRIC_VALUE_KIND_PERCENT: {
-      printf("(percent) %f", v.metricValuePercent);
+      msg_userf("(percent) %f", v.metricValuePercent);
     } break;
     
     case CUPTI_METRIC_VALUE_KIND_THROUGHPUT: {
-      printf("(bytes/second) %" PRId64, v.metricValueThroughput);
+      msg_userf("(bytes/second) %" PRId64, v.metricValueThroughput);
     } break;
     
     case CUPTI_METRIC_VALUE_KIND_UTILIZATION_LEVEL: {
@@ -585,14 +594,14 @@ static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index)
         break;
       }
     
-      printf("(utilization level) %" PRIu32 " =  %s ",
-             v.metricValueUtilizationLevel,
-             level);
+      msg_userf("(utilization level) %" PRIu32 " =  %s ",
+		v.metricValueUtilizationLevel,
+		level);
     } break;
 
     default:
       //ASSERT(false /* bad metric value kind received */);
-      printf("[WARNING: bad metric value kind received: 0x%" PRIx32 "] ", kind);
+      msg_warnf(METRICS_TAG "bad metric value kind received: 0x%" PRIx32 " ", kind);
       break;
     }
   } else {
@@ -610,12 +619,12 @@ static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index)
     CUPTI_FN(cuptiGetResultString(metric_data->metric_get_value_results[index],
 				  &result_string));
     
-    printf("[NOT computed - Error code received: %" PRIu32 " = %s]",
-           metric_data->metric_get_value_results[index],
-           result_string);
+    msg_warnf(METRICS_TAG "metric NOT computed - Error code received: %" PRIu32 " = %s",
+	      metric_data->metric_get_value_results[index],
+	      result_string);
   }
   
-  printf("%s", "\n");
+  msg_userline();
 
   free(name);
 }
@@ -623,8 +632,6 @@ static void print_cupti_metric(cupti_metric_data_t* metric_data, uint32_t index)
 static void calc_cupti_metrics(cupti_metric_data_t* m) {
   ASSERT(m->initialized == true);
   ASSERT(m->num_metrics < 2000);
-
-  puts("======\nmetric calculations\n======");
   
   for (uint32_t i = 0; i < m->num_metrics; ++i) {
     cupti_event_data_t* e = &m->event_data[i];
@@ -653,9 +660,9 @@ static void calc_cupti_metrics(cupti_metric_data_t* m) {
     if (err == CUPTI_SUCCESS) {
       m->computed[i] = true;
     } else if (err != CUPTI_ERROR_INVALID_METRIC_VALUE) {
-      printf("error for metric %" PRIu32 " = 0x%" PRIx32 "\n", i, m->metric_ids[i]);
+      msg_warnf(METRICS_TAG "error for metric %" PRIu32 " = 0x%" PRIx32 "\n", i, m->metric_ids[i]);
       for (uint32_t j = 0; j < e->event_id_buffer_length; ++j) {
-        printf("\tEvent ID %" PRIu32 " = 0x%" PRIx32 "\n", j, e->event_id_buffer[j]);
+        msg_warnf(METRICS_TAG "\tEvent ID %" PRIu32 " = 0x%" PRIx32 "\n", j, e->event_id_buffer[j]);
       }
       CUPTI_FN_WARN(err);
     }
@@ -699,7 +706,7 @@ static void group_info_free(group_info_t* info) {
 static void group_info_validate(cupti_event_data_t* e,
                                 group_info_t* info,
                                 uint32_t group) {
-  printf("Validating group %" PRIu32 "\n", group);
+  msg_verbosef("Validating group %" PRIu32 "\n", group);
 
   ASSERT(info->group == e->event_groups[group]);
   ASSERT(info->num_events == e->num_events_per_group[group]);
@@ -726,7 +733,7 @@ static void group_info_validate(cupti_event_data_t* e,
     }
 #endif
     
-    printf("\t[%" PRIu32 "] %s|%s is good...\n", i, name, name2);
+    msg_verbosef("\t[%" PRIu32 "] %s|%s is good...\n", i, name, name2);
     free(name);
     free(name2);
   }
@@ -807,10 +814,10 @@ static void read_group_all_events(cupti_event_data_t* e, uint32_t group) {
                                           &e->event_id_buffer[ib_offset],
                                           &ids_read));
 
-    printf("[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
-           group,
-           ids_read,
-           (size_t) e->num_events_per_group[group]);
+    msg_verbosef("group[%i] ids read: %" PRId64 "/ %" PRId64 "\n",
+		 group,
+		 ids_read,
+		 (size_t) e->num_events_per_group[group]);
   }
 }
 
@@ -838,7 +845,7 @@ static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {
 }
 
 static void init_cupti_event_groups(cupti_event_data_t* e) {
-  fprintf(stderr, "%s\n", "init_cupti_event_groups_entered");
+  msg_verbosef("%s\n", "init_cupti_event_groups_entered");
   
   // static default; increase if more groups become necessary
   uint32_t max_egs = MAX_EVENT_GROUPS_PER_EVENT_DATA; 
@@ -856,7 +863,7 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
   for (uint32_t i = 0; i < e->event_names_buffer_length; ++i) {
     CUpti_EventID event_id = V_UNSET;
 
-    fprintf(stderr,
+    msg_verbosef(
             "Attempting to find ID for event device %" PRId32
             "; event [%" PRId32"] = %s\n", e->cuda_device,
             i, e->event_names[i]);
@@ -902,11 +909,11 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
       ASSERT(found);
     }
 
-    printf("(%s) group found for index %u => %s:0x%x\n",
-           available ? "available" : "unavailable",
-           i,
-           e->event_names[i],
-           event_id);
+    msg_verbosef("(%s) group found for index %u => %s:0x%x\n",
+		 available ? "available" : "unavailable",
+		 i,
+		 e->event_names[i],
+		 event_id);
   }
 
   ASSERT(num_egs <= max_egs /* see the declaration of max_egs if this fails */);
@@ -942,10 +949,9 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
     
       while (scanning) {
         if (strcmp(list[i], ENV_ALL_EVENTS) == 0) {
-          fprintf(stream,
-                  "(%s) Found %s in list. All event counters will be used.\n",
-                  ENV_EVENTS,
-                  ENV_ALL_EVENTS);
+          msg_verbosef("(%s) Found %s in list. All event counters will be used.\n",
+		       ENV_EVENTS,
+		       ENV_ALL_EVENTS);
 
 	  size_t num_event_names = 0;
           e->event_names = cupti_get_event_names(e, &num_event_names);
@@ -954,14 +960,14 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
           scanning = false;
           using_all = true;
         } else {
-          fprintf(stream, "(%s) [%" PRIu64 "] Found %s\n", ENV_EVENTS, i, list[i]);
+          msg_verbosef("(%s) [%" PRIu64 "] Found %s\n", ENV_EVENTS, i, list[i]);
           i++;
           scanning = i < count;
         }
       }
 
       if (!using_all) {
-        fprintf(stream, "(%s) NOT USING ALL", ENV_EVENTS);
+        msg_verbosef("(%s) NOT USING ALL\n", ENV_EVENTS);
         e->event_names = list;
         e->event_names_buffer_length = (uint32_t)count;
       }
@@ -973,9 +979,8 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
                "Could not parse the environment list.");
     }
   } else {
-    fprintf(stream,
-            "%s undefined; defaulting to all event counters.\n",
-            ENV_EVENTS);
+    msg_verbosef("%s undefined; defaulting to all event counters.\n",
+		 ENV_EVENTS);
     
     size_t num_event_names = 0;
     e->event_names = cupti_get_event_names(e, &num_event_names);
@@ -1151,7 +1156,7 @@ static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
       char* name = cupti_event_get_name(eid);
       
       ptr += sprintf(&_peg_buffer[ptr],
-                     "[%" PRIu32 " (eid: 0x%" PRIx32 ")] %s:\n",
+                     "event[%" PRIu32 "](id = 0x%" PRIx32 ", name = %s)\n",
                      i,
                      eid,
                      name);
@@ -1165,20 +1170,19 @@ static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
       ASSERT(k < next_cb_offset);
       
       ptr += sprintf(&_peg_buffer[ptr],
-                     "\t[%" PRIu32 "] %" PRIu64 " | 0x%" PRIx64 "\n",
+                     "\n\tevent_instance_counter[%" PRIu32 "] = %" PRIu64 "\n\n",
                      j,
-                     pcounters[k],
                      pcounters[k]);
     }
   }
 
   ASSERT(ptr <= peg_buffer_length);
   
-  printf("======(SOA)GROUP %" PRIu32  "=======\n"
-         "%s"
-         "===\n",
-         group,
-         &_peg_buffer[0]);
+  msg_verbosef("====== GROUP %" PRIu32  "=======\n"
+		"%s"
+		"===\n",
+		group,
+		&_peg_buffer[0]);
 
 #undef peg_buffer_length
 }
@@ -1188,23 +1192,23 @@ static void print_event_group_aos(cupti_event_data_t* e, uint32_t group) {
   
   group_info_t* info = &g_group_info_buffer[group];
   
-  printf("======(AOS) GROUP %" PRIu32  "=======\n", group);
+  msg_verbosef("======(AOS) GROUP %" PRIu32  "=======\n", group);
   
   for (uint32_t i = 0; i < info->num_events; ++i){
     char* name = cupti_event_get_name(info->events[i]);
 
-    printf("[%" PRIu32 "] %s\n", i, name);
+    msg_verbosef("[%" PRIu32 "] %s\n", i, name);
     
     for (uint32_t j = 0; j < info->num_instances; ++j) {
-      printf("\t[%" PRIu32 "] %" PRIu64 "\n",
-             j,
-             info->counters[i * info->num_instances + j]);
+      msg_verbosef("\t[%" PRIu32 "] %" PRIu64 "\n",
+		   j,
+		   info->counters[i * info->num_instances + j]);
     }
 
     free(name);
   }
 
-  printf("===\n");
+  msg_verboses("===");
 }
 
 NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
@@ -1299,8 +1303,8 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
 
   cupti_event_data_t* event_data = (cupti_event_data_t*) userdata;
 
-  puts("-----------------");
-  printf("event callback hit for event_data = %p\n", event_data);
+  msg_verboses("-----------------");
+  msg_verbosef("event callback hit for event_data = %p\n", event_data);
   
   // For now it appears that the threads are the same between the main thread
   // and the thread this callback is installed in. The check is important though
@@ -1315,7 +1319,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
 
     if (threads_eq != 0) {
       if (!_message_reported) {
-        fprintf(stderr, "%s is launched on the same thread as the main thread (this is good)\n", __FUNC__);
+        msg_verbosef("%s is launched on the same thread as the main thread (this is good)\n", __FUNC__);
         _message_reported = true;
       }
     } else {
@@ -1323,7 +1327,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                ERACE_CONDITION,
                "Race condition detected in %s. "
                "Synchronization primitives will be needed for "
-               "nvci_host_begin() caller's thread wait loop and "
+               "nvcd_host_begin() caller's thread wait loop and "
                "the thread for this callback.\n", __FUNC__);
     }
   }
@@ -1354,14 +1358,14 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
           
           CUptiResult err = cuptiEventGroupEnable(event_data->event_groups[i]);
 
-          printf("Enabling Group %" PRIu32 " = %p....\n", i, event_data->event_groups[i]);
+          msg_verbosef("Enabling Group %" PRIu32 " = %p....\n", i, event_data->event_groups[i]);
           
           if (err != CUPTI_SUCCESS) {
             if (err == CUPTI_ERROR_NOT_COMPATIBLE) {
-              printf("Group %" PRIu32 " out of "
-                     "%" PRIu32 " considered not compatible with the current set of enabled groups\n",
-                     i,
-                     event_data->num_event_groups);
+              msg_verbosef("Group %" PRIu32 " out of "
+			   "%" PRIu32 " considered not compatible with the current set of enabled groups\n",
+			   i,
+			   event_data->num_event_groups);
 
               event_data->event_group_read_states[i] = CED_EVENT_GROUP_DONT_READ;
             } else if (err == CUPTI_ERROR_INVALID_PARAMETER) {
@@ -1376,7 +1380,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
               // a GTX 960 M. 
               ASSERT(event_data->subscriber != NULL);
               
-              puts("BAD_GROUP found");
+              msg_warns("BAD_GROUP found");
               event_data->event_group_read_states[i] = CED_EVENT_GROUP_SKIP;
               CUPTI_FN_WARN(err);
             } else {
@@ -1384,7 +1388,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
             }
           } else {
             event_data->event_groups_enabled[i] = true;
-            printf("Group %" PRIu32 " enabled.\n", i);
+            msg_verbosef("Group %" PRIu32 " enabled.\n", i);
           }
         }
       }
@@ -1543,15 +1547,13 @@ NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
 
-#ifdef NVCD_DEBUG_CUPTI_LOOKUP
   {
     char* estr = cupti_event_data_to_string(e);
     
     ASSERT(estr != NULL);
-    printf("FREEING %s\n", estr);
+    msg_verbosef("FREEING %s\n", estr);
     free(estr);
   }
-#endif
 
   for (size_t i = 0; i < e->num_event_groups; ++i) { 
     if (e->event_groups[i] != NULL) {

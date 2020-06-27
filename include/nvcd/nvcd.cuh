@@ -8,6 +8,7 @@
 #include <nvcd/cupti_lookup.h>
 #include <nvcd/nvcd.h>
 
+
 #include <vector>
 #include <unordered_map>
 #include <algorithm>
@@ -77,7 +78,7 @@
 
 #define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
 
-#define DEV_PRINT_PTR(v) printf("&(%s) = %p, %s = %p\n", #v, &v, #v, v)
+#define DEV_PRINT_PTR(v) msg_verbosef("&(%s) = %p, %s = %p\n", #v, &v, #v, v)
 
 #ifndef NVCD_OMIT_STANDALONE_EVENT_COUNTER
 
@@ -196,13 +197,15 @@ struct kernel_invoke_data {
   void fill_outliers(double bounds,
                      double q1,
                      double q3,
+		     const std::string& threshold,
                      const std::vector<block>& in,
                      std::vector<block>& out) {
     
     clock64_t max = static_cast<clock64_t>(q3) + static_cast<clock64_t>(bounds);
     
-    printf("{q1, q3, bounds, max} = {%f, %f, %f, %" PRId64 "}\n",
-           q1, q3, bounds, max);
+    msg_userf(STATISTICS_TAG "{q1, q3, bounds, %s outlier threshold} = {%f, %f, %f, %" PRId64 "}\n",
+	      threshold.c_str(),
+	      q1, q3, bounds, max);
 
     for (const block& b: in) {
       if (b.time > max) {
@@ -212,13 +215,13 @@ struct kernel_invoke_data {
   }
 
   void print_blockv(const char* name, const std::vector<block>& v) {
-    printf("=====%s=====\n", name);
+    msg_verbosef("=====%s=====\n", name);
     
     for (size_t i = 0; i < v.size(); ++i) {
-      printf("[%lu] time = %" PRId64 " , thread = %" PRId32 "\n",
-             i,
-             v[i].time,
-             v[i].thread);
+      msg_verbosef("[%lu] time = %" PRId64 " , thread = %" PRId32 "\n",
+		   i,
+		   v[i].time,
+		   v[i].thread);
     }
   }
   
@@ -227,15 +230,10 @@ struct kernel_invoke_data {
     std::unordered_set<int> smids_used;
     
     for (size_t i = 0; i < num_threads; ++i) {
-      // printf("[%lu] time = %" PRId64 ", smid = % " PRId32 "\n",
-      //     i,
-      //     times[i],
-      //     smids[i]);
-
       smids_used.insert(smids[i]);
     }
 
-    printf("Number of SMs used: %" PRIu64 "\n", smids_used.size());
+    msg_verbosef("Number of streaming multiprocessors used: %" PRIu64 "\n", smids_used.size());
     
     {
       std::vector<block> sorted;
@@ -261,14 +259,14 @@ struct kernel_invoke_data {
       double iqr = q3 - q1;
 
       double minorb = iqr * 1.5;
-      fill_outliers(minorb, q1, q3, sorted, load_minor);
+      fill_outliers(minorb, q1, q3, "minor", sorted, load_minor);
 
       double majorb = iqr * 3.0;
-      fill_outliers(majorb, q1, q3, sorted, load_major);
+      fill_outliers(majorb, q1, q3, "major", sorted, load_major);
     }
 
-    printf("Load Major size: %" PRId64 "\n", load_major.size());
-    printf("Load Minor size: %" PRId64 "\n", load_minor.size());
+    msg_verbosef("Major outlier thread block count: %" PRId64 "\n", load_major.size());
+    msg_verbosef("Minor outlier thread block count: %" PRId64 "\n", load_minor.size());
     
     //print_blockv("load_minor", load_minor);
     //print_blockv("load_major", load_major);
@@ -528,7 +526,7 @@ struct nvcd_device_info {
       cupti_domain_event_enum_t::fill<&cuptiEventDomainGetNumEvents,
 				      &cuptiEventDomainEnumEvents>(domain,
 								   events);      
-      printf("\tNum Events: %" PRIu64 "\n", events.size());      
+      msg_userf(INFO_TAG "\tNumber of events available in this domain: %" PRIu64 "\n", events.size());      
     }   
 
     bool try_events(event_list_type e, std::vector<CUpti_EventGroup>& ptrs) {      
@@ -720,7 +718,7 @@ struct nvcd_device_info {
       cupti_attr_str_t domain_name = event_domain_name(domain);
       
             
-      printf("processing domain: %s\n", domain_name.data());
+      msg_userf(INFO_TAG "Processing domain: %s\n", domain_name.data());
       
       domain_group_gen generator(g_nvcd.devices[nvcd_index],
 				 g_nvcd.contexts[nvcd_index],
@@ -759,7 +757,7 @@ struct nvcd_device_info {
 	  ss << " }\n";
 	  i++;
 	}
-	printf("%s\n", ss.str().c_str());
+	msg_verbosef("%s\n", ss.str().c_str());
       }      
     }    
   } 
@@ -928,8 +926,8 @@ struct nvcd_run_info {
 
   void report() {
     for (size_t i = 0; i < num_runs; ++i) {
-      printf("================================RUN %" PRIu64 "================================\n",
-             i);
+      msg_userf("================================ report %" PRIu64 " ================================\n",
+		i);
       
       kernel_stats[i].write();
 
@@ -1040,10 +1038,10 @@ NVCD_CUDA_EXPORT void* __cuda_zalloc_sym(size_t size, const T& sym, const char* 
                                sizeof(check),
                                cudaMemcpyDeviceToHost));
 
-    printf("HOST-SIDE DEVICE ADDRESS FOR %s: %p. value: %p\n",
-           ssym,
-           address_of_sym,
-           check);
+    msg_verbosef("HOST-SIDE DEVICE ADDRESS FOR %s: %p. value: %p\n",
+		 ssym,
+		 address_of_sym,
+		 check);
     
     ASSERT(check == device_allocated_mem);
   }
@@ -1170,13 +1168,11 @@ extern "C" {
     if (!g_run_info) {
       g_run_info.reset(new nvcd_run_info());
     }
-    
-    printf("nvcd_init address: %p\n", nvcd_init);
+        
     ASSERT(g_nvcd.initialized == true);
   }
 
-  NVCD_CUDA_EXPORT void nvcd_host_begin(int num_cuda_threads) {  
-    printf("nvcd_host_begin address: %p\n", nvcd_host_begin);
+  NVCD_CUDA_EXPORT void nvcd_host_begin(int num_cuda_threads) {     
 
     ASSERT(g_nvcd.initialized == true);
     ASSERT(g_run_info.get() != nullptr);
