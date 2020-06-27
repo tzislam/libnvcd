@@ -6,11 +6,14 @@
 
 C_LINKAGE_START
 
+typedef CUuuid uuid_t;
+
 typedef struct nvcd {
   CUdevice* devices;
   CUcontext* contexts;
 
   char** device_names;
+  uuid_t* device_uuids;
   
   int num_devices;
   

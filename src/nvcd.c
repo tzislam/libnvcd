@@ -8,10 +8,25 @@ nvcd_t g_nvcd =
   {
    .devices = NULL,
    .contexts = NULL,
+   .device_uuids = NULL,
    .num_devices = 0,
    .initialized = false,
    .opt_verbose_output = false
   };
+
+static inline void print_device_info(int device_index) {
+  msg_userf("GPU %i\n", device_index);
+
+  uint8_t* uuid = (uint8_t*) &g_nvcd.device_uuids[device_index].bytes[0];
+
+  msg_userf("\tgpu_name = %s\n", &g_nvcd.device_names[device_index][0]);
+
+  msg_userf("\tgpu_uuid = GPU-%x%x%x%x-%x%x-%x%x-%x%x-%x%x%x%x%x%x\n",
+	    uuid[0],uuid[1],uuid[2],uuid[3],
+	    uuid[4],uuid[5],uuid[6],uuid[7],
+	    uuid[8],uuid[9],uuid[10],uuid[11],
+	    uuid[12],uuid[13],uuid[14],uuid[15]);
+}
 
 void nvcd_init_cuda() {
   if (!g_nvcd.initialized) {
@@ -51,11 +66,13 @@ void nvcd_init_cuda() {
 				     g_nvcd.devices[i]));
 
 
+      print_device_info(i);
     }
     
     g_nvcd.initialized = true;
   }
 }
+
 void nvcd_init_events(CUdevice device, CUcontext context) {
   g_event_data.cuda_context = context;
   g_event_data.cuda_device = device;
