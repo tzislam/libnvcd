@@ -11,9 +11,7 @@ int main() {
 
   //  gpu_test_matrix_vec_mul(threads);
 
-  nvcd_kernel_test_call(threads);
-  
-  nvcd_report();
+  nvcd_kernel_test_call(threads); 
 
   nvcd_terminate();
 
