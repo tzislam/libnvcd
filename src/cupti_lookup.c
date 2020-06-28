@@ -494,6 +494,8 @@ static void normalize_counters(cupti_event_data_t* e, uint64_t* normalized) {
     // since it appears to cause problems with specific configurations
     // (at least, for the metrics - event counters that are recorded without
     // interfacing with teh metrics appear to be fine)
+    // Note that if the reader tries this on their machine,
+    // it may work fine. This was tested with cuda 9.2 on a GTX 960 M.
 #if 0    
     size_t total_instance_count_sz = sizeof(total_instance_count);
     CUPTI_FN(cuptiEventDomainGetAttribute(domain_id,

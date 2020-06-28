@@ -92,6 +92,9 @@ typedef struct cupti_metric_data {
   bool32_t initialized;
 } cupti_metric_data_t;
 
+// FIXME: should verify that a hardcoded value
+// is ok and won't conflict with implementation dependent
+// constant.
 #ifndef PTHREAD_INITIALIZER
 #define PTHREAD_INITIALIZER (unsigned long)0
 #endif
