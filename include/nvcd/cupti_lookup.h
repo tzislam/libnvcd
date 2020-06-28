@@ -155,9 +155,7 @@ enum {
   CED_EVENT_GROUP_SKIP = 3
 };
 
-#define NUM_CUPTI_METRICS_3X 127
 
-extern const char* g_cupti_metrics_3x[NUM_CUPTI_METRICS_3X];
 
 NVCD_EXPORT const char* cupti_find_event_name_from_id(CUpti_EventID id);
 
