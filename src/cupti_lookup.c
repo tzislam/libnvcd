@@ -1811,3 +1811,107 @@ NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e) {
     == e->num_event_groups;
 }
 
+void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
+					  cupti_event_data_enum_event_counters_fn_t fn) {
+  ASSERT(e->count_event_groups_read == e->num_event_groups);
+  bool keep_iterating = true;
+  uint64_t* pcounters = &e->event_counter_buffer[0];
+  //g = group
+  //e = event
+  //j = event count instance
+  //ib = id buffer
+  //cb = counter buffer
+  //nepg = number of events per group
+  //nipg = number of instances per group (for each event)  
+  uint32_t group = 0;
+  while (group < e->num_event_groups && keep_iterating) {
+    uint32_t ib_offset = e->event_id_buffer_offsets[group];
+    uint32_t cb_offset = e->event_counter_buffer_offsets[group];
+  
+    uint32_t nepg = e->num_events_per_group[group];
+    uint32_t nipg = e->num_instances_per_group[group];
+
+    // if asserts are enabled, then what's listed here is just
+    // a direct paste. Scroll further downward for the actual
+    // iteration.
+    IF_ASSERTS_ENABLED(
+	volatile uint32_t next_cb_offset = 0;
+	volatile uint32_t next_ib_offset = 0;
+	{
+	// bounds check ordering for
+	// event_counter_buffer_offsets      
+	volatile uint32_t prev_cb_offset = (group > 0) ?
+      
+	  e->event_counter_buffer_offsets[group - 1] :
+	  0;
+
+	volatile uint32_t prev_cb_offset_add = (group > 0) ?
+
+	  (e->num_events_per_group[group - 1] *
+	   e->num_instances_per_group[group - 1]) :
+	  0;
+
+	ASSERT(prev_cb_offset + prev_cb_offset_add == cb_offset);
+      }
+
+      {    
+	// bounds check ordering for
+	// event_id_buffer_offsets
+	volatile uint32_t prev_ib_offset = (group > 0) ?
+
+	  e->event_id_buffer_offsets[group - 1] :
+	  0;
+
+	volatile uint32_t prev_ib_offset_add = (group > 0) ?
+      
+	  e->num_events_per_group[group - 1] :
+	  0;
+
+	ASSERT(prev_ib_offset + prev_ib_offset_add == ib_offset);
+      }
+
+      {
+	// used for iterative bounds checking
+	next_cb_offset =
+	  group < (e->num_event_groups - 1) ?
+	  e->event_counter_buffer_offsets[group + 1] :
+	  e->event_counter_buffer_length;
+      }
+  
+      {
+	// used for iterative bounds checking
+	next_ib_offset =
+	  group < (e->num_event_groups - 1) ?
+	  e->event_id_buffer_offsets[group + 1] :
+	  e->event_id_buffer_length;
+      });    
+    //
+    // This is where the rest of the iteration is actually performed.
+    //
+    uint32_t event = 0;
+    while (event < nepg && keep_iterating) {
+      ASSERT(ib_offset + event < next_ib_offset);      
+
+      uint32_t event_instance = 0;
+      while (event_instance < nipg && keep_iterating) {
+	uint32_t k = cb_offset + event_instance * nepg + event;
+
+	ASSERT(k < next_cb_offset);
+      
+	cupti_enum_event_counter_iteration_t it =
+	  {
+	   .instance = event_instance,
+	   .num_instances = nipg,
+	   .value = pcounters[k],
+	   .event = e->event_id_buffer[ib_offset + event],
+	   .group = e->event_groups[group]
+	  };
+
+	keep_iterating = fn(&it);
+	event_instance++;
+      }
+      event++;
+    }
+    group++;
+  }
+}

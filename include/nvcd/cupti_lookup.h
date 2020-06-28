@@ -158,7 +158,19 @@ enum {
   CED_EVENT_GROUP_SKIP = 3
 };
 
+typedef struct cupti_enum_event_counter_iteration {
+  uint32_t instance;
+  uint32_t num_instances;
+  
+  uint64_t value;
+  CUpti_EventID event;
+  CUpti_EventGroup group;
+} cupti_enum_event_counter_iteration_t;
 
+// if the callback returns true,
+// then keep iterating. Otherwise,
+// stop iteration.
+typedef bool (*cupti_event_data_enum_event_counters_fn_t)(cupti_enum_event_counter_iteration_t* ci);
 
 NVCD_EXPORT const char* cupti_find_event_name_from_id(CUpti_EventID id);
 
@@ -208,6 +220,9 @@ NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e);
 NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e, size_t* out_len);
 
 NVCD_EXPORT uint32_t cupti_get_num_event_names(cupti_event_data_t* e);
+
+NVCD_EXPORT void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
+						      cupti_event_data_enum_event_counters_fn_t fn);
 
 C_LINKAGE_END
 #endif //__CUPTI_LOOKUP_H__
