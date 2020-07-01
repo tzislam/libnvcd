@@ -1134,6 +1134,7 @@ extern "C" {
   }
 
   NVCD_CUDA_EXPORT void nvcd_host_begin(int num_cuda_threads) {     
+    nvcd_init();
 
     ASSERT(g_nvcd.initialized == true);
     ASSERT(g_run_info.get() != nullptr);
@@ -1150,6 +1151,8 @@ extern "C" {
     return cupti_event_data_callback_finished(nvcd_get_events());
   }
 
+  NVCD_CUDA_EXPORT void nvcd_terminate();
+
   NVCD_CUDA_EXPORT void nvcd_host_end() {
     ASSERT(g_nvcd.initialized == true);
     
@@ -1159,9 +1162,9 @@ extern "C" {
 
     nvcd_report();
     
-    nvcd_device_free_mem();
-    
-    nvcd_free_events();
+    nvcd_device_free_mem();   
+
+    nvcd_terminate();
   }
   
   NVCD_CUDA_EXPORT nvcd_device_info::ptr_type nvcd_host_get_device_info() {
@@ -1183,7 +1186,7 @@ extern "C" {
 
     safe_free_v(g_nvcd.device_names);
     safe_free_v(g_nvcd.devices);
-    safe_free_v(g_nvcd.contexts);
+    safe_free_v(g_nvcd.contexts);   
   }
 
   NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {

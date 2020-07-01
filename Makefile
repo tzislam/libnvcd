@@ -1,5 +1,9 @@
 CC=nvcc
 
+NVCC=nvcc
+
+TEST_CC=g++
+
 CUDA_HOME ?= /usr/local/cuda-9.2
 CUDA_ARCH_SM ?= sm_50
 
@@ -59,12 +63,12 @@ LIB := libnvcd.so
 # Test binary
 ##
 
-TEST_SRC_C := $(wildcard test/src/*.cpp)
-TEST_OBJ_C := $(TEST_SRC_C:.cpp=.o)
-TEST_PRE_C := $(TEST_SRC_C:.cpp=.cpp.pre)
+TEST_SRC_C := $(wildcard test/src/*.c)
+TEST_OBJ_C := $(TEST_SRC_C:.c=.o)
+TEST_PRE_C := $(TEST_SRC_C:.c=.c.pre)
 
 TEST_SRC_CU := $(wildcard test/src/*.cu)
-TEST_OBJ_CU := $(TEST_SRC_CU:.cu=.o)
+TEST_OBJ_CU := $(TEST_SRC_CU:.cu=.co)
 TEST_PRE_CU := $(TEST_SRC_CU:.cu=.cu.pre)
 
 TEST_OBJDIR := test/obj
@@ -76,7 +80,9 @@ TEST_PRE := $(subst $(TEST_SRCDIR), $(TEST_PREDIR), $(TEST_PRE_C) $(TEST_PRE_CU)
 
 TEST_BIN := nvcdrun
 
-TEST_CC_FLAGS=-G -std=c++11 --compiler-options "-std=c++11 -Wall -lpthread -Werror -g -ggdb -Wno-unused-function -Wno-unused-variable"
+TEST_NVCC_FLAGS=-G -std=c++11 --compiler-options "-std=c++11 -Wall -lpthread -Werror -g -ggdb -Wno-unused-function -Wno-unused-variable"
+
+TEST_CC_FLAGS=-std=c++11 -Wall -lpthread -Werror -g -ggdb -Wno-unused-function -Wno-unused-variable
 
 TEST_LIBS := $(LIBS) -Lbin -lnvcd
 
@@ -138,22 +144,22 @@ pre/%.cu.pre: src/%.cu objdep
 
 # Test binary
 $(TEST_BIN): $(TEST_OBJ) $(LIB)
-	$(CC) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(TEST_LIBS) $(ARCH) $(TEST_OBJ) -o bin/$(TEST_BIN)
+	$(TEST_CC) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(TEST_LIBS) $(TEST_OBJ) -o bin/$(TEST_BIN)
 
 $(TEST_BIN).pre: $(TEST_PRE) $(LIB).pre
 
-test/obj/%.o: test/src/%.cpp objdep
-	$(CC) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@
+test/obj/%.o: test/src/%.c objdep
+	$(TEST_CC) $(TEST_INCLUDE) $(TEST_CC_FLAGS) -c $< -o $@
 
-test/obj/%.o: test/src/%.cu objdep
-	$(CC) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@
-	$(CC) --ptx $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@.ptx
+test/obj/%.co: test/src/%.cu objdep
+	$(NVCC) $(TEST_INCLUDE) $(TEST_NVCC_FLAGS) $(ARCH) -c $< -o $@
+	$(NVCC) --ptx $(TEST_INCLUDE) $(TEST_NVCC_FLAGS) $(ARCH) -c $< -o $@.ptx
 
 test/pre/%.c.pre: test/src/%.c objdep
-	$(CC) $(TEST_FLAGS_PRE) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@
+	$(TEST_CC) $(TEST_FLAGS_PRE) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@
 
 test/pre/%.cu.pre: test/src/%.cu objdep
-	$(CC) $(TEST_FLAGS_PRE) $(TEST_INCLUDE) $(TEST_CC_FLAGS) $(ARCH) -c $< -o $@
+	$(NVCC) $(TEST_FLAGS_PRE) $(TEST_INCLUDE) $(TEST_NVCC_FLAGS) $(ARCH) -c $< -o $@
 
 # Util 
 $(UTIL_BIN): $(UTIL_OBJ) $(LIB)
