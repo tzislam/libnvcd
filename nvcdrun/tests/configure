@@ -1,0 +1,38 @@
+#!/bin/bash
+
+test_root=$(dirname $(realpath $0))
+nvcd_root=$(realpath "${test_root}/../..")
+
+echo "test_root = ${test_root}"
+echo "nvcd_root = ${nvcd_root}"
+
+declare -a test_names=("each-gpu")
+declare -a input_files=("nvcdrun-bsub" "nvcdrun-jsrun")
+
+function remkdir() {
+    rm -rf ${1}
+    mkdir -p ${1}
+}
+
+function generate_test() {
+    local test_name=$1
+    local input=$2
+    sed -e\
+	"s|\${__nvcd_root__}|$nvcd_root|g" -e\
+	"s|\${__test_root__}|$test_root|g" -e\
+	"s|\${__test_name__}|$test_name|g" < $input
+}
+
+remkdir ${test_root}/out
+
+for test_name in "${test_names[@]}"
+do
+    remkdir ${test_root}/out/${test_name}
+    remkdir ${test_root}/${test_name}
+    for input in "${input_files[@]}"
+    do
+	generate_test ${test_name} ${test_root}/${input}.sh.in > ${test_root}/${test_name}/${input}.sh
+	chmod u+x ${test_root}/${test_name}/${input}.sh
+    done
+done
+    

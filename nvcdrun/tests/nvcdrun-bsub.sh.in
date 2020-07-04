@@ -1,0 +1,11 @@
+#BSUB -G asccasc
+#BSUB -q pbatch
+#BSUB -oo ${__test_root__}/out/${__test_name__}/batch_results
+
+rm -f ${__test_root__}/out/${__test_name__}/job
+
+mkdir -p ${__test_root__}/out/${__test_name__}/job
+
+source ${__nvcd_root__}/setup_env.sh
+
+jsrun -E LD_LIBRARY_PATH -n1 -c1 -g4 ${__test_root__}/${__test_name__}/nvcdrun-jsrun.sh

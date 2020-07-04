@@ -1,0 +1,1 @@
+Just run the `configure` file that's in this directory. It will generate an "out" directory, in addition to a directory for each test.

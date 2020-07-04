@@ -1,0 +1,10 @@
+#!/bin/bash
+
+for i in {0..3}
+do 
+    export CUDA_VISIBLE_DEVICES=${i}
+    export BENCH_EVENTS="branch,divergent_branch,threads_launched,warps_launched"
+    ${__nvcd_root__}/bin/nvcdrun > ${__test_root__}/out/${__test_name__}/job/gpu${CUDA_VISIBLE_DEVICES}
+done
+
+
