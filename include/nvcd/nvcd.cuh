@@ -856,14 +856,14 @@ struct nvcd_run_info {
   std::vector<kernel_invoke_data> kernel_stats;
   std::vector<cupti_event_data_t> cupti_events;
   
-  size_t num_runs;
   size_t curr_num_threads;
 
   uint32_t run_kernel_exec_count;
+
+  static size_t num_runs;
   
   nvcd_run_info()
-    : num_runs(0),
-      curr_num_threads(0) {}
+    : curr_num_threads(0) {}
 
   ~nvcd_run_info() {
     for (auto& data: cupti_events) {
@@ -922,18 +922,20 @@ struct nvcd_run_info {
   }
 
   void report() {
-    for (size_t i = 0; i < num_runs; ++i) {
-      msg_userf("================================ report %" PRIu64 " ================================\n",
-		i);
+    ASSERT(num_runs > 0);
+    
+    size_t i = num_runs - 1;
+    msg_userf("================================ report %" PRIu64 " ================================\n",
+	      i);
       
-      kernel_stats[i].write();
+    kernel_stats[i].write();
 
-      cupti_report_event_data(&cupti_events[i]);
-    }
+    cupti_report_event_data(&cupti_events[i]);
   }
 };
 
-extern std::unique_ptr<nvcd_run_info> g_run_info;
+size_t nvcd_run_info::num_runs = 0;
+
 
 //
 // Device functions
