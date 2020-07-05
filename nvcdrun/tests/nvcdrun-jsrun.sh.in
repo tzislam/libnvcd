@@ -1,10 +1,12 @@
 #!/bin/bash
 
-for i in {0..3}
-do 
-    export CUDA_VISIBLE_DEVICES=${i}
+function run() {
+    export BENCH_METRICS="branch_efficiency,cf_executed,cf_issued,dram_read_bytes,dram_read_throughput"
     export BENCH_EVENTS="branch,divergent_branch,threads_launched,warps_launched"
-    ${__nvcd_root__}/bin/nvcdrun > ${__test_root__}/out/${__test_name__}/job/gpu${CUDA_VISIBLE_DEVICES}
-done
+    ${__nvcd_root__}/bin/nvcdrun
+}
 
+hostname
+
+${__script__}
 
