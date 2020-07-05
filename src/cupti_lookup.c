@@ -1547,67 +1547,88 @@ NVCD_EXPORT void cupti_event_data_set_null(cupti_event_data_t* e) {
 NVCD_EXPORT void cupti_event_data_free(cupti_event_data_t* e) {
   ASSERT(e != NULL);
 
-  {
-    char* estr = cupti_event_data_to_string(e);
-    
+  msg_diagf("BEGIN FREE " STRFMT_PTR_VALUE(cupti_event_data_t, e) "\n",
+	       e);
+  
+#if 0
+  if (g_nvcd.opt_verbose_output) {
+    char* estr = cupti_event_data_to_string(e);    
     ASSERT(estr != NULL);
-    msg_verbosef("FREEING %s\n", estr);
+    msg_diagf("FREEING %s\n", estr);
     free(estr);
   }
+#endif
 
-  for (size_t i = 0; i < e->num_event_groups; ++i) { 
+  for (size_t i = 0; i < e->num_event_groups; ++i) {
+    msg_diagtab(1); msg_diagf("Checking group " STRFMT_BUFFER_INDEX_SIZE_T(e->event_groups, i) STRFMT_NEWL1, i);
     if (e->event_groups[i] != NULL) {
-      
+      msg_diagtab(2); msg_diags("Group is NOT NULL");
+
+      msg_diagtab(2);
       if (e->event_groups_enabled[i] == true) {
-        CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i]));
-        e->event_groups_enabled[i] = false; // just good practice...
+        msg_diagtagline(CUPTI_FN(cuptiEventGroupDisable(e->event_groups[i])));
+        e->event_groups_enabled[i] = false;
+      } else {
+	msg_diags("Group already disabled");
       }
 
+      msg_diagtab(2);
       if (cupti_event_group_get_num_events(e->event_groups[i]) > 0) {
-        CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i]));
+        msg_diagtagline(CUPTI_FN(cuptiEventGroupRemoveAllEvents(e->event_groups[i])));
+      } else {
+	msg_diags("No events in group");
       }
       
-      CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i]));
+      
+      msg_diagtab(2); msg_diagtagline(CUPTI_FN(cuptiEventGroupDestroy(e->event_groups[i])));
+    } else {
+      msg_diagtab(2); msg_diags("Group is NULL");
     }
   }
-
   
-  safe_free_v(e->event_id_buffer);
-  safe_free_v(e->event_counter_buffer);
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->event_id_buffer));
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->event_counter_buffer));
   
-  safe_free_v(e->num_events_per_group);
-  safe_free_v(e->num_instances_per_group);
-  safe_free_v(e->num_events_read_per_group);
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->num_events_per_group));
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->num_instances_per_group));
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->num_events_read_per_group));
   
-  safe_free_v(e->event_counter_buffer_offsets);
-  safe_free_v(e->event_id_buffer_offsets);
-  safe_free_v(e->event_group_read_states);
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->event_counter_buffer_offsets));
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->event_id_buffer_offsets));
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->event_group_read_states));
   
-  safe_free_v(e->kernel_times_nsec);
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->kernel_times_nsec));
     
-  safe_free_v(e->event_groups);
+  msg_diagtab(1); msg_diagtagline(safe_free_v(e->event_groups));
   
   // TODO: event names may be either a subset of a static buffer
   // initialized in the .data section,
   // or a subset. Should add a flag to determine
-  // whether or not the data needs to be freed.
-
+  // whether or not the data needs to be freed.  
   if (e->is_root == true) {
+    msg_diagtab(1); msg_diags("e->is_root is true");
     if (e->metric_data != NULL) {
+      msg_diagtab(2); msg_diags("e->metric_data is NOT NULL");
       ASSERT(e->metric_data->initialized == true);
       
       for (uint32_t i = 0; i < e->metric_data->num_metrics; ++i) {
-        cupti_event_data_free(&e->metric_data->event_data[i]);
+	msg_diagtab(3);
+	msg_diagf("For " STRFMT_UINT32_VALUE(i) ": ", i);
+        msg_diagtagline(cupti_event_data_free(&e->metric_data->event_data[i]));
       }
 
-      safe_free_v(e->metric_data->metric_ids);
-      safe_free_v(e->metric_data->metric_values);
-      safe_free_v(e->metric_data->computed);
-      safe_free_v(e->metric_data->metric_get_value_results);
+      msg_diagtab(2); msg_diagtagline(safe_free_v(e->metric_data->metric_ids));
+      msg_diagtab(2); msg_diagtagline(safe_free_v(e->metric_data->metric_values));
+      msg_diagtab(2); msg_diagtagline(safe_free_v(e->metric_data->computed));
+      msg_diagtab(2); msg_diagtagline(safe_free_v(e->metric_data->metric_get_value_results));
     }
+  } else {
+    msg_diagtab(1); msg_diags("e->is_root is false");
   }
 
-  cupti_event_data_set_null(e);
+  msg_diagtab(1); msg_diagtagline(cupti_event_data_set_null(e));
+
+  msg_diags("END FREE");
 }
 
 NVCD_EXPORT void cupti_event_data_begin(cupti_event_data_t* e) {
