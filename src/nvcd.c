@@ -11,7 +11,8 @@ nvcd_t g_nvcd =
    .device_uuids = NULL,
    .num_devices = 0,
    .initialized = false,
-   .opt_verbose_output = false
+   .opt_verbose_output = false,
+   .opt_diagnostic_output = false
   };
 
 static inline void print_device_info(int device_index) {
@@ -64,7 +65,6 @@ void nvcd_init_cuda() {
 
       CUDA_DRIVER_FN(cuDeviceGetUuid(&g_nvcd.device_uuids[i],
 				     g_nvcd.devices[i]));
-
 
       print_device_info(i);
     }

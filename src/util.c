@@ -28,7 +28,8 @@ void exit_msg(FILE* out, int error, const char* message, ...) {
 static inline bool msg_ok(msg_level_t m) {
   return
     (m == MSG_LEVEL_VERBOSE && g_nvcd.opt_verbose_output == true) ||
-    (m != MSG_LEVEL_VERBOSE);
+    (m == MSG_LEVEL_DIAG && g_nvcd.opt_diagnostic_output == true) ||
+    (m != MSG_LEVEL_VERBOSE && m != MSG_LEVEL_DIAG);
 }
 
 void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const char* msg, ...) {
@@ -61,6 +62,9 @@ void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const c
       break;
     case MSG_LEVEL_WARNING:
       strcat(prefix, "WARNING");
+      break;
+    case MSG_LEVEL_DIAG:
+      strcat(prefix, "DIAGNOSTIC");
       break;
     }
 
