@@ -89,10 +89,8 @@ void nvcd_calc_metrics() {
 // by the client and thus can be read at the user's request.
 // However, we still need ensure proper assumptions are met by the cupti module,
 // which expects a NULL cupti_event_data_t on init.
-void nvcd_free_events() {
-    cupti_event_data_set_null(&g_event_data);
-  
-  //cupti_event_data_free(&g_event_data);
+void nvcd_reset_event_data() {
+  cupti_event_data_set_null(&g_event_data);
 }
 
 cupti_event_data_t* nvcd_get_events() {

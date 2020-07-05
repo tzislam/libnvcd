@@ -1177,9 +1177,7 @@ extern "C" {
   }
 
   NVCD_CUDA_EXPORT void nvcd_terminate() {
-    nvcd_free_events();
-
-    g_run_info.reset();
+    nvcd_reset_event_data();
  
     for (int i = 0; i < g_nvcd.num_devices; ++i) {
       ASSERT(g_nvcd.contexts[i] != NULL);
