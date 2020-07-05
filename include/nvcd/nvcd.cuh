@@ -936,6 +936,7 @@ struct nvcd_run_info {
 
 size_t nvcd_run_info::num_runs = 0;
 
+extern nvcd_run_info* g_run_info;
 
 //
 // Device functions
@@ -1115,7 +1116,7 @@ extern "C" {
   }
 
   NVCD_CUDA_EXPORT void nvcd_report() {
-    ASSERT(g_run_info.get() != nullptr);
+    ASSERT(g_run_info != nullptr);
     
     g_run_info->report();
   }
@@ -1128,8 +1129,8 @@ extern "C" {
   NVCD_CUDA_EXPORT void nvcd_init() {
     nvcd_init_cuda();
 
-    if (!g_run_info) {
-      g_run_info.reset(new nvcd_run_info());
+    if (g_run_info == nullptr) {
+      g_run_info = new nvcd_run_info();
     }
         
     ASSERT(g_nvcd.initialized == true);
@@ -1139,7 +1140,7 @@ extern "C" {
     nvcd_init();
 
     ASSERT(g_nvcd.initialized == true);
-    ASSERT(g_run_info.get() != nullptr);
+    ASSERT(g_run_info != nullptr);
 
     nvcd_device_init_mem(num_cuda_threads);
 
@@ -1227,7 +1228,7 @@ extern "C" {
   volatile bool test_imbalance_detect = true;
 }
 
-std::unique_ptr<nvcd_run_info> g_run_info(nullptr);
+nvcd_run_info* g_run_info = nullptr;
 
 #endif // NVCD_HEADER_IMPL
 
