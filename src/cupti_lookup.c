@@ -919,7 +919,7 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
   ASSERT(num_egs <= max_egs /* see the declaration of max_egs if this fails */);
 
   if (num_egs == 0) {
-    exit_msg(stderr,
+    exit_msg(stdout,
              EUNSUPPORTED_EVENTS,
              "%s",
              "No supported events found within given list. "
@@ -1323,7 +1323,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
         _message_reported = true;
       }
     } else {
-      exit_msg(stderr,
+      exit_msg(stdout,
                ERACE_CONDITION,
                "Race condition detected in %s. "
                "Synchronization primitives will be needed for "
