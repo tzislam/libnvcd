@@ -19,6 +19,7 @@ typedef struct nvcd {
   
   bool32_t initialized;
   bool32_t opt_verbose_output; 
+  bool32_t opt_diagnostic_output;
 } nvcd_t;
 
 typedef struct cupti_event_data cupti_event_data_t;

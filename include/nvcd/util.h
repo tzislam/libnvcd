@@ -33,7 +33,8 @@ typedef enum msg_level
    MSG_LEVEL_VERBOSE=0,
    MSG_LEVEL_ERROR,
    MSG_LEVEL_USER,
-   MSG_LEVEL_WARNING
+   MSG_LEVEL_WARNING,
+   MSG_LEVEL_DIAG
   } msg_level_t;
 
 NVCD_EXPORT void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const char* msg, ...);

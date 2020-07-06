@@ -1,0 +1,68 @@
+#!/bin/bash
+
+test_root=$(dirname $(realpath $0))
+nvcd_root=$(realpath "${test_root}/../..")
+
+echo "test_root = ${test_root}"
+echo "nvcd_root = ${nvcd_root}"
+
+declare -a test_names=("n1c1g4" "n4c1g1"  "n4a1c1g1" "n1c1g1")
+declare -a rsconfigs=(
+"-n1 -c1 -g4" 
+
+"-n4 -c1 -g1 --stdio_mode individual --stdio_stdout ${test_root}/out/n4c1g1/job/out_%j_%t --stdio_stderr ${test_root}/out/n4c1g1/job/err_%j_%t"
+
+"-n4 -a1 -c1 -g1 --stdio_mode individual --stdio_stdout ${test_root}/out/n4a1c1g1/job/out_%j_%t --stdio_stderr ${test_root}/out/n4a1c1g1/job/err_%j_%t"
+
+"-n1 -c1 -g1 --stdio_mode individual --stdio_stdout ${test_root}/out/n1c1g1/job/out_%j_%t --stdio_stderr ${test_root}/out/n1c1g1/job/err_%j_%t"
+)
+
+
+declare -a scripts=(
+"\\nfor i in \{0..3\}\\ndo\\n\\nexport CUDA_VISIBLE_DEVICES=\$\{i\}\\nrun > ${test_root}/out/n1c1g4/job/gpu\$\{i\}\\n\\ndone" 
+
+"\\nrun\\n"
+
+"\\nrun\\n"
+
+"\\nrun\\n"
+)
+
+function remkdir() {
+    rm -rf ${1}
+    mkdir -p ${1}
+}
+
+function generate_test() {
+    local test_name=$1
+    local input=$2
+    local jsrun_rs_config=$3
+    local script=$4
+    sed -e\
+	"s|\${__nvcd_root__}|$nvcd_root|g" -e\
+	"s|\${__test_root__}|$test_root|g" -e\
+	"s|\${__test_name__}|$test_name|g" -e\
+        "s|\${__jsrun_rs_config__}|$jsrun_rs_config|g" -e\
+        "s|\${__script__}|$script|g" < $input
+}
+
+remkdir ${test_root}/out
+
+for i in {0..3}
+do
+    rsconfig=${rsconfigs[$i]}
+    test_name=${test_names[$i]}
+    script=${scripts[$i]}
+
+    remkdir ${test_root}/out/${test_name}
+    remkdir ${test_root}/${test_name}
+
+    generate_test ${test_name} ${test_root}/nvcdrun-bsub.sh.in "${rsconfig}" "${script}" > ${test_root}/${test_name}/nvcdrun-bsub.sh
+    chmod u+x ${test_root}/${test_name}/nvcdrun-bsub.sh
+
+    generate_test ${test_name} ${test_root}/nvcdrun-jsrun.sh.in "${rsconfig}" "${script}" > ${test_root}/${test_name}/nvcdrun-jsrun.sh
+    chmod u+x ${test_root}/${test_name}/nvcdrun-jsrun.sh
+
+    bsub < ${test_root}/${test_name}/nvcdrun-bsub.sh
+done
+    

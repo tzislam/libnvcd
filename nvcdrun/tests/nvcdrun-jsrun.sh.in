@@ -1,0 +1,12 @@
+#!/bin/bash
+
+function run() {
+    export BENCH_METRICS="branch_efficiency,cf_executed,cf_issued,dram_read_bytes,dram_read_throughput"
+    export BENCH_EVENTS="branch,divergent_branch,threads_launched,warps_launched"
+    ${__nvcd_root__}/bin/nvcdrun
+}
+
+hostname
+
+${__script__}
+

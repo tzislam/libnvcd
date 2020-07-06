@@ -25,6 +25,11 @@
 #define msg_verbosef(msg, ...) msg_impl(MSG_LEVEL_VERBOSE, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
 #define msg_verboses(msg) msg_impl(MSG_LEVEL_VERBOSE, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
 #define msg_verboseline() msg_impl(MSG_LEVEL_VERBOSE, __LINE__, __FILE__, __FUNC__, "%s", "\n")
+
+#define msg_diagf(msg, ...) msg_impl(MSG_LEVEL_DIAG, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
+#define msg_diags(msg) msg_impl(MSG_LEVEL_DIAG, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
+#define msg_diagtagline(expr) msg_diagf("Executing %s...\n", #expr); expr
+#define msg_diagtab(N) msg_impl(MSG_LEVEL_DIAG, __LINE__, __FILE__, __FUNC__, "%s", STRFMT_TAB##N)
   
 #define msg_errorf(msg, ...) msg_impl(MSG_LEVEL_ERROR, __LINE__, __FILE__, __FUNC__, msg, __VA_ARGS__)
 #define msg_errors(msg) msg_impl(MSG_LEVEL_ERROR, __LINE__, __FILE__, __FUNC__, "%s\n", msg)
@@ -127,9 +132,11 @@ typedef uint32_t bool32_t; // alignment and portability
 #define STRFMT_INT_VALUE(T, v, fmt) #T " " #v " = %" fmt
 
 #define STRFMT_UINT64_VALUE(v) STRFMT_INT_VALUE(uint64_t, v, PRIu64)
+#define STRFMT_SIZE_T_VALUE(v) STRFMT_INT_VALUE(size_t, v, PRIu64)
 #define STRFMT_UINT32_VALUE(v) STRFMT_INT_VALUE(uint32_t, v, PRIu32)
 #define STRFMT_INT32_VALUE(v) STRFMT_INT_VALUE(int32_t, v, PRId32)
 
+#define STRFMT_BUFFER_INDEX_SIZE_T(buffer_name, index_name) #buffer_name "[" STRFMT_SIZE_T_VALUE(index_name) "]"
 
 #define STRFMT_HEX32_VALUE(v) STRFMT_INT_VALUE(unsigned long, v, PRIx32)
 #define STRFMT_HEX64_VALUE(v) STRFMT_INT_VALUE(unsigned long long, v, PRIx64)
