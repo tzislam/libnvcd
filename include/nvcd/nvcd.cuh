@@ -856,14 +856,14 @@ struct nvcd_run_info {
   std::vector<kernel_invoke_data> kernel_stats;
   std::vector<cupti_event_data_t> cupti_events;
   
-  size_t num_runs;
   size_t curr_num_threads;
 
   uint32_t run_kernel_exec_count;
+
+  static size_t num_runs;
   
   nvcd_run_info()
-    : num_runs(0),
-      curr_num_threads(0) {}
+    : curr_num_threads(0) {}
 
   ~nvcd_run_info() {
     for (auto& data: cupti_events) {
@@ -922,18 +922,21 @@ struct nvcd_run_info {
   }
 
   void report() {
-    for (size_t i = 0; i < num_runs; ++i) {
-      msg_userf("================================ report %" PRIu64 " ================================\n",
-		i);
+    ASSERT(num_runs > 0);
+    
+    size_t i = num_runs - 1;
+    msg_userf("================================ report %" PRIu64 " ================================\n",
+	      i);
       
-      kernel_stats[i].write();
+    kernel_stats[i].write();
 
-      cupti_report_event_data(&cupti_events[i]);
-    }
+    cupti_report_event_data(&cupti_events[i]);
   }
 };
 
-extern std::unique_ptr<nvcd_run_info> g_run_info;
+size_t nvcd_run_info::num_runs = 0;
+
+extern nvcd_run_info* g_run_info;
 
 //
 // Device functions
@@ -1113,7 +1116,7 @@ extern "C" {
   }
 
   NVCD_CUDA_EXPORT void nvcd_report() {
-    ASSERT(g_run_info.get() != nullptr);
+    ASSERT(g_run_info != nullptr);
     
     g_run_info->report();
   }
@@ -1126,8 +1129,8 @@ extern "C" {
   NVCD_CUDA_EXPORT void nvcd_init() {
     nvcd_init_cuda();
 
-    if (!g_run_info) {
-      g_run_info.reset(new nvcd_run_info());
+    if (g_run_info == nullptr) {
+      g_run_info = new nvcd_run_info();
     }
         
     ASSERT(g_nvcd.initialized == true);
@@ -1137,7 +1140,7 @@ extern "C" {
     nvcd_init();
 
     ASSERT(g_nvcd.initialized == true);
-    ASSERT(g_run_info.get() != nullptr);
+    ASSERT(g_run_info != nullptr);
 
     nvcd_device_init_mem(num_cuda_threads);
 
@@ -1174,9 +1177,7 @@ extern "C" {
   }
 
   NVCD_CUDA_EXPORT void nvcd_terminate() {
-    nvcd_free_events();
-
-    g_run_info.reset();
+    nvcd_reset_event_data();
  
     for (int i = 0; i < g_nvcd.num_devices; ++i) {
       ASSERT(g_nvcd.contexts[i] != NULL);
@@ -1186,7 +1187,9 @@ extern "C" {
 
     safe_free_v(g_nvcd.device_names);
     safe_free_v(g_nvcd.devices);
-    safe_free_v(g_nvcd.contexts);   
+    safe_free_v(g_nvcd.contexts);
+
+    g_nvcd.initialized = false;
   }
 
   NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {
@@ -1223,7 +1226,7 @@ extern "C" {
   volatile bool test_imbalance_detect = true;
 }
 
-std::unique_ptr<nvcd_run_info> g_run_info(nullptr);
+nvcd_run_info* g_run_info = nullptr;
 
 #endif // NVCD_HEADER_IMPL
 

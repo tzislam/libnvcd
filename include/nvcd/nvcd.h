@@ -33,7 +33,8 @@ NVCD_EXPORT void nvcd_init_events(CUdevice device, CUcontext context);
 
 NVCD_EXPORT void nvcd_calc_metrics();
 
-NVCD_EXPORT void nvcd_free_events();
+
+NVCD_EXPORT void nvcd_reset_event_data();
 
 NVCD_EXPORT cupti_event_data_t* nvcd_get_events();
 
