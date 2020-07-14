@@ -55,7 +55,13 @@ void nvcd_init_cuda() {
       
     for (int i = 0; i < g_nvcd.num_devices; ++i) {
       CUDA_DRIVER_FN(cuDeviceGet(&g_nvcd.devices[i], i));
-        
+
+      //
+      // NOTE: this obviously isn't device specific.
+      // Should look into cuDevicePrimaryCtxRetain/cuDevicePrimaryCtxRelease
+      // for that. It may be that we can get away with those alone and nothing else,
+      // but I'm not sure. Will need time to read more on context management...
+      //         
       CUDA_DRIVER_FN(cuCtxGetCurrent(&g_nvcd.contexts[i]));
 
       g_nvcd.contexts_ext[i] = g_nvcd.contexts[i] != NULL;
