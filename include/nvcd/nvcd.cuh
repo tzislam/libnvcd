@@ -1182,7 +1182,10 @@ extern "C" {
     for (int i = 0; i < g_nvcd.num_devices; ++i) {
       ASSERT(g_nvcd.contexts[i] != NULL);
       safe_free_v(g_nvcd.device_names[i]);
-      CUDA_DRIVER_FN(cuCtxDestroy(g_nvcd.contexts[i]));
+            
+      if (g_nvcd.contexts_ext[i] == false) {
+	CUDA_DRIVER_FN(cuCtxDestroy(g_nvcd.contexts[i]));
+      }
     }
 
     safe_free_v(g_nvcd.device_names);

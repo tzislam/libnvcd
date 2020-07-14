@@ -8,6 +8,7 @@ nvcd_t g_nvcd =
   {
    .devices = NULL,
    .contexts = NULL,
+   .contexts_ext = NULL,
    .device_uuids = NULL,
    .num_devices = 0,
    .initialized = false,
@@ -41,6 +42,9 @@ void nvcd_init_cuda() {
     g_nvcd.contexts = (CUcontext*)zallocNN(sizeof(*(g_nvcd.contexts)) *
 					  g_nvcd.num_devices);
 
+    g_nvcd.contexts_ext = (bool32_t*)zallocNN(sizeof(g_nvcd.contexts_ext[0]) *
+					      g_nvcd.num_devices);
+
     g_nvcd.device_names = (char**)zallocNN(sizeof(*(g_nvcd.device_names)) *
 					  g_nvcd.num_devices);
 
@@ -52,9 +56,17 @@ void nvcd_init_cuda() {
     for (int i = 0; i < g_nvcd.num_devices; ++i) {
       CUDA_DRIVER_FN(cuDeviceGet(&g_nvcd.devices[i], i));
         
-      CUDA_DRIVER_FN(cuCtxCreate(&g_nvcd.contexts[i],
-				 0,
-				 g_nvcd.devices[i]));
+      CUDA_DRIVER_FN(cuCtxGetCurrent(&g_nvcd.contexts[i]));
+
+      g_nvcd.contexts_ext[i] = g_nvcd.contexts[i] != NULL;
+      
+      if (g_nvcd.contexts_ext[i] == false) {
+	CUDA_DRIVER_FN(cuCtxCreate(&g_nvcd.contexts[i],
+				   0,
+				   g_nvcd.devices[i]));
+      }
+
+      ASSERT(g_nvcd.contexts[i] != NULL);
         
       g_nvcd.device_names[i] = (char*) zallocNN(sizeof(g_nvcd.device_names[i][0]) *
 					       MAX_STRING_LENGTH);

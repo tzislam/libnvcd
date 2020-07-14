@@ -11,7 +11,7 @@ typedef CUuuid uuid_t;
 typedef struct nvcd {
   CUdevice* devices;
   CUcontext* contexts;
-
+  bool32_t* contexts_ext;
   char** device_names;
   uuid_t* device_uuids;
   
