@@ -1,4 +1,4 @@
-#include "nvcd/cupti_lookup.h"
+#include "nvcd/cupti_util.h"
 #include <string.h>
 #include <inttypes.h>
 #include "nvcd/util.h"

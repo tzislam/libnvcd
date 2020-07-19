@@ -1,5 +1,5 @@
 #include "nvcd/nvcd.h"
-#include "nvcd/cupti_lookup.h"
+#include "nvcd/cupti_util.h"
 #include "nvcd/util.h"
 
 static cupti_event_data_t g_event_data = CUPTI_EVENT_DATA_INIT;
