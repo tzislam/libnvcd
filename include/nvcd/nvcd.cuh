@@ -350,7 +350,7 @@ struct nvcd_device_info {
     }
 
     entry(const std::string& name_, bool supported_)
-      : entry(name_, id_unset, supported)
+      : entry(name_, id_unset, supported_)
         
     {}
 
