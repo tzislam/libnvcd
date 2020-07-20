@@ -852,18 +852,63 @@ struct nvcd_device_info {
   }
 };
 
+
+using instance_vec_type = std::vector<uint64_t>;
+using counter_map_type = std::unordered_map<CUpti_EventID, std::vector<uint64_t>>;
+
+instance_vec_type operator - (const instance_vec_type& a, const instance_vec_type& b) {
+  ASSERT(a.size() == b.size());
+  // in case asserts are disabled (for whatever unlikely reason that may be...)
+  size_t sz = std::min(a.size(), b.size());
+  instance_vec_type diff(sz, 0);
+  for (size_t i = 0; i < sz; ++i) {
+    diff[i] = a[i] - b[i];
+  }
+  return diff;
+} 
+
+counter_map_type operator - (const counter_map_type& a, const counter_map_type& b) {
+  counter_map_type diff;
+  for (const auto& kv: a) {
+    const auto& key = kv.first;
+    const auto& value = kv.second;
+    const instance_vec_type& avec = value;
+    // b will be empty the first time this operator overload
+    // is called, but this is just a better catch all solution.
+    // sure, it's less efficient because b.empty() is simpler to check for.
+    // the map is unordered though, so b.find() should have little overhead.
+    if (b.find(key) != b.end()) {
+      const instance_vec_type& bvec = b.at(key);
+      diff[key] = avec - bvec;
+    }
+    else {
+      diff[key] = avec;
+    }
+  }
+  return diff;
+}
+
+extern struct nvcd_run_info* g_run_info;
+
 struct nvcd_run_info {
   std::vector<kernel_invoke_data> kernel_stats;
   std::vector<cupti_event_data_t> cupti_events;
   
+  counter_map_type counters_start;
+  counter_map_type counters_end;
+  counter_map_type counters_diff;
+  
   size_t curr_num_threads;
-
+  const char* func_name;
   uint32_t run_kernel_exec_count;
 
   static size_t num_runs;
   
   nvcd_run_info()
-    : curr_num_threads(0) {}
+    : curr_num_threads(0),
+      func_name(nullptr),
+      run_kernel_exec_count(0) {
+  }
 
   ~nvcd_run_info() {
     for (auto& data: cupti_events) {
@@ -913,6 +958,25 @@ struct nvcd_run_info {
     // since it will be NULL'd by the
     // NVCD module (but not freed).
     cupti_event_data_t* global = nvcd_get_events();
+
+    // we do this to compute the difference
+    // from the previous run
+    for (const auto& kv: counters_end) {
+      const auto& k = kv.first;
+      const auto& v = kv.second;
+      if (!v.empty()) {
+	if (counters_start[k].size() != v.size()) {
+	  counters_start[k].resize(v.size(), 0);
+	}
+	std::copy(v.begin(),
+		  v.end(),
+		  counters_start[k].begin());
+      }      
+    }
+    
+    cupti_event_data_enum_event_counters(global, nvcd_run_info::enum_event_counters);
+
+    counters_diff = counters_end - counters_start;
     
     memcpy(&cupti_events[num_runs],
            global,
@@ -921,15 +985,34 @@ struct nvcd_run_info {
     num_runs++;
   }
 
+  static bool enum_event_counters(cupti_enum_event_counter_iteration_t* it) {
+    if (g_run_info->counters_end[it->event].empty()) {
+      g_run_info->counters_end[it->event].resize(it->num_instances, 0);
+    }
+    g_run_info->counters_end[it->event][it->instance] += it->value;
+    return true;
+  }
+  
   void report() {
     ASSERT(num_runs > 0);
     
     size_t i = num_runs - 1;
     msg_userf("================================ report %" PRIu64 " ================================\n",
 	      i);
-      
+    
     kernel_stats[i].write();
-
+    std::stringstream ss;
+    for (const auto& kv : counters_diff) {
+      const auto& key = kv.first;
+      const auto& value = kv.second;
+      std::unique_ptr<const char> dstr(cupti_event_get_name(key));
+      for (size_t i = 0; i < value.size(); ++i) {
+	ss << "|COUNTER| <kernel_name_here(WIP)>" << "(): " << dstr.get() << ": " << value.at(i) << "\n";
+      }
+    }
+    
+    msg_userf("%s", ss.str().c_str());
+    
     cupti_report_event_data(&cupti_events[i]);
   }
 };
@@ -1239,7 +1322,7 @@ static inline void nvcd_run_metrics(const TKernFunType& kernel,
 				    const SThreadType& threads_per_block,
 				    TArgs... args) {
   cupti_event_data_t* __e = nvcd_get_events();                           
-                                                                        
+  
   ASSERT(__e->is_root == true);                                       
   ASSERT(__e->initialized == true);                                   
   ASSERT(__e->metric_data != NULL);                                   
@@ -1266,6 +1349,10 @@ static inline void nvcd_run(const TKernFunType& kernel,
 			    const SThreadType& block_size, 
 			    const SThreadType& threads_per_block,
 			    TArgs... args) {
+
+  
+  //  g_run_info->func_name = *(const char**)((uintptr_t)(&kernel) + 8);
+  
   cupti_event_data_begin(nvcd_get_events());                          
   while (!nvcd_host_finished()) {                                     
     kernel<<<block_size, threads_per_block>>>(args...);                       
