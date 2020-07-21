@@ -3,7 +3,6 @@
 
 #include <nvcd/commondef.h>
 #include <nvcd/util.h>
-#include <nvcd/list.h>
 #include <nvcd/env_var.h>
 #include <nvcd/cupti_util.h>
 #include <nvcd/nvcd.h>

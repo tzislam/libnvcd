@@ -2,7 +2,6 @@
 #include <string.h>
 #include <inttypes.h>
 #include "nvcd/util.h"
-#include "nvcd/list.h"
 #include "nvcd/env_var.h"
 
 #define MAX_EVENT_GROUPS_PER_EVENT_DATA 250
