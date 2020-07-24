@@ -32,9 +32,17 @@ static inline bool msg_ok(msg_level_t m) {
     (m != MSG_LEVEL_VERBOSE && m != MSG_LEVEL_DIAG);
 }
 
+static const size_t MSG_BUFFER_SZ = 1 << 24;
+static char* g_msg_buffer = NULL;
+
 void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const char* msg, ...) {
+  if (g_msg_buffer == NULL) {
+    g_msg_buffer = zallocNN(MSG_BUFFER_SZ);
+  }
+
   if (msg_ok(m)) {  
-    char buffer[1 << 14] = {0};
+    memset(g_msg_buffer, 0, MSG_BUFFER_SZ);
+
 #if defined (NVCD_DEBUG)
     char prefix[1024 + 256] = {0};
     char sig[1024] = {0};
@@ -44,8 +52,11 @@ void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const c
     
     va_list ap;
     va_start(ap, msg);
-    vsprintf(buffer, msg, ap);
+    size_t count = (size_t) vsprintf(g_msg_buffer, msg, ap);
     va_end(ap); 
+
+    // ensure room for null terminator as well
+    ASSERT(count < MSG_BUFFER_SZ);
   
     strcat(prefix, "[");
     switch (m) {
@@ -80,9 +91,9 @@ void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const c
 #endif
 
     if (m != MSG_LEVEL_USER) {
-      fprintf(stdout, "%s:%s", prefix, buffer);
+      fprintf(stdout, "%s:%s", prefix, g_msg_buffer);
     } else {
-      fprintf(stdout, "%s", buffer);
+      fprintf(stdout, "%s", g_msg_buffer);
     }
   }
 }
