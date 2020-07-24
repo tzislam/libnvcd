@@ -1076,13 +1076,17 @@ static void init_cupti_event_buffers(cupti_event_data_t* e) {
   }
 }
 
-static char _peg_buffer[1 << 13] = { 0 };
+static const size_t PEG_BUFFER_SZ = 1 << 20;
+static char* _peg_buffer = NULL;
 
 static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
+  if (_peg_buffer == NULL) {
+    _peg_buffer = zallocNN(PEG_BUFFER_SZ);
+  }
   // used for iterative bounds checking
-#define peg_buffer_length ARRAY_LENGTH(_peg_buffer) - 1
+#define peg_buffer_length PEG_BUFFER_SZ - 1
   
-  memset(&_peg_buffer[0], 0, sizeof(_peg_buffer));
+  memset(&_peg_buffer[0], 0, PEG_BUFFER_SZ);
   
   uint64_t* pcounters = &e->event_counter_buffer[0];
   
