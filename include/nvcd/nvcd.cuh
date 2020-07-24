@@ -891,7 +891,6 @@ extern struct nvcd_run_info* g_run_info;
 
 struct nvcd_run_info {
   std::vector<kernel_invoke_data> kernel_stats;
-  std::vector<cupti_event_data_t> cupti_events;
   
   counter_map_type counters_start;
   counter_map_type counters_end;
@@ -910,9 +909,6 @@ struct nvcd_run_info {
   }
 
   ~nvcd_run_info() {
-    for (auto& data: cupti_events) {
-      cupti_event_data_free(&data);
-    }
   }
 
   void run_kernel_count_inc() {
@@ -935,29 +931,8 @@ struct nvcd_run_info {
       curr_num_threads = 0;
       run_kernel_exec_count = 0;
     }
-    
-    if (num_runs == cupti_events.size()) {
-      if (cupti_events.size() == 0) {
-        cupti_events.resize(8);
-
-        for (size_t i = 0; i < cupti_events.size(); ++i) {
-          cupti_event_data_set_null(&cupti_events[i]);
-        }
-      } else {
-        size_t oldsz = cupti_events.size();
-        cupti_events.resize(cupti_events.size() << 1);
-
-        for (size_t i = oldsz; i < cupti_events.size(); ++i) {
-          cupti_event_data_set_null(&cupti_events[i]);
-        }
-      }
-    }
-
-    // Here we have to copy the data over
-    // since it will be NULL'd by the
-    // NVCD module (but not freed).
+   
     cupti_event_data_t* global = nvcd_get_events();
-
     // we do this to compute the difference
     // from the previous run
     for (const auto& kv: counters_end) {
@@ -973,13 +948,9 @@ struct nvcd_run_info {
       }      
     }
     
-    cupti_event_data_enum_event_counters(global, nvcd_run_info::enum_event_counters);
-
-    counters_diff = counters_end - counters_start;
+    cupti_event_data_enum_event_counters(global, nvcd_run_info::enum_event_counters);    
     
-    memcpy(&cupti_events[num_runs],
-           global,
-           sizeof(*global));
+    counters_diff = counters_end - counters_start;
 
     num_runs++;
   }
@@ -1012,7 +983,7 @@ struct nvcd_run_info {
     
     msg_userf("%s", ss.str().c_str());
     
-    cupti_report_event_data(&cupti_events[i]);
+    cupti_report_event_data(nvcd_get_events());
   }
 };
 

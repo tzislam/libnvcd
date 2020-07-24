@@ -108,6 +108,7 @@ void nvcd_calc_metrics() {
 // However, we still need ensure proper assumptions are met by the cupti module,
 // which expects a NULL cupti_event_data_t on init.
 void nvcd_reset_event_data() {
+  cupti_event_data_free(&g_event_data);
   cupti_event_data_set_null(&g_event_data);
 }
 
