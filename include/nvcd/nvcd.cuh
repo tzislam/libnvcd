@@ -968,10 +968,13 @@ struct nvcd_run_info {
     for (const auto& kv : counters_diff) {
       const auto& key = kv.first;
       const auto& value = kv.second;
-      std::unique_ptr<const char> dstr(cupti_event_get_name(key));
-      for (size_t i = 0; i < value.size(); ++i) {
-	ss << "|COUNTER| <kernel_name_here(WIP)>" << "(): " << dstr.get() << ": " << value.at(i) << "\n";
+      char* event_name = cupti_event_get_name(key);
+      ASSERT(event_name != nullptr);
+      for (size_t index = 0; index < value.size(); ++index) {
+	ss << "|COUNTER| <kernel_name_here(WIP)>" << "(): " 
+	   << event_name << ": " << value.at(index) << "\n";
       }
+      free(event_name);
     }
     
     msg_userf("%s", ss.str().c_str());
