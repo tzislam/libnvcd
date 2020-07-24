@@ -853,7 +853,7 @@ struct nvcd_device_info {
 
 
 using instance_vec_type = std::vector<uint64_t>;
-using counter_map_type = std::unordered_map<CUpti_EventID, std::vector<uint64_t>>;
+using counter_map_type = std::unordered_map<CUpti_EventID, instance_vec_type>;
 
 instance_vec_type operator - (const instance_vec_type& a, const instance_vec_type& b) {
   ASSERT(a.size() == b.size());
@@ -936,16 +936,7 @@ struct nvcd_run_info {
     // we do this to compute the difference
     // from the previous run
     for (const auto& kv: counters_end) {
-      const auto& k = kv.first;
-      const auto& v = kv.second;
-      if (!v.empty()) {
-	if (counters_start[k].size() != v.size()) {
-	  counters_start[k].resize(v.size(), 0);
-	}
-	std::copy(v.begin(),
-		  v.end(),
-		  counters_start[k].begin());
-      }      
+      counters_start[kv.first] = kv.second;      
     }
     
     cupti_event_data_enum_event_counters(global, nvcd_run_info::enum_event_counters);    
@@ -955,10 +946,11 @@ struct nvcd_run_info {
     num_runs++;
   }
 
-  static bool enum_event_counters(cupti_enum_event_counter_iteration_t* it) {
+  static bool enum_event_counters(cupti_enum_event_counter_iteration_t* it) {    
     if (g_run_info->counters_end[it->event].empty()) {
       g_run_info->counters_end[it->event].resize(it->num_instances, 0);
     }
+    ASSERT(it->instance < it->num_instances);
     g_run_info->counters_end[it->event][it->instance] += it->value;
     return true;
   }
@@ -966,12 +958,13 @@ struct nvcd_run_info {
   void report() {
     ASSERT(num_runs > 0);
     
-    size_t i = num_runs - 1;
     msg_userf("================================ report %" PRIu64 " ================================\n",
-	      i);
-    
+	      num_runs - 1);
+   
     kernel_stats[i].write();
+
     std::stringstream ss;
+    msg_verbosef("counters_diff size: %" PRIu64 "\n", counters_diff.size());
     for (const auto& kv : counters_diff) {
       const auto& key = kv.first;
       const auto& value = kv.second;
