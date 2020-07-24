@@ -1840,9 +1840,6 @@ void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
   ASSERT(e->count_event_groups_read == e->num_event_groups);
   bool keep_iterating = true;
   uint64_t* pcounters = &e->event_counter_buffer[0];
-  //g = group
-  //e = event
-  //j = event count instance
   //ib = id buffer
   //cb = counter buffer
   //nepg = number of events per group
@@ -1855,8 +1852,13 @@ void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
     uint32_t nepg = e->num_events_per_group[group];
     uint32_t nipg = e->num_instances_per_group[group];
 
-    // if asserts are enabled, then what's listed here is just
-    // a direct paste. Scroll further downward for the actual
+    // If asserts are enabled, then what's listed here is just
+    // a series of assertions copy/pasted from print_event_group_soa(). 
+    //
+    // They're used to make sure that the layout of the data
+    // used to track the counters within the groups is correct.
+    //
+    // Scroll further downward for the actual
     // iteration.
     IF_ASSERTS_ENABLED(
 	volatile uint32_t next_cb_offset = 0;
