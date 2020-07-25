@@ -961,7 +961,7 @@ struct nvcd_run_info {
     msg_userf("================================ report %" PRIu64 " ================================\n",
 	      num_runs - 1);
    
-    kernel_stats[i].write();
+    kernel_stats.at(num_runs - 1).write();
 
     std::stringstream ss;
     msg_verbosef("counters_diff size: %" PRIu64 "\n", counters_diff.size());
