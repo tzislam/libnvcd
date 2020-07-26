@@ -1308,8 +1308,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
 
   cupti_event_data_t* event_data = (cupti_event_data_t*) userdata;
 
-  msg_verboses("-----------------");
-  msg_verbosef("event callback hit for event_data = %p\n", event_data);
+  msg_verbosef("[cupti_event_callback] for event_data = %p\n", event_data);
   
   // For now it appears that the threads are the same between the main thread
   // and the thread this callback is installed in. The check is important though
