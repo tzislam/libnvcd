@@ -32,11 +32,14 @@ include $(NVCD_HOME)/nvcdrun/Makefile
 
 include $(NVCD_HOME)/nvcdinfo/Makefile
 
+include $(NVCD_HOME)/hook/Makefile
+
 # Housekeeping
 objdep:
 	mkdir -p obj
 	mkdir -p nvcdrun/obj
 	mkdir -p nvcdinfo/obj
+	mkdir -p hook/obj
 	mkdir -p bin
 
 clean:
@@ -51,6 +54,7 @@ clean:
 	rm -f nvcdinfo/include/*~
 	rm -rf nvcdrun/obj
 	rm -rf nvcdinfo/obj
+	rm -rf hook/obj
 
 #$$CUDACC -v $DEBUG -c $INCLUDE $ARCH src/gpu.cu -o obj/gpu.o &&\
 #$CC -v $DEBUG $INCLUDE $ARCH -L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart obj/gpu.o src/main.c -o bin/perfmon

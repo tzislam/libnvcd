@@ -11,7 +11,7 @@ TEST_SRCDIR := $(TEST_ROOT)/src
 
 TEST_OBJ := $(subst $(TEST_SRCDIR), $(TEST_OBJDIR), $(TEST_OBJ_C) $(TEST_OBJ_CU))
 
-TEST_LIBS := $(LIBS) -L$(NVCD_HOME)/bin -lnvcd
+TEST_LIBS := $(LIBS) #-L$(NVCD_HOME)/bin -lnvcd
 
 TEST_BIN := nvcdrun
 
