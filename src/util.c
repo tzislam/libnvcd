@@ -52,11 +52,8 @@ void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const c
     
     va_list ap;
     va_start(ap, msg);
-    size_t count = (size_t) vsprintf(g_msg_buffer, msg, ap);
-    va_end(ap); 
-
-    // ensure room for null terminator as well
-    ASSERT(count < MSG_BUFFER_SZ);
+    size_t count = (size_t) vsnprintf(g_msg_buffer, MSG_BUFFER_SZ, msg, ap);
+    va_end(ap);
   
     strcat(prefix, "[");
     switch (m) {
