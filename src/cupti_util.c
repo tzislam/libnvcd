@@ -1343,7 +1343,7 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());
 
       CUPTI_FN(cuptiSetEventCollectionMode(callback_info->context,
-                                           CUPTI_EVENT_COLLECTION_MODE_KERNEL));
+                                           CUPTI_EVENT_COLLECTION_MODE_CONTINUOUS));
 
       //
       // We try to get all of the event groups we wish to read,
