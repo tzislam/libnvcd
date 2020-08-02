@@ -39,17 +39,20 @@ static inline cudaError_t nvcd_run_metrics2(const TKernFunType& kernel,
 template <class TKernFunType, class ...TArgs>
 static inline cudaError_t nvcd_run2(const TKernFunType& kernel, 
 				    TArgs... args) {
-  
-  cupti_event_data_begin(nvcd_get_events());
-  cudaError_t result = cudaSuccess;
-  while (result == cudaSuccess && !nvcd_host_finished()) {                                     
-    result = kernel(args...);                       
-    CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         
-    g_run_info->run_kernel_count_inc();			
-  }                                                                   
-  cupti_event_data_end(nvcd_get_events());    
 
-  if (result == cudaSuccess && g_nvcd.opt_calc_metrics) {  
+  cudaError_t result = cudaSuccess;
+
+  if (nvcd_has_events()) {
+    cupti_event_data_begin(nvcd_get_events());  
+    while (result == cudaSuccess && !nvcd_host_finished()) {                                     
+      result = kernel(args...);                       
+      CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         
+      g_run_info->run_kernel_count_inc();			
+    }                                                                   
+    cupti_event_data_end(nvcd_get_events());
+  }
+
+  if (result == cudaSuccess && nvcd_has_metrics()) {  
     result = nvcd_run_metrics2(kernel, args...);
   }
 

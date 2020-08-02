@@ -33,6 +33,9 @@ NVCD_EXPORT void nvcd_init_events(CUdevice device, CUcontext context);
 
 NVCD_EXPORT void nvcd_calc_metrics();
 
+NVCD_EXPORT bool nvcd_has_metrics();
+
+NVCD_EXPORT bool nvcd_has_events();
 
 NVCD_EXPORT void nvcd_reset_event_data();
 

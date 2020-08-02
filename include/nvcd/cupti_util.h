@@ -79,6 +79,8 @@ typedef struct cupti_event_data {
 
   bool32_t initialized;
   bool32_t is_root;
+  bool32_t has_metrics;
+  bool32_t has_events;
 } cupti_event_data_t;
 
 typedef struct cupti_metric_data {
@@ -127,7 +129,9 @@ typedef struct cupti_metric_data {
     /*.kernel_times_nsec_buffer_length =*/ 10,                          \
     /*.event_names_buffer_length =*/ 0,                                 \
       /*.initialized =*/ false,                                         \
-      /*.is_root =*/ false                                              \
+      /*.is_root =*/ false,						\
+      /*.calc_metrics =*/ false,					\
+      /*.calc_events =*/ false						\
     }
 
 

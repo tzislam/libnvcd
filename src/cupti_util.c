@@ -205,6 +205,7 @@ static void init_cupti_event_buffers(cupti_event_data_t* e);
 static void fill_event_groups(cupti_event_data_t* e,
                               CUpti_EventGroup* local_eg_assign,
                               uint32_t num_egs) {
+  ASSERT(e->has_events == true);
   e->num_event_groups = num_egs;
   e->event_groups = zallocNN(sizeof(e->event_groups[0]) * e->num_event_groups);
   e->event_group_read_states = zallocNN(sizeof(e->event_group_read_states[0]) * e->num_event_groups);
@@ -302,10 +303,12 @@ static CUpti_MetricID* fetch_metric_ids_from_device(CUdevice device, uint32_t* n
   return out_ids;
 }
 
-static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
+static CUpti_MetricID* fetch_metric_ids_from_names(cupti_event_data_t* e_root,
                                                    char** metric_names,
                                                    uint32_t* num_metrics) {
-
+  ASSERT(e_root->has_metrics == true); 
+  ASSERT(e_root->is_root == true);
+  CUdevice device = e_root->cuda_device;
   msg_verbose_begin();
   
   msg_verboses("Attempting to fetch metric id values from");
@@ -354,6 +357,7 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
   if (*num_metrics == 0) {
     free(out_ids);
     out_ids = NULL;
+    e_root->has_metrics = false;
   } else if (*num_metrics != desired) {
     size_t sz = sizeof(CUpti_MetricID) * (*num_metrics);
     CUpti_MetricID* new_ids = zallocNN(sz);
@@ -367,97 +371,115 @@ static CUpti_MetricID* fetch_metric_ids_from_names(CUdevice device,
   return out_ids;
 }
 
-static CUpti_MetricID* fetch_metric_ids(CUdevice device,
+static CUpti_MetricID* fetch_metric_ids(cupti_event_data_t* e_root,					
                                         uint32_t* num_metrics) {
+  ASSERT(num_metrics != NULL);
+  
   char* metric_env_value = getenv(ENV_METRICS);
 
-  CUpti_MetricID* buf = NULL;
+  CUdevice device = e_root->cuda_device;
   
-  if (metric_env_value != NULL) {
+  CUpti_MetricID* buf = NULL;
+
+  e_root->has_metrics = metric_env_value != NULL;
+  
+  if (e_root->has_metrics) {
     size_t count = 0;
 
     char** list = env_var_list_read(metric_env_value,
                                     &count);
-
+    
     if (list != NULL) {
       ASSERT(count > 0);
         
       *num_metrics = (uint32_t) count;
 
-      buf = fetch_metric_ids_from_names(device,
+      buf = fetch_metric_ids_from_names(e_root,
                                         list,
                                         num_metrics);
     } else {
       ASSERT(count == 0);
       
-      buf = fetch_metric_ids_from_device(device,
-                                         num_metrics);
+      msg_warnf("(%s) %s\n",
+		ENV_METRICS,
+		"Could not parse the environment list; list is likely empty.");
+
+      e_root->has_metrics = false;
     }
-  } else {
-    buf = fetch_metric_ids_from_device(device,
-                                       num_metrics);
+  }
+  else {
+    msg_verbosef("%s undefined; NOT recording metrics.\n",
+		 ENV_METRICS);
+
+    *num_metrics = 0;
   }
 
   return buf;
 }
 
 static void init_cupti_metric_data(cupti_event_data_t* e) {
-  cupti_metric_data_t* metric_buffer = zallocNN(sizeof(*metric_buffer));
+  uint32_t num_metrics = 0;
+  CUpti_MetricID* metric_id_buffer = fetch_metric_ids(e, &num_metrics);
+
+  if (e->has_metrics) {
+    ASSERT(metric_id_buffer != NULL && num_metrics > 0);
+    cupti_metric_data_t* metric_buffer = zallocNN(sizeof(*metric_buffer));
+
+    metric_buffer->num_metrics = num_metrics;
+    metric_buffer->metric_ids = metric_id_buffer;
+
+    metric_buffer->metric_values = zallocNN(sizeof(metric_buffer->metric_values[0]) *
+					    metric_buffer->num_metrics);
   
-  metric_buffer->metric_ids = fetch_metric_ids(e->cuda_device, &metric_buffer->num_metrics);
+    metric_buffer->event_data = zallocNN(sizeof(metric_buffer->event_data[0]) *
+					 metric_buffer->num_metrics);
 
-  metric_buffer->metric_values = zallocNN(sizeof(metric_buffer->metric_values[0]) *
-                                          metric_buffer->num_metrics);
-  
-  metric_buffer->event_data = zallocNN(sizeof(metric_buffer->event_data[0]) *
-                                       metric_buffer->num_metrics);
+    metric_buffer->computed = zallocNN(sizeof(metric_buffer->computed[0]) *
+				       metric_buffer->num_metrics);
 
-  metric_buffer->computed = zallocNN(sizeof(metric_buffer->computed[0]) *
-                                     metric_buffer->num_metrics);
-
-  metric_buffer->metric_get_value_results =
-    zallocNN(sizeof(metric_buffer->metric_get_value_results[0]) *
-             metric_buffer->num_metrics);
+    metric_buffer->metric_get_value_results =
+      zallocNN(sizeof(metric_buffer->metric_get_value_results[0]) *
+	       metric_buffer->num_metrics);
                                                      
 #define _index_ "[%" PRIu32 "] "
-  msg_verbose_begin();
-  for (uint32_t i = 0; i < metric_buffer->num_metrics; ++i) {
-    char* name = cupti_metric_get_name(metric_buffer->metric_ids[i]);
-    msg_verbosef( _index_ "Processing metric %s...\n", i, name);
+    msg_verbose_begin();
+    for (uint32_t i = 0; i < metric_buffer->num_metrics; ++i) {
+      char* name = cupti_metric_get_name(metric_buffer->metric_ids[i]);
+      msg_verbosef( _index_ "Processing metric %s...\n", i, name);
     
-    uint32_t num_events = 0;
-    CUPTI_FN(cuptiMetricGetNumEvents(metric_buffer->metric_ids[i], &num_events));
-    msg_verbosef(_index_ "event count is %" PRIu32 "\n", i, num_events);
+      uint32_t num_events = 0;
+      CUPTI_FN(cuptiMetricGetNumEvents(metric_buffer->metric_ids[i], &num_events));
+      msg_verbosef(_index_ "event count is %" PRIu32 "\n", i, num_events);
 
-    size_t event_array_size = sizeof(CUpti_EventID) * num_events;
+      size_t event_array_size = sizeof(CUpti_EventID) * num_events;
     
-    CUpti_EventID* events = zallocNN(event_array_size);
+      CUpti_EventID* events = zallocNN(event_array_size);
     
-    CUPTI_FN(cuptiMetricEnumEvents(metric_buffer->metric_ids[i],
-                                   &event_array_size,
-                                   &events[0]));
+      CUPTI_FN(cuptiMetricEnumEvents(metric_buffer->metric_ids[i],
+				     &event_array_size,
+				     &events[0]));
     
-    cupti_event_data_set_null(&metric_buffer->event_data[i]);
+      cupti_event_data_set_null(&metric_buffer->event_data[i]);
 
-    metric_buffer->event_data[i].cuda_device = e->cuda_device;
-    metric_buffer->event_data[i].cuda_context = e->cuda_context;
+      metric_buffer->event_data[i].cuda_device = e->cuda_device;
+      metric_buffer->event_data[i].cuda_context = e->cuda_context;
     
-    cupti_event_data_init_from_ids(&metric_buffer->event_data[i],
-                                   &events[0],
-                                   num_events);
+      cupti_event_data_init_from_ids(&metric_buffer->event_data[i],
+				     &events[0],
+				     num_events);
     
-    // TODO: take each group and compute the needed values...
+      // TODO: take each group and compute the needed values...
     
-    free(name);
+      free(name);
 
-    msg_verboses("---");
-  }
-  msg_verbose_end();
+      msg_verboses("---");
+    }
+    msg_verbose_end();
   
-  metric_buffer->initialized = true;
+    metric_buffer->initialized = true;
 
-  e->metric_data = metric_buffer;
-
+    e->metric_data = metric_buffer;
+  }
 }
 
 static uint32_t derive_event_count(cupti_event_data_t* e) {
@@ -846,6 +868,7 @@ static void read_group_per_event(cupti_event_data_t* e, uint32_t group) {
 }
 
 static void init_cupti_event_groups(cupti_event_data_t* e) {
+  ASSERT(e->has_events == true);
   msg_verbosef("%s\n", "init_cupti_event_groups_entered");
   
   // static default; increase if more groups become necessary
@@ -933,9 +956,9 @@ static void init_cupti_event_groups(cupti_event_data_t* e) {
 static void init_cupti_event_names(cupti_event_data_t* e) {
   char* env_string = getenv(ENV_EVENTS);
 
-  FILE* stream = stderr;
+  e->has_events = env_string != NULL;
   
-  if (env_string != NULL) { 
+  if (e->has_events) { 
     size_t count = 0;
     char** list = env_var_list_read(env_string, &count);
 
@@ -973,23 +996,25 @@ static void init_cupti_event_names(cupti_event_data_t* e) {
         e->event_names_buffer_length = (uint32_t)count;
       }
     } else {
-      exit_msg(stream,
-               EBAD_INPUT,
-               "(%s) %s",
-               ENV_EVENTS,
-               "Could not parse the environment list.");
+      msg_warnf("(%s) %s\n",
+		ENV_EVENTS,
+		"Could not parse the environment list; list is likely empty.");
+
+      e->has_events = false;
+      e->event_names = NULL;
+      e->event_names_buffer_length = 0;
     }
   } else {
-    msg_verbosef("%s undefined; defaulting to all event counters.\n",
+    msg_verbosef("%s undefined; NOT recording event counters.\n",
 		 ENV_EVENTS);
     
-    size_t num_event_names = 0;
-    e->event_names = cupti_get_event_names(e, &num_event_names);
-    e->event_names_buffer_length = (uint32_t)num_event_names;
+    e->event_names = NULL;
+    e->event_names_buffer_length = 0;
   }
 }
 
 static void init_cupti_event_buffers(cupti_event_data_t* e) {
+  ASSERT(e->has_events == true);
   // get instance and event counts for each group
   {
     e->num_events_per_group = zallocNN(sizeof(e->num_events_per_group[0]) *
@@ -1217,26 +1242,34 @@ static void print_event_group_aos(cupti_event_data_t* e, uint32_t group) {
 }
 
 NVCD_EXPORT void cupti_report_event_data(cupti_event_data_t* e) {
-  if (g_process_group_aos) {
+  if (e->has_events) {
+    if (g_process_group_aos) {
+      for (uint32_t i = 0; i < e->num_event_groups; ++i) {
+	group_info_t* info = &g_group_info_buffer[i];
+	group_info_validate(e, info, i);
+      }
+    }
+  
     for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-      group_info_t* info = &g_group_info_buffer[i];
-      group_info_validate(e, info, i);
+      print_event_group_soa(e, i);
+      if (g_process_group_aos) {
+	print_event_group_aos(e, i);
+      }
     }
   }
-  
-  for (uint32_t i = 0; i < e->num_event_groups; ++i) {
-    print_event_group_soa(e, i);
-    if (g_process_group_aos) {
-      print_event_group_aos(e, i);
-    }
+  else {
+    msg_verboses("[cupti_report_event_data] e->has_events is false, so will not report.");
   }
 
-  if (e->is_root == true) {
+  if (e->is_root == true && e->has_metrics) {
     ASSERT(e->metric_data != NULL);
     
     for (uint32_t i = 0; i < e->metric_data->num_metrics; ++i) {
       print_cupti_metric(e->metric_data, i);
     }    
+  }
+  else {
+    msg_verboses("[cupti_report_event_data] e->has_metrics is false, so will not report.");
   }
 }
 
@@ -1465,10 +1498,12 @@ NVCD_EXPORT void cupti_event_data_unsubscribe(cupti_event_data_t* e) {
 }
 
 static inline void __cupti_event_data_init_base(cupti_event_data_t* e) {
+  ASSERT(e->has_events == true);
+  
   e->thread_event_data_init = pthread_self();
 
   e->kernel_times_nsec = zallocNN(sizeof(e->kernel_times_nsec[0]) *
-                                  e->kernel_times_nsec_buffer_length);
+				  e->kernel_times_nsec_buffer_length);
 
   init_cupti_event_buffers(e);
 }
@@ -1482,7 +1517,8 @@ NVCD_EXPORT void cupti_event_data_init_from_ids(cupti_event_data_t* e,
   ASSERT(!e->is_root);
 
   if (!e->initialized) {
-    
+    e->has_events = event_ids != NULL
+      && num_event_ids > 0;
     
     // event group initialization
     {
@@ -1521,12 +1557,12 @@ NVCD_EXPORT void cupti_event_data_init(cupti_event_data_t* e) {
   
   if (!e->initialized) {
 
-#ifndef NVCD_OMIT_STANDALONE_EVENT_COUNTER
     init_cupti_event_names(e);
-    init_cupti_event_groups(e);
-
-    __cupti_event_data_init_base(e);
-#endif
+    
+    if (e->has_events) {
+      init_cupti_event_groups(e);
+      __cupti_event_data_init_base(e);
+    }
 
     init_cupti_metric_data(e);
     

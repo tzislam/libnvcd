@@ -100,13 +100,18 @@ void nvcd_init_events(CUdevice device, CUcontext context) {
 }
 
 void nvcd_calc_metrics() {
-  cupti_event_data_calc_metrics(&g_event_data);
+  if (nvcd_has_metrics()) {
+    cupti_event_data_calc_metrics(&g_event_data);
+  }
 }
 
 // We delay freeing g_event_data's memory from the most recent call to nvcd_init_events, since it's stored
 // by the client and thus can be read at the user's request.
 // However, we still need ensure proper assumptions are met by the cupti module,
 // which expects a NULL cupti_event_data_t on init.
+NVCD_EXPORT bool nvcd_has_metrics() { return g_event_data.has_metrics; }
+
+NVCD_EXPORT bool nvcd_has_events() { return g_event_data.has_events; }
 void nvcd_reset_event_data() {
   cupti_event_data_free(&g_event_data);
   cupti_event_data_set_null(&g_event_data);
