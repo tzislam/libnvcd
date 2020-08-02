@@ -8,9 +8,10 @@
 //#define __USE_GNU
 #include <dlfcn.h>
 
-template <class TKernFunType, class ...TArgs>
+template <class TKernFunType,
+	  class ...TArgs>
 static inline cudaError_t nvcd_run_metrics2(const TKernFunType& kernel, 				     
-				     TArgs... args) {
+					    TArgs... args) {
   cupti_event_data_t* __e = nvcd_get_events();                           
   
   ASSERT(__e->is_root == true);                                       
