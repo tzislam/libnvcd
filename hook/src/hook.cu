@@ -1,12 +1,12 @@
-
 #include <cuda_runtime_api.h>
 
 #define NVCD_HEADER_IMPL
 #include <nvcd/nvcd.cuh>
 #undef NVCD_HEADER_IMPL
-// See comments for answer: https://stackoverflow.com/a/1777479
-//#define __USE_GNU
+
 #include <dlfcn.h>
+
+static bool g_enabled = false;
 
 template <class TKernFunType,
 	  class ...TArgs>
@@ -61,8 +61,7 @@ static inline cudaError_t nvcd_run2(const TKernFunType& kernel,
 
 C_LINKAGE_START
 
-
-
+static char g_region_buffer[256] = {0};
 
 typedef cudaError_t (*cudaLaunchKernel_fn_t)(const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream);
 
@@ -74,17 +73,31 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  void** args,
 						  size_t sharedMem,
 						  cudaStream_t stream) {
-  
+  cudaError_t ret = cudaSuccess;
   if (real_cudaLaunchKernel == NULL) {
     real_cudaLaunchKernel = (cudaLaunchKernel_fn_t) dlsym(RTLD_NEXT, "cudaLaunchKernel");
   }
-  printf("[HOOK %s]\n", __FUNC__);
-  nvcd_host_begin(gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
-  cudaError_t ret = nvcd_run2(real_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
-  nvcd_host_end();
+  if (g_enabled) {
+    printf("[HOOK ON %s - %s]\n", __FUNC__, g_region_buffer);
+    nvcd_host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
+    ret = nvcd_run2(real_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
+    nvcd_host_end();
+  }
+  else {
+    printf("[HOOK OFF %s]\n", __FUNC__);
+    ret = real_cudaLaunchKernel(func, gridDim, blockDim, args, sharedMem, stream);
+  }
   return ret;
 }
 
+NVCD_EXPORT void libnvcd_begin(const char* region_name) {
+  strncpy(g_region_buffer, region_name, 255);
+  g_enabled = true;
+}
 
+NVCD_EXPORT void libnvcd_end() {
+  g_enabled = false;
+  nvcd_run_info::num_runs = 0;
+}
 
 C_LINKAGE_END

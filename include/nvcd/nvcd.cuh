@@ -897,6 +897,8 @@ struct nvcd_run_info {
   counter_map_type counters_start;
   counter_map_type counters_end;
   counter_map_type counters_diff;
+
+  std::string region_name;
   
   size_t curr_num_threads;
   const char* func_name;
@@ -960,10 +962,11 @@ struct nvcd_run_info {
   void report() {
     ASSERT(num_runs > 0);
     
-    msg_userf("================================ report %" PRIu64 " ================================\n",
-	      num_runs - 1);
+    msg_userf("================================ invocation %" PRIu64 " for \'%s\' ================================\n",
+	      num_runs - 1,
+	      region_name.c_str());
    
-    kernel_stats.at(num_runs - 1).write();
+    if (!kernel_stats.empty()) kernel_stats.at(num_runs - 1).write();
 
     std::stringstream ss;
     msg_verbosef("counters_diff size: %" PRIu64 "\n", counters_diff.size());
@@ -973,8 +976,7 @@ struct nvcd_run_info {
       char* event_name = cupti_event_get_name(key);
       ASSERT(event_name != nullptr);
       for (size_t index = 0; index < value.size(); ++index) {
-	ss << "|COUNTER| <kernel_name_here(WIP)>" << "(): " 
-	   << event_name << ": " << value.at(index) << "\n";
+	ss << "|COUNTER|" << region_name << ":" << event_name << ":" << value.at(index) << "\n";
       }
       free(event_name);
     }
@@ -1185,10 +1187,13 @@ extern "C" {
     }
         
     ASSERT(g_nvcd.initialized == true);
+    ASSERT(g_run_info != nullptr);
   }
 
-  NVCD_CUDA_EXPORT void nvcd_host_begin(int num_cuda_threads) {     
+  NVCD_CUDA_EXPORT void nvcd_host_begin(const char* region_name, int num_cuda_threads) {     
     nvcd_init();
+
+    g_run_info->region_name = std::string(region_name);
 
     ASSERT(g_nvcd.initialized == true);
     ASSERT(g_run_info != nullptr);
@@ -1244,18 +1249,6 @@ extern "C" {
     safe_free_v(g_nvcd.contexts);
 
     g_nvcd.initialized = false;
-  }
-
-  NVCD_CUDA_EXPORT void nvcd_kernel_test_call(int num_threads) {
-    nvcd_host_begin(num_threads);
-    
-    int nblock = 4;
-    int threads = num_threads / nblock;
-    //    nvcd_kernel_test<<<nblock, threads>>>();
-
-    NVCD_KERNEL_EXEC_KPARAMS_2(nvcd_kernel_test, nblock, threads);
-
-    nvcd_host_end();
   }
 }
 
