@@ -1,6 +1,6 @@
 
-#ifndef __CUPTI_LOOKUP_H__
-#define __CUPTI_LOOKUP_H__
+#ifndef __CUPTI_UTIL_H__
+#define __CUPTI_UTIL_H__
 
 #include "nvcd/commondef.h"
 
@@ -229,4 +229,4 @@ NVCD_EXPORT void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
 						      cupti_event_data_enum_event_counters_fn_t fn);
 
 C_LINKAGE_END
-#endif //__CUPTI_LOOKUP_H__
+#endif //__CUPTI_UTIL_H__
