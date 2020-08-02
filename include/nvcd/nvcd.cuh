@@ -198,10 +198,12 @@ struct kernel_invoke_data {
                      std::vector<block>& out) {
     
     clock64_t max = static_cast<clock64_t>(q3) + static_cast<clock64_t>(bounds);
-    
+
+    #if 0
     msg_userf(STATISTICS_TAG " [ticks measured for the region]{q1, q3, bounds, %s outlier threshold} = {%f, %f, %f, %" PRId64 "}\n",
-	      threshold.c_str(),
-	      q1, q3, bounds, max);
+    	      threshold.c_str(),
+    	      q1, q3, bounds, max);
+    #endif
 
     for (const block& b: in) {
       if (b.time > max) {
@@ -918,7 +920,7 @@ struct nvcd_run_info {
   void update() {
     ASSERT(curr_num_threads != 0);
     
-    {        
+    if (false) {        
       kernel_invoke_data d(curr_num_threads);
 
       nvcd_device_get_smids(&d.smids[0]);
@@ -927,10 +929,10 @@ struct nvcd_run_info {
       d.exec_count = run_kernel_exec_count;
       
       kernel_stats.push_back(std::move(d));
-
-      curr_num_threads = 0;
-      run_kernel_exec_count = 0;
     }
+
+    curr_num_threads = 0;
+    run_kernel_exec_count = 0;
    
     cupti_event_data_t* global = nvcd_get_events();
     // we do this to compute the difference
