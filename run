@@ -2,13 +2,13 @@
 
 repo_root=$(dirname $(realpath $0))
 #echo "Repo root folder: ${repo_root}"
-export LD_LIBRARY_PATH=${repo_root}/bin
+export LD_LIBRARY_PATH=${repo_root}/bin:$LD_LIBRARY_PATH
 
 rm -rf csv
 
-make clean &&\
-make libnvcd.so &&\
-make nvcdinfo &&\
+#make clean &&\
+#make libnvcd.so &&\
+#make nvcdinfo &&\
 mkdir csv &&\
 cd csv &&\
 ${repo_root}/bin/nvcdinfo -n 10 -d 0
