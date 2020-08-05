@@ -975,9 +975,13 @@ struct nvcd_run_info {
       const auto& value = kv.second;
       char* event_name = cupti_event_get_name(key);
       ASSERT(event_name != nullptr);
+      uint64_t avg = 0;
       for (size_t index = 0; index < value.size(); ++index) {
-	ss << "|COUNTER|" << region_name << ":" << event_name << ":" << value.at(index) << "\n";
+	avg += value.at(index);
+	//ss << "|COUNTER|" << region_name << ":" << event_name << ":" << value.at(index) << "\n";
       }
+      avg /= value.size();
+      ss << "|COUNTER|" << region_name << ":" << event_name << ":" << avg << "\n";
       free(event_name);
     }
     
