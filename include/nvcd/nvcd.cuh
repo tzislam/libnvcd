@@ -975,19 +975,19 @@ struct nvcd_run_info {
       const auto& value = kv.second;
       char* event_name = cupti_event_get_name(key);
       ASSERT(event_name != nullptr);
-      uint64_t avg = 0;
+      double avg = 0;
       uint64_t summation = 0;
       uint64_t maximum = 0; // the lowest possible count
       uint64_t minimum = 10000000; //something very large so that it changes
       uint64_t temp_var;
       for (size_t index = 0; index < value.size(); ++index) {
 	temp_var = value.at(index);
+	summation += temp_var;
 	avg += temp_var;
 	maximum = (maximum < temp_var) ? temp_var : maximum;
 	minimum = (minimum > temp_var) ? temp_var : minimum;
 	//ss << "|COUNTER|" << region_name << ":" << event_name << ":" << value.at(index) << "\n";
       }
-      summation = avg; //before average changes, save it
       avg /= value.size();
       //ss << "|COUNTER|" << region_name << ":" << event_name << ":" << avg << "\n";
       ss << "|COUNTER|" << region_name << ":" << event_name << ": SUM: " << summation << " AVG: " << avg << " MAX: " << maximum << " MIN: " << minimum << "\n";
