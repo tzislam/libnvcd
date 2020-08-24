@@ -1312,7 +1312,11 @@ static void collect_group_events(cupti_event_data_t* e) {
   }
 
   // Groups which we haven't read yet, but weren't compatible
-  // with the ones already enabled
+  // with the ones already enabled. Some of these may have returned
+  // CUPTI_ERROR_UNKNOWN instead of CUPTI_ERROR_NOT_COMPATIBLE. SO far,
+  // when this happens it appears to be the same kind of problem, just a 
+  // different error code is used (for whatever reason). There hasn't been a situation
+  // yet where these groups in particular weren't later enabled.
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
     if (e->event_group_read_states[i] == CED_EVENT_GROUP_DONT_READ) {
       e->event_group_read_states[i] = CED_EVENT_GROUP_UNREAD;
@@ -1419,6 +1423,18 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
               
               msg_warns("BAD_GROUP found");
               event_data->event_group_read_states[i] = CED_EVENT_GROUP_SKIP;
+              CUPTI_FN_WARN(err);
+            } else if (err == CUPTI_ERROR_UNKNOWN) {
+              // This has been known to happen on Lassen, so far when BENCH_EVENTS=ALL is specified.
+              // In most situations, the CUPTI_ERROR_NOT_COMPATIBLE error should be returned, but for some
+              // reason some groups will be reported with an ERROR UNKNOWN. If this is the case,
+              // there's still a chance that this group can be enabled. We just need to postpone
+              // the enabling for now, and we'll double back to it as long as (in this context) CUPTI_ERROR_UNKNOWN only gets
+              // returned when we try to enable an incompatible group with others. Otherwise, we DO run the risk
+              // of an infinite loop, since we need the group counter to be incremented, and this is only bumped
+              // when a group has been read or explicitly marked skipped.
+              msg_warns("UNKNOWN ERROR produced when group was attempted to be added. Skipping");
+              event_data->event_group_read_states[i] = CED_EVENT_GROUP_DONT_READ;
               CUPTI_FN_WARN(err);
             } else {
               CUPTI_FN(err);
