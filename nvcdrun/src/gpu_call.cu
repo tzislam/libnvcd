@@ -29,6 +29,7 @@ extern "C" {
     
     puts("[nvcdrun] running test kernels within two separate regions");
     
+    libnvcd_time(NVCD_TIMEFLAGS_REGION);
     libnvcd_begin("REGION A");
     
     int num_threads = 1024;

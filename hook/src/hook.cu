@@ -6,7 +6,88 @@
 
 #include <dlfcn.h>
 
+#include <time.h>
+
+#include <assert.h>
+
 static bool g_enabled = false;
+
+struct timer {
+  struct timespec start;
+  struct timespec end;
+  double time;
+}; 
+
+#define NVCD_TIMEFLAGS_NONE 0
+#define NVCD_TIMEFLAGS_REGION (1 << 0)
+#define NVCD_TIMEFLAGS_KERNEL (1 << 1)
+#define NVCD_TIMEFLAGS_RUN (1 << 2)
+
+#define NVCD_TIMER_REGION 0
+#define NVCD_TIMER_KERNEL 1
+#define NVCD_TIMER_RUN 2
+#define NVCD_NUM_TIMERS 3
+
+struct hook_time_info {
+  struct timer timers[3];
+  uint32_t flags;
+} static g_timer = {
+  {
+    { 0 },
+    { 0 },
+    { 0 }
+  },
+  0
+};
+
+static inline bool timer_set(uint32_t which) {
+  return (g_timer.flags & which) == which;
+}
+
+static void timer_begin(uint8_t which) {
+  assert(which < NVCD_NUM_TIMERS);
+  struct timespec* start = &g_timer.timers[which].start;
+  switch (which) {
+  case NVCD_TIMER_REGION:
+    if (timer_set(NVCD_TIMEFLAGS_REGION)) {
+      clock_gettime(CLOCK_REALTIME, start);
+    }
+    break;
+  default:
+    break;
+  }
+}
+
+static inline double timer_sec(struct timespec* t) {
+  return (double)t->tv_sec + ((double)t->tv_nsec) * 1e-9;
+}
+
+static void timer_end(uint8_t which) {
+  assert(which < NVCD_NUM_TIMERS);
+  struct timespec* end = &g_timer.timers[which].end;
+  bool isset = false;
+  switch (which) {
+  case NVCD_TIMER_REGION:
+    isset = timer_set(NVCD_TIMEFLAGS_REGION);
+    if (isset) {
+      clock_gettime(CLOCK_REALTIME, end);
+    }
+    break;
+  default:
+    break;
+  }
+
+  if (isset) {
+    g_timer.timers[which].time = 
+      timer_sec(end) - timer_sec(&g_timer.timers[which].start);
+  }
+}
+
+static void timer_report() {
+  if (timer_set(NVCD_TIMEFLAGS_REGION)) {
+    printf("[HOOK TIMER REGION]: %f\n", g_timer.timers[NVCD_TIMER_REGION].time);
+  }
+}
 
 template <class TKernFunType,
 	  class ...TArgs>
@@ -90,14 +171,21 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
   return ret;
 }
 
+NVCD_EXPORT void libnvcd_time(uint32_t flags) {
+  g_timer.flags = flags;
+}
+
 NVCD_EXPORT void libnvcd_begin(const char* region_name) {
   strncpy(g_region_buffer, region_name, 255);
   g_enabled = true;
+  timer_begin(NVCD_TIMER_REGION);
 }
 
 NVCD_EXPORT void libnvcd_end() {
+  timer_end(NVCD_TIMER_REGION);
   g_enabled = false;
   nvcd_run_info::num_runs = 0;
+  timer_report();
 }
 
 C_LINKAGE_END

@@ -1326,6 +1326,7 @@ static void collect_group_events(cupti_event_data_t* e) {
 
 
 static bool _message_reported = false;
+static bool _error_unknown_reported = false;
 
 NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                                                CUpti_CallbackDomain domain,
@@ -1433,9 +1434,12 @@ NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
               // returned when we try to enable an incompatible group with others. Otherwise, we DO run the risk
               // of an infinite loop, since we need the group counter to be incremented, and this is only bumped
               // when a group has been read or explicitly marked skipped.
-              msg_warns("UNKNOWN ERROR produced when group was attempted to be added. Skipping");
               event_data->event_group_read_states[i] = CED_EVENT_GROUP_DONT_READ;
-              CUPTI_FN_WARN(err);
+              if (!_error_unknown_reported) {
+                msg_warns("UNKNOWN ERROR produced when group was attempted to be added. Skipping");
+                _error_unknown_reported = true;
+                CUPTI_FN_WARN(err);
+              }
             } else {
               CUPTI_FN(err);
             }
