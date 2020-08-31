@@ -5,7 +5,7 @@
 extern "C" {
 #endif
 
-extern void gpu_call();
+extern void gpu_call(unsigned timeflags);
 
 #ifdef __cplusplus
 }

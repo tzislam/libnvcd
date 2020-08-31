@@ -23,13 +23,16 @@ extern "C" {
     }
   }
   
-  __host__ void gpu_call() {
+  __host__ void gpu_call(unsigned timeflags) {
 
     libnvcd_load();
+
+    puts("=======================================================================");
+    printf("[nvcdrun] running test kernels within two separate regions. timeflags = %s\n",
+	   libnvcd_time_str(timeflags));
+    puts("=======================================================================");
     
-    puts("[nvcdrun] running test kernels within two separate regions");
-    
-    libnvcd_time(NVCD_TIMEFLAGS_REGION);
+    libnvcd_time(timeflags);
     libnvcd_begin("REGION A");
     
     int num_threads = 1024;
