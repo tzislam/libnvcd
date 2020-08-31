@@ -160,7 +160,8 @@ enum {
   ECUPTI,
   ERACE_CONDITION,
   EUSER_EXIT,
-  EHELP
+  EHELP,
+  EBAD_PATH
 };
 
 #ifdef __cplusplus
