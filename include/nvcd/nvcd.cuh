@@ -973,13 +973,14 @@ struct nvcd_run_info {
     for (const auto& kv : counters_diff) {
       const auto& key = kv.first;
       const auto& value = kv.second;
+      ASSERT(!value.empty());
       char* event_name = cupti_event_get_name(key);
       ASSERT(event_name != nullptr);
       double avg = 0;
       uint64_t summation = 0;
       uint64_t maximum = 0; // the lowest possible count
-      uint64_t minimum = 10000000; //something very large so that it changes
-      uint64_t temp_var;
+      uint64_t minimum = std::numeric_limits<uint64_t>::max(); //something very large so that it changes
+      uint64_t temp_var = 0;
       for (size_t index = 0; index < value.size(); ++index) {
 	temp_var = value.at(index);
 	summation += temp_var;
@@ -988,7 +989,7 @@ struct nvcd_run_info {
 	minimum = (minimum > temp_var) ? temp_var : minimum;
 	//ss << "|COUNTER|" << region_name << ":" << event_name << ":" << value.at(index) << "\n";
       }
-      avg /= value.size();
+      avg /= static_cast<double>(value.size());
       //ss << "|COUNTER|" << region_name << ":" << event_name << ":" << avg << "\n";
       ss << "|COUNTER|" << region_name << ":" << event_name << ": SUM: " << summation << " AVG: " << avg << " MAX: " << maximum << " MIN: " << minimum << "\n";
       free(event_name);
