@@ -1,0 +1,40 @@
+#!/bin/bash
+
+test_id=${1}
+
+this_root=$(dirname $(realpath $0))
+nvcd_root=$(realpath ${this_root}/../../../..)
+
+echo "nvcd_root = ${nvcd_root}"
+
+suffix=
+
+case ${test_id} in
+    # one group from domain a
+    1) export BENCH_EVENTS=active_cycles_pm,active_warps_pm,shared_ld_transactions,elapsed_cycles_sm
+        suffix="da1g"
+        ;;
+    # two groups from domain a
+    2) export BENCH_EVENTS=\
+active_cycles_pm,active_warps_pm,shared_ld_transactions,elapsed_cycles_sm,\
+shared_st_transactions,elapsed_cycles_pm,inst_executed_fp16_pipe_s0,inst_executed_fp16_pipe_s1,inst_executed_fp16_pipe_s2
+        suffix="da2g"
+        ;;
+    
+    # two domains, a and e - one group from each
+    3) export BENCH_EVENTS=\
+active_cycles_pm,active_warps_pm,shared_ld_transactions,elapsed_cycles_sm,\
+l2_subp0_write_sector_misses,l2_subp1_write_sector_misses,l2_subp0_read_sector_misses,l2_subp1_read_sector_misses
+        suffix="da1gde1g"
+        ;;
+
+    # everything
+    *) export BENCH_EVENTS=ALL
+        suffix="all"
+        ;;
+esac
+
+${nvcd_root}/bin/nvcdrun &> ${this_root}/output_${suffix}
+
+
+
