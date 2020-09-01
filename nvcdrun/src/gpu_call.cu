@@ -67,6 +67,8 @@ extern "C" {
     
     threads = num_threads / nblock;
     nvcd_kernel_test<<<nblock, threads>>>();
+
+    libnvcd_time_report();
   }
 
 }
