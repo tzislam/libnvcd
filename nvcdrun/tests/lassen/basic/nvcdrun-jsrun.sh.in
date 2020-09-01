@@ -8,5 +8,11 @@ function run() {
 
 hostname
 
+echo "module list:"
+module list
+
+echo "LD_LIBRARY_PATH = ${LD_LIBRARY_PATH}"
+echo "LD_PRELOAD = ${LD_PRELOAD}"
+
 ${__script__}
 

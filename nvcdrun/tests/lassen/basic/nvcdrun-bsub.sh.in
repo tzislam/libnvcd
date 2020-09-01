@@ -7,8 +7,8 @@ rm -f ${__test_root__}/out/${__test_name__}/job
 
 mkdir -p ${__test_root__}/out/${__test_name__}/job
 
-source ${__nvcd_root__}/setup_env.sh
+source ${__nvcd_root__}/setup_env_lassen.sh
 
 hostname
 
-jsrun -E LD_LIBRARY_PATH ${__jsrun_rs_config__} ${__test_root__}/${__test_name__}/nvcdrun-jsrun.sh
+jsrun -E LD_LIBRARY_PATH -E LD_PRELOAD ${__jsrun_rs_config__} ${__test_root__}/${__test_name__}/nvcdrun-jsrun.sh
