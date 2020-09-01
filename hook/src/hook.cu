@@ -213,6 +213,13 @@ struct timeleaf : public timetree {
   }
 };
 
+struct hook_time_record {
+  std::string region_name;
+  std::vector<std::string> dumps;
+};
+
+static std::vector<hook_time_record> g_time_records;
+
 namespace {
   struct push {
     timetree::ptr_type& src;
@@ -268,6 +275,24 @@ namespace {
   const std::vector<timetree::ptr_type>& get_children(const timetree::ptr_type& parent) {
     return dynamic_cast<timenode*>(parent.get())->children;
   }
+
+  struct add {
+    const std::string& dump;
+
+    void to(const std::string& region_name) {
+      bool found = false;
+      for (auto& entry: g_time_records) {
+        found = entry.region_name == region_name;
+        if (found) {
+          entry.dumps.push_back(dump);
+          break;
+        }
+      }
+      if (!found) {
+        g_time_records.push_back(hook_time_record {region_name, {dump}});
+      }
+    }
+  };
 }
 
 struct hook_time_info {
@@ -276,6 +301,8 @@ struct hook_time_info {
   timetree::ptr_type region;
   timetree::ptr_type kernel;
   timetree::ptr_type run;
+
+  std::string region_name;
   
   timeflags flags;
 
@@ -297,7 +324,8 @@ struct hook_time_info {
   bool has_kernel() const { return test(NVCD_TIMEFLAGS_KERNEL); }
   bool has_run() const { return test(NVCD_TIMEFLAGS_RUN); }
   
-  void begin_region() {
+  void begin_region(const char* region_name) {
+    this->region_name = std::string(region_name);
     if (has_region()) {
       switch (f32()) {
       case f_rkr:
@@ -390,16 +418,28 @@ struct hook_time_info {
     }
   }
 
-  void report() {
+  void record() {
+    ASSERT(!region_name.empty());
     std::stringstream ss;
+    ss << "[HOOK TIME FOR REGION " << region_name << "]\n";
     for (const auto& child_ptr: get_children(root)) {
       ss << child_ptr->to_string(flags, 0);
     }
-    printf("%s\n",ss.str().c_str());
+    add{ss.str()}.to(region_name);
   }
 };
 
 static std::unique_ptr<hook_time_info> g_timer{nullptr};
+
+static void reset_timer() {
+  if (g_timer) {
+    timeflags tmp(g_timer->flags);
+    g_timer.reset(new hook_time_info());
+    g_timer->flags = tmp;
+  } else {
+    ASSERT(false);
+  }
+}
 
 template <class TKernFunType,
 	  class ...TArgs>
@@ -417,10 +457,10 @@ static inline cudaError_t nvcd_run_metrics2(const TKernFunType& kernel,
     cupti_event_data_begin(&__e->metric_data->event_data[i]);         
 
     while (result == cudaSuccess && !cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) {
-      g_timer->begin_run();
+      if (g_timer) g_timer->begin_run();
       kernel(args...);                       
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());
-      g_timer->end_run();
+      if (g_timer) g_timer->end_run();
       g_run_info->run_kernel_count_inc();				
     }                                                                 
                                                                         
@@ -440,10 +480,10 @@ static inline cudaError_t nvcd_run2(const TKernFunType& kernel,
   if (nvcd_has_events()) {
     cupti_event_data_begin(nvcd_get_events());  
     while (result == cudaSuccess && !nvcd_host_finished()) {
-      g_timer->begin_run();
+      if (g_timer) g_timer->begin_run();
       result = kernel(args...);                       
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());
-      g_timer->end_run();
+      if (g_timer) g_timer->end_run();
       g_run_info->run_kernel_count_inc();			
     }                                                                   
     cupti_event_data_end(nvcd_get_events());
@@ -474,13 +514,14 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
   if (real_cudaLaunchKernel == NULL) {
     real_cudaLaunchKernel = (cudaLaunchKernel_fn_t) dlsym(RTLD_NEXT, "cudaLaunchKernel");
   }
-  if (g_enabled) {    
+  if (g_enabled) {
+    
     printf("[HOOK ON %s - %s]\n", __FUNC__, g_region_buffer);
-    g_timer->begin_kernel();
+    if (g_timer) g_timer->begin_kernel();
     nvcd_host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
     ret = nvcd_run2(real_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
     nvcd_host_end();
-    g_timer->end_kernel();
+    if (g_timer) g_timer->end_kernel();
   }
   else {
     printf("[HOOK OFF %s]\n", __FUNC__);
@@ -490,21 +531,62 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 }
 
 NVCD_EXPORT void libnvcd_time(uint32_t flags) {
-  g_timer.reset(new hook_time_info());
-  g_timer->flags = timeflags(flags);
+  // We absolutely don't want to mess with the timer state
+  // if a region has been enabled.
+  ASSERT(!g_enabled);
+  if (!g_enabled) {
+    // user disabled timer, so we'll refrain from
+    // continuing to record.
+    if (flags == 0) {
+      g_timer.reset(nullptr);
+    } else {
+      g_timer.reset(new hook_time_info());
+      g_timer->flags = timeflags(flags);
+    }
+  }
+}
+
+NVCD_EXPORT void libnvcd_time_report() {
+  std::stringstream ss;
+  for (const auto& region_entries: g_time_records) {
+    for (const auto& dump: region_entries.dumps) {
+      ss << dump;
+    }
+  }
+  printf("%s\n", ss.str().c_str());
 }
 
 NVCD_EXPORT void libnvcd_begin(const char* region_name) {
-  strncpy(g_region_buffer, region_name, 255);
-  g_enabled = true;
-  g_timer->begin_region();
+  // a null region name is totally useless,
+  // and will also likely create a segfault,
+  // so we may as well enforce non-null input.
+  ASSERT(region_name != nullptr);
+  ASSERT(strlen(region_name) <= 256);
+  if (region_name != nullptr) {
+    strncpy(g_region_buffer, region_name, 255);
+    g_enabled = true;
+    if (g_timer) {
+      g_timer->begin_region(region_name);
+    }
+  }
 }
 
 NVCD_EXPORT void libnvcd_end() {
-  g_timer->end_region();
-  g_enabled = false;
-  nvcd_run_info::num_runs = 0;
-  g_timer->report();
+  // g_enabled == false implies a significant flaw
+  // in the program logic of the caller.
+  // It also opens the door to further errors that
+  // coulud arise internally in the future.
+  ASSERT(g_enabled == true);
+  if (g_enabled) {
+    if (g_timer) { 
+      g_timer->end_region();
+      g_timer->record();   
+    }
+    // reset_timer() performs own check on g_timer
+    reset_timer();
+    g_enabled = false;
+    nvcd_run_info::num_runs = 0;
+  }
 }
 
 C_LINKAGE_END
