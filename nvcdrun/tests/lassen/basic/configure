@@ -1,7 +1,7 @@
 #!/bin/bash
 
 test_root=$(dirname $(realpath $0))
-nvcd_root=$(realpath "${test_root}/../..")
+nvcd_root=$(realpath "${test_root}/../../../..")
 
 echo "test_root = ${test_root}"
 echo "nvcd_root = ${nvcd_root}"
