@@ -431,12 +431,13 @@ struct hook_time_info {
 static std::unique_ptr<hook_time_info> g_timer{nullptr};
 
 static void reset_timer() {
-  if (g_timer) {
-    timeflags tmp(g_timer->flags);
-    g_timer.reset(new hook_time_info());
-    g_timer->flags = tmp;
-  } else {
-    ASSERT(false);
+  ASSERT(!g_enabled);
+  if (!g_enabled) {
+    if (g_timer) {
+      timeflags tmp(g_timer->flags);
+      g_timer.reset(new hook_time_info());
+      g_timer->flags = tmp;
+    }
   }
 }
 
@@ -581,9 +582,10 @@ NVCD_EXPORT void libnvcd_end() {
       g_timer->end_region();
       g_timer->record();   
     }
-    // reset_timer() performs own check on g_timer
-    reset_timer();
+    // make sure this is set to false before
+    // reset_timer() is called
     g_enabled = false;
+    reset_timer();
     nvcd_run_info::num_runs = 0;
   }
 }
