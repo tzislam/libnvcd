@@ -171,11 +171,11 @@ struct timetree {
   
   virtual double value() const = 0;
 
-  virtual std::string to_string(timeflags flags, uint32_t depth) const {
+  virtual std::string to_string(const std::string& region, timeflags flags, uint32_t depth) const {
     std::stringstream ret;
     std::string title{time_map.at(flags).at(depth)};
     std::string tabs = (depth != 0) ? std::string(depth, '\t') : "";
-    ret << tabs << "[HOOK TIME " << title << "] " << value() << " seconds\n";
+    ret << tabs << "[HOOK TIME " << ((title == "region") ? ("region " + region) : title) <<  "] " << value() << " seconds\n";
     return ret.str();
   }
 };
@@ -193,11 +193,11 @@ struct timenode : public timetree {
     return ret;
   }
 
-  std::string to_string(timeflags flags, uint32_t depth) const override {
+  std::string to_string(const std::string& region, timeflags flags, uint32_t depth) const override {
     std::stringstream ret;
-    ret << timetree::to_string(flags, depth);
+    ret << timetree::to_string(region, flags, depth);
     for (const auto& child: children) {
-      ret << child->to_string(flags, depth + 1);
+      ret << child->to_string(region, flags, depth + 1);
     }
     return ret.str();
   }
@@ -421,9 +421,8 @@ struct hook_time_info {
   void record() {
     ASSERT(!region_name.empty());
     std::stringstream ss;
-    ss << "[HOOK TIME FOR REGION " << region_name << "]\n";
     for (const auto& child_ptr: get_children(root)) {
-      ss << child_ptr->to_string(flags, 0);
+      ss << child_ptr->to_string(region_name, flags, 0);
     }
     add{ss.str()}.to(region_name);
   }
