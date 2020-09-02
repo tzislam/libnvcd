@@ -554,6 +554,7 @@ NVCD_EXPORT void libnvcd_time_report() {
     }
   }
   printf("%s\n", ss.str().c_str());
+  g_time_records.clear();
 }
 
 NVCD_EXPORT void libnvcd_begin(const char* region_name) {
