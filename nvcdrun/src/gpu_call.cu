@@ -5,6 +5,24 @@
 
 extern "C" {
 
+  __global__ void kernel2() {
+    volatile int i = 200000;
+    while (i > 0) {
+      i--;
+    }
+  }
+
+  __global__ void kernel3() {
+    int thread = blockIdx.x * blockDim.x + threadIdx.x;
+    int num_threads = blockDim.x * gridDim.x;
+    if (thread < num_threads) {
+      volatile unsigned i = 0;
+      while (i < 100000) {
+	i++;
+      }
+    }
+  }
+  
   __global__ void nvcd_kernel_test() {
     int thread = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -23,7 +41,7 @@ extern "C" {
     }
   }
   
-  __host__ void gpu_call(unsigned timeflags) {
+  __host__ void gpu_call(unsigned timeflags, unsigned repeat) {
 
     libnvcd_load();
 
@@ -33,19 +51,24 @@ extern "C" {
     puts("=======================================================================");
     
     libnvcd_time(timeflags);
-    libnvcd_begin("REGION A");
+    libnvcd_begin("REGION A");    
     
     int num_threads = 1024;
     
     int nblock = 4;
     int threads = num_threads / nblock;
-    nvcd_kernel_test<<<nblock, threads>>>();   
 
-    num_threads = 2048;
+    for (unsigned i = 0; i < repeat; ++i) {
+      nvcd_kernel_test<<<nblock, threads>>>();   
 
-    threads = num_threads / nblock;
-    nvcd_kernel_test<<<nblock, threads>>>();
+      //      num_threads = 2048;
 
+      //      threads = num_threads / nblock;
+      //   nvcd_kernel_test<<<nblock, threads>>>();
+
+      kernel3<<<nblock, threads>>>();
+    }
+    
     libnvcd_end();
 
     libnvcd_begin("REGION B");
@@ -54,13 +77,18 @@ extern "C" {
     
     nblock = 4;
     threads = num_threads / nblock;
-    nvcd_kernel_test<<<nblock, threads>>>();   
 
-    num_threads = 2048;
+    for (unsigned i = 0; i < repeat; ++i) {
+      nvcd_kernel_test<<<nblock, threads>>>();   
 
-    threads = num_threads / nblock;
-    nvcd_kernel_test<<<nblock, threads>>>();
+      num_threads = 2048;
 
+      threads = num_threads / nblock;
+      nvcd_kernel_test<<<nblock, threads>>>();
+
+      kernel2<<<nblock, threads>>>();
+    }
+    
     libnvcd_end();
 
     puts("[nvcdrun] now for the final kernel run, outside of the test regions");
@@ -70,5 +98,4 @@ extern "C" {
 
     libnvcd_time_report();
   }
-
 }
