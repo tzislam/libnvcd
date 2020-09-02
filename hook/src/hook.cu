@@ -220,6 +220,59 @@ struct hook_time_record {
 
 static std::vector<hook_time_record> g_time_records;
 
+using call_interval_type = int32_t;
+
+static constexpr call_interval_type k_max_call_interval{10000};
+static constexpr call_interval_type k_min_call_interval{0};
+static constexpr call_interval_type k_unset_call_interval{-1};
+
+struct kernel_interval_params {
+  static call_interval_type interval;
+  call_interval_type call_count;
+  
+  kernel_interval_params()
+    : call_count(0) {
+
+    ASSERT((interval == k_unset_call_interval) ||
+	   (k_min_call_interval <= interval &&
+	    interval <= k_max_call_interval));
+    
+    if (interval == k_unset_call_interval) {
+      char* interval_str = getenv(ENV_SAMPLE);
+
+      if (interval_str != nullptr) {
+	bool ok = false;
+	// we restrict ourselves currently to a single value
+	char* end_ptr = nullptr;
+	call_interval_type ci = strtol(interval_str, &end_ptr, 10);
+	  
+	ok =
+	  C_ASSERT(k_min_call_interval <= ci) &&
+	  C_ASSERT(ci <= k_max_call_interval) &&
+	  // ensures the entire string is a valid base 10 integer
+	  C_ASSERT(end_ptr[0] == '\0' &&
+		   interval_str[0] != '\0');
+	  
+	if (ok) {
+	  interval = ci;
+	}
+	else {
+	  interval = k_min_call_interval;
+	}
+      }
+      else {
+	interval = k_min_call_interval;
+      }
+
+      printf("[HOOK CALL INTERVAL = %" PRId32"]\n", interval);
+    }
+  }
+};
+
+call_interval_type kernel_interval_params::interval{k_unset_call_interval};
+
+static std::unordered_map<uintptr_t, kernel_interval_params>  g_call_counts;
+
 namespace {
   struct push {
     timetree::ptr_type& src;
@@ -292,6 +345,20 @@ namespace {
         g_time_records.push_back(hook_time_record {region_name, {dump}});
       }
     }
+  };
+
+  struct call_for {
+    uintptr_t symaddr;
+
+    call_for(const void* func)
+      : symaddr{reinterpret_cast<uintptr_t>(func)}{    
+    }
+  
+    bool is_ready() {
+      bool ready = (g_call_counts[symaddr].call_count % kernel_interval_params::interval) == 0;
+      g_call_counts[symaddr].call_count++;
+      return ready;
+    }    
   };
 }
 
@@ -504,6 +571,11 @@ typedef cudaError_t (*cudaLaunchKernel_fn_t)(const void* func, dim3 gridDim, dim
 
 static cudaLaunchKernel_fn_t real_cudaLaunchKernel = NULL;
 
+void print_func(const void* func) {
+  const char* f = static_cast<const char*>(func);
+  printf("[HOOK INFO - func: string = %s, address %p" PRIx64 "]\n", f, func);
+}
+
 NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  dim3 gridDim,
 						  dim3 blockDim,
@@ -515,18 +587,24 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
     real_cudaLaunchKernel = (cudaLaunchKernel_fn_t) dlsym(RTLD_NEXT, "cudaLaunchKernel");
   }
   if (g_enabled) {
-    
-    printf("[HOOK ON %s - %s]\n", __FUNC__, g_region_buffer);
-    if (g_timer) g_timer->begin_kernel();
-    nvcd_host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
-    ret = nvcd_run2(real_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
-    nvcd_host_end();
-    if (g_timer) g_timer->end_kernel();
+    if (call_for(func).is_ready()) {
+      printf("[HOOK ON %s - %s; symbol = %p]\n", __FUNC__, g_region_buffer, func);
+      if (g_timer) {
+	g_timer->begin_kernel();
+      }
+      nvcd_host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
+      ret = nvcd_run2(real_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
+      nvcd_host_end();
+      if (g_timer) {
+	g_timer->end_kernel();
+      }
+    }
   }
   else {
     printf("[HOOK OFF %s]\n", __FUNC__);
     ret = real_cudaLaunchKernel(func, gridDim, blockDim, args, sharedMem, stream);
   }
+  //  print_func(func);
   return ret;
 }
 
