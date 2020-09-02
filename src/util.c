@@ -255,9 +255,15 @@ NVCD_EXPORT void cupti_warn_print(CUptiResult status,
 
 NVCD_EXPORT void assert_impl(bool cond, const char* expr, const char* file, int line) {
   if (!cond) {
-    printf("ASSERT failure: \"%s\" @ %s:%i\n", expr, file, line);
-    exit(EASSERT);
+    exit_msg(stdout, EASSERT, "ASSERT failure: %s@%s:%i\n", expr, file, line);
   }
+}
+
+NVCD_EXPORT bool c_assert_impl(bool cond, const char* expr, const char* file, int line) {
+  IF_ASSERTS_ENABLED(if (!cond) {
+    exit_msg(stdout, EASSERT, "C_ASSERT failure: %s@%s:%i\n", expr,file,line);
+  });
+  return cond;
 }
 
 NVCD_EXPORT void write_logf_impl(const char* func,

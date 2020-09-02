@@ -72,6 +72,8 @@ NVCD_EXPORT void assert_impl(bool cond,
                              const char* file,
                              int line);
 
+NVCD_EXPORT bool c_assert_impl(bool cond, const char* expr, const char* file, int line);
+
 NVCD_EXPORT void* assert_not_null_impl(void* p, const char* expr, const char* file, int line);
 
 NVCD_EXPORT void write_logf_impl(const char* func,
@@ -251,10 +253,7 @@ typedef enum darray_error
       i = &arr->buf[arr->len - 1];					\
     }									\
     return i;								\
-  }	
-  
-
-
+  }
 
 
 C_LINKAGE_END

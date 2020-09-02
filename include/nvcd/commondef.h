@@ -69,6 +69,12 @@
 #define IF_ASSERTS_ENABLED(code)
 #endif
 
+// wraps assert, but can also be used in a boolean expression.
+// this should be used in favor over ASSERT, since it allows for us
+// to define paths of execution that can vary irrespective of
+// whether or not asserts are enabled
+#define C_ASSERT(cond) c_assert_impl((cond), #cond, __FILE__, __LINE__)
+
 #define METRICS_TAG "|METRICS|"
 #define STATISTICS_TAG "|STATISTCS|"
 #define EVENTS_TAG "|EVENTS|"
