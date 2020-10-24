@@ -3,7 +3,7 @@
 #just a placeholder for now;
 #since running on other
 #versions will likely be desired
-cuda_v=10.2.89
+cuda_v=11.1.0
 cuda_r=/usr/tce/packages/cuda/cuda-${cuda_v}
 repo=$(dirname $(realpath $BASH_SOURCE))/../..
 
