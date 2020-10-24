@@ -56,8 +56,7 @@ clean:
 	rm -rf nvcdinfo/obj
 	rm -rf hook/obj
 
-#$$CUDACC -v $DEBUG -c $INCLUDE $ARCH src/gpu.cu -o obj/gpu.o &&\
-#$CC -v $DEBUG $INCLUDE $ARCH -L/usr/lib/x86_64-linux-gnu -lnvidia-ml -lcuda -lcudart obj/gpu.o src/main.c -o bin/perfmon
+compile: $(HOOK_LIB) $(TEST_BIN) $(UTIL_BIN)
+recompile: clean compile
 
-#gcc-7 -v -lnvidia-ml -lcuda -lcudart src/main.c -o bin/perfmon
 
