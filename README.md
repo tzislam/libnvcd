@@ -1,12 +1,12 @@
 ## libnvcd
-This is an easy-to-use, performance measurement tool for NVIDIA based GPUs. The tool queries CUPTI APIs for reading both events and metrics for functions or selected regions in a GPU (or CPU+GPU) code. As of now, the tools only report the events and metrics that CUPTI provides. In future, we will add a separate analysis module that combines these events and metrics to compute our own derived measures.
+This is an easy-to-use, performance measurement tool for NVIDIA based GPUs. The tool queries CUPTI APIs for reading both events and metrics for functions or selected regions in a GPU (or CPU+GPU) code. As of now, the tool only reports the events and metrics that CUPTI provides. In future, we will add a separate analysis module that combines these events and metrics to compute our own derived measures.
 
 *Currently, libNVCD only supports Nvidia GPUs and CUDA.*
 
-**This tool is actively being developed. We will try out best to keep the current API as is. However, there is no guarantee. Please use with caution.**
+<!--**This tool is actively being developed. We will try our best to keep the current API as is. However, there is no guarantee. Please use with caution.**-->
 
 There are mainly two tools:
-* Source-code based annotation library
+* Source-code based annotation and interception library
 * Standalone tool for automatically finding groups of counters available on a given firmware. 
 
 
@@ -14,9 +14,9 @@ There are mainly two tools:
 
 `make clean && make [DEBUG=1] [libnvcdhook.so] [nvcdrun] [nvcdinfo]`
 
-Each of the optional targets specified in the command in above will build `libnvcd.so` first.
+Each of the optional targets specified in the command above builds `libnvcd.so` first.
 
-These will be built in the `bin` directory that lies at the root of the repo.
+These executables will build in the `bin` directory that lies at the root of the repo.
 
 If `DEBUG=1` is provided, optimizations are turned off and debug symbols are provided.
 
@@ -24,7 +24,7 @@ Note also that environment variables `CUDA_HOME` and `CUDA_ARCH_SM` need to be s
 
 `CUDA_HOME` should point to the very root directory of the cuda installation, and `CUDA_ARCH_SM` should be provided in the form of `sm_<version>`.
 
-The user can either edit this manually in `Makefile.inc`, or define them as environment variables (in which case they'll override the defaults).
+The user can either edit this manually in `Makefile.inc`, or define them as environment variables (in which case they will override the defaults).
 
 ## How it works
 
@@ -37,7 +37,7 @@ The user can either edit this manually in `Makefile.inc`, or define them as envi
 - `libnvcd_begin()` and `libnvcd_end()` mark the start and end of a region, respectively. 
 
 - These functions are loaded at runtime through the hook's library, which is designed to be loaded using `LD_PRELOAD`. Thus, there is no need to link against `libnvcd.so` _unless_ the user
-doesn't want to leverage the hook functionality (though this will require more work). 
+doesn't want to leverage the hook functionality. <!-- (though this will require more work). --> 
 
 - Region annotation may contain invocations for multiple kernels or a single kernel - it's up to the user. As is the name of the region itself.
 
@@ -113,7 +113,7 @@ querying for GPU 0 will actually return GPU 1.
 ## Using the standalone query tool for listing all possible groups of events and metrics to list
 
 The standalone tool *nvcdinfo* can be used to automatically put the metrics and events into groups of user-specified sizes. 
-The output from this tool allows a user to generate a list of groups of metrics or events that can be collected in each pass. Since not all metrics and events can be collected at once due to hardware limitation, this tool can be used first to estimate the number of passes one would need to collect all (or a selected subset of) metrics. Also, not all metrics or events can be collected together due to hardware resource conflict. This tool also helps address this issue -- it automatically generated groups of metrics and events that CAN be collected together.
+The output from this tool allows a user to generate a list of groups of events that can be collected in each pass. Since not all metrics and events can be collected at once due to hardware limitation, this tool can be used first to estimate the number of passes one would need to collect all (or a selected subset of) metrics. Also, not all metrics or events can be collected together due to hardware resource conflict. This tool also helps address this issue -- it automatically generated groups of events that CAN be collected together.
 
 Usage 1: 
 ./nvcdinfo [-n GROUP_SIZE] -d DEVICE_ID
@@ -133,9 +133,8 @@ Generates a list of all metrics and the events used to calculate those metrics f
 
 ## What is not recorded by this tool
 
-We currently only support metrics and events. Metrics are specified in the exact same way events are, but through the `BENCH_METRICS` environment variable.
-
-Soon we will provide better auxilary support. That said, if you know what metrics are available on your system, you will get the information that you seek
+We currently support collecting metrics and events. Metrics are specified in the exact same way events are, but through the `BENCH_METRICS` environment variable.
+Soon we will provide better auxilary support by enabling *nvcdinfo* to report on groups of metrics. That said, if you know what metrics are available on your system, you will get the information that you seek
 by setting `BENCH_METRICS` accordingly.
 
 
