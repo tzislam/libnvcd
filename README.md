@@ -49,7 +49,7 @@ We include an example in `nvcdrun/src/gpu_call.cu` showing how to annotate an ap
 The figure below shows that `libnvcd_load` (the initialization function), `libnvcd_begin` and `libnvcd_end` functions are called from the host function.
 The begin and end functions can encompass several kernel calls. In that case, libnvcd aggregates collected samples across all kernels between the begin and end calls.
 
-`![Source code annotation using libnvcd API.](./annot.pdf)
+![Source code annotation using libnvcd API.](./annot.png)
 
 ### nvcdinfo
 
