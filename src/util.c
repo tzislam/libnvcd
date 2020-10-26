@@ -284,39 +284,5 @@ NVCD_EXPORT void write_logf_impl(const char* func,
   free(buffer);
 }
 
-#if 0
-// if we decide to continue down this path,
-// be sure to declare cudaLaunch and and cudaSetupArgument
-// in util.h with NVCD_EXPORT
-
-typedef cudaError_t (*cudaLaunch_fn_t)(const void* entry);
-
-static cudaLaunch_fn_t real_cudaLaunch = NULL;
-
-NVCD_EXPORT cudaError_t cudaLaunch(const void* entry) {
-  if (real_cudaLaunch == NULL) {
-    real_cudaLaunch = (cudaLaunch_fn_t)dlsym(RTLD_NEXT, "cudaLaunch");
-  }
-  
-  printf("[HOOK %s]\n", __FUNC__);
-  
-  return (*real_cudaLaunch)(entry);
-}
-
-typedef cudaError_t (*cudaSetupArgument_fn_t)(const void* arg, size_t size, size_t offset);
-
-static cudaSetupArgument_fn_t real_cudaSetupArgument;
-
-NVCD_EXPORT cudaError_t cudaSetupArgument(const void* arg, size_t size, size_t offset) {
-  if (real_cudaSetupArgument == NULL) {
-    real_cudaSetupArgument = (cudaSetupArgument_fn_t)dlsym(RTLD_NEXT, "cudaSetupArgument");
-  }
-
-  printf("[HOOK %s]\n", __FUNC__);
-
-  return (*real_cudaSetupArgument)(arg, size, offset);
-}
-#endif
-
 C_LINKAGE_END
 

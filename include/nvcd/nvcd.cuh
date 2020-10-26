@@ -1267,9 +1267,9 @@ extern "C" {
 }
 
 //
-// Define this in only one source file,
-// and then include this header right after,
-// and then undefine it
+// #define NVCD_HEADER_IMPL in only one source file,
+// and then include this nvcd.cuh header right after the define,
+// and then #undef NVCD_HEADER_IMPL
 //
 #ifdef NVCD_HEADER_IMPL
 
@@ -1288,56 +1288,6 @@ extern "C" {
 }
 
 nvcd_run_info* g_run_info = nullptr;
-
-template <class SThreadType, 
-	  class TKernFunType, 
-	  class ...TArgs>
-static inline void nvcd_run_metrics(const TKernFunType& kernel, 
-				    const SThreadType& block_size, 
-				    const SThreadType& threads_per_block,
-				    TArgs... args) {
-  cupti_event_data_t* __e = nvcd_get_events();                           
-  
-  ASSERT(__e->is_root == true);                                       
-  ASSERT(__e->initialized == true);                                   
-  ASSERT(__e->metric_data != NULL);                                   
-  ASSERT(__e->metric_data->initialized == true);                      
-                                                                        
-  for (uint32_t i = 0; i < __e->metric_data->num_metrics; ++i) {      
-    cupti_event_data_begin(&__e->metric_data->event_data[i]);         
-
-    while (!cupti_event_data_callback_finished(&__e->metric_data->event_data[i])) {
-      kernel<<<block_size, threads_per_block>>>(args...);                       
-      CUDA_RUNTIME_FN(cudaDeviceSynchronize());                       
-      g_run_info->run_kernel_count_inc();				
-    }                                                                 
-                                                                        
-    cupti_event_data_end(&__e->metric_data->event_data[i]);           
-  }                                                                     
-}
-
-
-template <class SThreadType, 
-	  class TKernFunType, 
-	  class ...TArgs>
-static inline void nvcd_run(const TKernFunType& kernel, 
-			    const SThreadType& block_size, 
-			    const SThreadType& threads_per_block,
-			    TArgs... args) {
-
-  
-  //  g_run_info->func_name = *(const char**)((uintptr_t)(&kernel) + 8);
-  
-  cupti_event_data_begin(nvcd_get_events());                          
-  while (!nvcd_host_finished()) {                                     
-    kernel<<<block_size, threads_per_block>>>(args...);                       
-    CUDA_RUNTIME_FN(cudaDeviceSynchronize());                         
-    g_run_info->run_kernel_count_inc();				
-  }                                                                   
-  cupti_event_data_end(nvcd_get_events());    
-
-  nvcd_run_metrics(kernel, block_size, threads_per_block, args...);
-}
 
 #endif // NVCD_HEADER_IMPL
 
