@@ -1,18 +1,289 @@
 #include <cuda_runtime_api.h>
 
-#define NVCD_HEADER_IMPL
-#include <nvcd/nvcd.cuh>
-#undef NVCD_HEADER_IMPL
+#include <nvcd/commondef.h>
+#include <nvcd/util.h>
+#include <nvcd/env_var.h>
+#include <nvcd/cupti_util.h>
+#include <nvcd/nvcd.h>
+
+#include <vector>
+#include <unordered_map>
+#include <algorithm>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <unordered_set>
+#include <limits>
+#include <type_traits>
+#include <sstream>
+#include <iomanip>
+
+#include <stdlib.h>
+#include <stdio.h>
+#include <time.h>
+#include <ctype.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+#include <errno.h>
+#include <dirent.h>
+#include <sys/stat.h>
+#include <ftw.h>
 
 #include <dlfcn.h>
-
-#include <time.h>
-
 #include <assert.h>
-
 #include <string.h>
-
 #include <cstdint>
+
+#include <pthread.h>
+
+#include <cupti.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
+
+#ifdef __CUDACC__
+#ifndef PRIu64
+#define PRIu64 "lu"
+#endif
+
+#ifndef PRId64
+#define PRId64 "ld"
+#endif
+
+#ifndef PRIx64
+#define PRIx64 "lx"
+#endif
+
+#ifndef PRIu32
+#define PRIu32 "u"
+#endif
+
+#ifndef PRId32
+#define PRId32 "i"
+#endif
+
+#ifndef PRIx32
+#define PRIx32 "x"
+#endif
+
+#endif // __CUDACC__
+
+#define EXTC extern "C"
+#define DEV __device__
+#define HOST __host__
+#define GLOBAL __global__
+
+#define __TONAME___DEV_EXPORT static inline DEV
+#define __TONAME___CUDA_EXPORT static inline HOST
+#define __TONAME___GLOBAL_EXPORT static GLOBAL
+
+#define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
+
+#define DEV_PRINT_PTR(v) msg_verbosef("&(%s) = %p, %s = %p\n", #v, &v, #v, v)                                                           
+
+using instance_vec_type = std::vector<uint64_t>;
+using counter_map_type = std::unordered_map<CUpti_EventID, instance_vec_type>;
+
+instance_vec_type operator - (const instance_vec_type& a, const instance_vec_type& b) {
+  ASSERT(a.size() == b.size());
+  // in case asserts are disabled (for whatever unlikely reason that may be...)
+  size_t sz = std::min(a.size(), b.size());
+  instance_vec_type diff(sz, 0);
+  for (size_t i = 0; i < sz; ++i) {
+    diff[i] = a[i] - b[i];
+  }
+  return diff;
+} 
+
+counter_map_type operator - (const counter_map_type& a, const counter_map_type& b) {
+  counter_map_type diff;
+  for (const auto& kv: a) {
+    const auto& key = kv.first;
+    const auto& value = kv.second;
+    const instance_vec_type& avec = value;
+    // b will be empty the first time this operator overload
+    // is called, but this is just a better catch all solution.
+    // sure, it's less efficient because b.empty() is simpler to check for.
+    // the map is unordered though, so b.find() should have little overhead.
+    if (b.find(key) != b.end()) {
+      const instance_vec_type& bvec = b.at(key);
+      diff[key] = avec - bvec;
+    }
+    else {
+      diff[key] = avec;
+    }
+  }
+  return diff;
+}
+
+extern struct hook_run_info* g_run_info;
+
+struct hook_run_info {
+  
+  counter_map_type counters_start;
+  counter_map_type counters_end;
+  counter_map_type counters_diff;
+
+  std::string region_name;
+  
+  size_t curr_num_threads;
+  const char* func_name;
+  uint32_t run_kernel_exec_count;
+
+  static size_t num_runs;
+  
+  hook_run_info()
+    : curr_num_threads(0),
+      func_name(nullptr),
+      run_kernel_exec_count(0) {
+  }
+
+  ~hook_run_info() {
+  }
+
+  void run_kernel_count_inc() {
+    run_kernel_exec_count++;
+  }
+  
+  void update() {
+    ASSERT(curr_num_threads != 0);   
+
+    curr_num_threads = 0;
+    run_kernel_exec_count = 0;
+   
+    cupti_event_data_t* global = nvcd_get_events();
+    // we do this to compute the difference
+    // from the previous run
+    for (const auto& kv: counters_end) {
+      counters_start[kv.first] = kv.second;      
+    }
+    
+    cupti_event_data_enum_event_counters(global, hook_run_info::enum_event_counters);    
+    
+    counters_diff = counters_end - counters_start;
+
+    num_runs++;
+  }
+
+  static bool enum_event_counters(cupti_enum_event_counter_iteration_t* it) {    
+    if (g_run_info->counters_end[it->event].empty()) {
+      g_run_info->counters_end[it->event].resize(it->num_instances, 0);
+    }
+    ASSERT(it->instance < it->num_instances);
+    g_run_info->counters_end[it->event][it->instance] += it->value;
+    return true;
+  }
+  
+  void report() {
+    ASSERT(num_runs > 0);
+    
+    msg_userf("================================ invocation %" PRIu64 " for \'%s\' ================================\n",
+	      num_runs - 1,
+	      region_name.c_str());
+
+    std::stringstream ss;
+    msg_verbosef("counters_diff size: %" PRIu64 "\n", counters_diff.size());
+    for (const auto& kv : counters_diff) {
+      const auto& key = kv.first;
+      const auto& value = kv.second;
+      ASSERT(!value.empty());
+      char* event_name = cupti_event_get_name(key);
+      ASSERT(event_name != nullptr);
+      double avg = 0;
+      uint64_t summation = 0;
+      uint64_t maximum = 0; // the lowest possible count
+      uint64_t minimum = std::numeric_limits<uint64_t>::max(); //something very large so that it changes
+      uint64_t temp_var = 0;
+      for (size_t index = 0; index < value.size(); ++index) {
+	temp_var = value.at(index);
+	summation += temp_var;
+	avg += temp_var;
+	maximum = (maximum < temp_var) ? temp_var : maximum;
+	minimum = (minimum > temp_var) ? temp_var : minimum;
+      }
+      avg /= static_cast<double>(value.size());
+      ss << "|COUNTER|" << region_name << ":" << event_name << ": SUM: " << summation << " AVG: " << avg << " MAX: " << maximum << " MIN: " << minimum << "\n";
+      free(event_name);
+    }
+    
+    msg_userf("%s", ss.str().c_str());
+    
+    cupti_report_event_data(nvcd_get_events());
+  }
+};
+
+size_t hook_run_info::num_runs = 0;
+
+__TONAME___CUDA_EXPORT void __toname___report() {
+  ASSERT(g_run_info != nullptr);    
+  g_run_info->report();
+}
+
+__TONAME___CUDA_EXPORT void __toname___init() {
+  nvcd_init_cuda();
+
+  if (g_run_info == nullptr) {
+    g_run_info = new hook_run_info();
+  }
+        
+  ASSERT(g_nvcd.initialized == true);
+  ASSERT(g_run_info != nullptr);
+}
+
+__TONAME___CUDA_EXPORT void __toname___host_begin(const char* region_name, int num_cuda_threads) {     
+  __toname___init();
+
+  g_run_info->region_name = std::string(region_name);
+
+  ASSERT(g_nvcd.initialized == true);
+  ASSERT(g_run_info != nullptr);
+
+  g_run_info->curr_num_threads = static_cast<size_t>(num_cuda_threads);
+
+  nvcd_init_events(g_nvcd.devices[0],
+                   g_nvcd.contexts[0]);
+}
+
+__TONAME___CUDA_EXPORT bool __toname___host_finished() {
+  return cupti_event_data_callback_finished(nvcd_get_events());
+}
+
+__TONAME___CUDA_EXPORT void __toname___terminate();
+
+__TONAME___CUDA_EXPORT void __toname___host_end() {
+  ASSERT(g_nvcd.initialized == true);
+    
+  nvcd_calc_metrics();
+
+  g_run_info->update();
+
+  __toname___report();   
+
+  __toname___terminate();
+}
+ 
+
+__TONAME___CUDA_EXPORT void __toname___terminate() {
+  nvcd_reset_event_data();
+ 
+  for (int i = 0; i < g_nvcd.num_devices; ++i) {
+    ASSERT(g_nvcd.contexts[i] != NULL);
+    safe_free_v(g_nvcd.device_names[i]);
+            
+    if (g_nvcd.contexts_ext[i] == false) {
+      CUDA_DRIVER_FN(cuCtxDestroy(g_nvcd.contexts[i]));
+    }
+  }
+
+  safe_free_v(g_nvcd.device_names);
+  safe_free_v(g_nvcd.devices);
+  safe_free_v(g_nvcd.contexts);
+
+  g_nvcd.initialized = false;
+}
+
+hook_run_info* g_run_info = nullptr;
 
 #define NVCD_TIMEFLAGS_NONE 0
 #define NVCD_TIMEFLAGS_REGION (1 << 2)
@@ -546,7 +817,7 @@ static inline cudaError_t nvcd_run2(const TKernFunType& kernel,
 
   if (nvcd_has_events()) {
     cupti_event_data_begin(nvcd_get_events());  
-    while (result == cudaSuccess && !nvcd_host_finished()) {
+    while (result == cudaSuccess && !__toname___host_finished()) {
       if (g_timer) g_timer->begin_run();
       result = kernel(args...);                       
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());
@@ -576,6 +847,70 @@ void print_func(const void* func) {
   printf("[HOOK INFO - func: string = %s, address %p" PRIx64 "]\n", f, func);
 }
 
+class hook_driver {
+public:
+  using host_thread_id_type = pthread_t;
+
+  hook_driver(host_thread_id_type htid,
+              cudaStream_t stream)
+    : m_cupti_event_data(CUPTI_EVENT_DATA_INIT),
+      m_run_info(new hook_run_info()),
+      m_host_thread_id(htid),
+      m_device(0),
+      m_cu_device(0),
+      m_cu_context(nullptr),
+      m_cuda_stream(stream),
+      m_cu_context_is_creat(false),
+      m_enabled(false)
+  {
+    CUDA_RUNTIME_FN(cudaGetDevice(&m_device));
+
+    CUDA_DRIVER_FN(cuDeviceGet(&m_cu_device, m_device));
+    
+    CUDA_DRIVER_FN(cuCtxGetCurrent(&m_cu_context));
+    if (m_cu_context == NULL) {
+      CUDA_DRIVER_FN(cuCtxCreate(&m_cu_context,
+                                 0,
+                                 m_cu_device));
+
+      m_cu_context_is_creat = true;
+    }
+  }
+
+  void event_trace_begin(std::string region_name,
+                         int num_cuda_threads) {    
+    m_run_info->region_name = std::move(region_name);
+    m_run_info->curr_num_threads = static_cast<size_t>(num_cuda_threads);
+    
+    m_cupti_event_data.cuda_context = m_cu_context;
+    m_cupti_event_data.cuda_device = m_cu_device;
+    m_cupti_event_data.is_root = true;
+
+    cupti_event_data_init(&m_cupti_event_data);
+  }
+
+  void event_trace_end() {
+    if (m_cupti_event_data.has_metrics) {
+      cupti_event_data_calc_metrics(&m_cupti_event_data);
+    }
+    m_run_info->update();
+    m_run_info->report();
+  }
+  
+private:
+  cupti_event_data_t m_cupti_event_data;
+  
+  std::unique_ptr<hook_run_info> m_run_info;
+  
+  host_thread_id_type m_host_thread_id;
+  int m_device;
+  CUdevice m_cu_device;
+  CUcontext m_cu_context;
+  cudaStream_t m_cuda_stream;
+  bool m_cu_context_is_creat;
+  bool m_enabled;
+};
+
 NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  dim3 gridDim,
 						  dim3 blockDim,
@@ -592,9 +927,9 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
       if (g_timer) {
 	g_timer->begin_kernel();
       }
-      nvcd_host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
+      __toname___host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
       ret = nvcd_run2(real_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
-      nvcd_host_end();
+      __toname___host_end();
       if (g_timer) {
 	g_timer->end_kernel();
       }
@@ -665,7 +1000,7 @@ NVCD_EXPORT void libnvcd_end() {
     // reset_timer() is called
     g_enabled = false;
     reset_timer();
-    nvcd_run_info::num_runs = 0;
+    hook_run_info::num_runs = 0;
   }
 }
 
