@@ -271,7 +271,7 @@ __TONAME___CUDA_EXPORT void __toname___terminate() {
   nvcd_reset_event_data();
  
   for (int i = 0; i < g_nvcd.num_devices; ++i) {
-    ASSERT(g_nvcd.contexts[i] != NULL);
+    ASSERT(g_nvcd.contexts[i] != nullptr);
     safe_free_v(g_nvcd.device_names[i]);
             
     if (g_nvcd.contexts_ext[i] == false) {
@@ -788,7 +788,7 @@ static inline cudaError_t nvcd_run_metrics2(const TKernFunType& kernel,
   
   ASSERT(__e->is_root == true);                                       
   ASSERT(__e->initialized == true);                                   
-  ASSERT(__e->metric_data != NULL);                                   
+  ASSERT(__e->metric_data != nullptr);                                   
   ASSERT(__e->metric_data->initialized == true);                      
 
   cudaError_t result = cudaSuccess;
@@ -919,7 +919,8 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  size_t sharedMem,
 						  cudaStream_t stream) {
   cudaError_t ret = cudaSuccess;
-  if (real_cudaLaunchKernel == NULL) {
+  
+  if (real_cudaLaunchKernel == nullptr) {
     real_cudaLaunchKernel = (cudaLaunchKernel_fn_t) dlsym(RTLD_NEXT, "cudaLaunchKernel");
   }
   if (g_enabled) {
