@@ -835,82 +835,186 @@ static inline cudaError_t nvcd_run2(const TKernFunType& kernel,
   return result;
 }
 
-C_LINKAGE_START
-
-static char g_region_buffer[256] = {0};
-
 typedef cudaError_t (*cudaLaunchKernel_fn_t)(const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream);
-
-static cudaLaunchKernel_fn_t real_cudaLaunchKernel = NULL;
-
-void print_func(const void* func) {
-  const char* f = static_cast<const char*>(func);
-  printf("[HOOK INFO - func: string = %s, address %p" PRIx64 "]\n", f, func);
-}
 
 class hook_driver {
 public:
   using host_thread_id_type = pthread_t;
 
-  hook_driver(host_thread_id_type htid,
-              cudaStream_t stream)
-    : m_cupti_event_data(CUPTI_EVENT_DATA_INIT),
-      m_run_info(new hook_run_info()),
+  hook_driver(host_thread_id_type htid)
+    : m_run_info(new hook_run_info()),
       m_host_thread_id(htid),
-      m_device(0),
-      m_cu_device(0),
-      m_cu_context(nullptr),
-      m_cuda_stream(stream),
-      m_cu_context_is_creat(false),
-      m_enabled(false)
-  {
-    CUDA_RUNTIME_FN(cudaGetDevice(&m_device));
-
-    CUDA_DRIVER_FN(cuDeviceGet(&m_cu_device, m_device));
+      m_hook_enabled(false)
+  {}
+  
+  void event_trace_begin(int num_cuda_threads, cudaStream_t stream) {
+    ASSERT(!m_region_name.empty());
+    ASSERT(num_cuda_threads > 0);
     
-    CUDA_DRIVER_FN(cuCtxGetCurrent(&m_cu_context));
-    if (m_cu_context == NULL) {
-      CUDA_DRIVER_FN(cuCtxCreate(&m_cu_context,
-                                 0,
-                                 m_cu_device));
-
-      m_cu_context_is_creat = true;
-    }
-  }
-
-  void event_trace_begin(std::string region_name,
-                         int num_cuda_threads) {    
-    m_run_info->region_name = std::move(region_name);
+    m_run_info->region_name = m_region_name;
     m_run_info->curr_num_threads = static_cast<size_t>(num_cuda_threads);
     
-    m_cupti_event_data.cuda_context = m_cu_context;
-    m_cupti_event_data.cuda_device = m_cu_device;
-    m_cupti_event_data.is_root = true;
-
-    cupti_event_data_init(&m_cupti_event_data);
+    m_per_trace.begin(stream);
   }
 
-  void event_trace_end() {
-    if (m_cupti_event_data.has_metrics) {
-      cupti_event_data_calc_metrics(&m_cupti_event_data);
+  template <class ...TArgs>
+  cudaError_t run(cudaLaunchKernel_fn_t real_cudaLaunchKernel, TArgs... args) {
+    cudaError_t result = cudaSuccess;
+
+    auto run_trace_loop_for = [&](cupti_event_data_t* e) {
+      cupti_event_data_begin(e);
+      while (result == cudaSuccess && !cupti_event_data_callback_finished(e)) {
+        result = real_cudaLaunchKernel(args...);
+        CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+        m_run_info->run_kernel_count_inc();
+      }
+      cupti_event_data_end(e);
+    };
+    
+    if (event_data()->has_events) {
+      run_trace_loop_for(event_data());
     }
-    m_run_info->update();
-    m_run_info->report();
+
+    if (result == cudaSuccess && event_data()->has_metrics) {  
+      ASSERT(event_data()->is_root == true);                                       
+      ASSERT(event_data()->initialized == true);                                   
+      ASSERT(event_data()->metric_data != nullptr);                                   
+      ASSERT(event_data()->metric_data->initialized == true);                      
+
+      cupti_event_data_t* metric_event_buffer =
+        & (event_data()->metric_data->event_data[0]);
+
+      for (uint32_t i = 0;
+           result == cudaSuccess &&
+             i < event_data()->metric_data->num_metrics;
+           ++i) {
+        run_trace_loop_for(&metric_event_buffer[i]);
+      }
+    }
+
+    return result;
+  }
+  
+  void event_trace_end() {
+    m_per_trace.calc_metrics();
+    
+    m_run_info->update(event_data());
+    m_run_info->report(event_data());
+    
+    m_per_trace.end();
+  }
+  
+  void region_begin(std::string region_name) {
+    m_region_name = std::move(region_name);
+  }
+
+  void region_end() {
+    
+  }
+
+  
+private:
+    struct per_trace {
+      cupti_event_data_t m_cupti_event_data;
+      CUcontext m_cu_context;
+      CUdevice m_cu_device;
+      cudaStream_t m_cuda_stream;
+      int m_device;
+    
+      bool m_cu_context_is_creat;
+    
+      per_trace() {
+        reset();
+      }
+
+      void reset() {
+        cupti_event_data_set_null(&m_cupti_event_data);
+        m_cu_context = nullptr;
+        m_cu_device = -1;
+        m_cuda_stream = nullptr;
+        m_device = -1;
+        m_cu_context_is_creat = false;
+      }
+
+      void begin(cudaStream_t stream) {
+        m_cuda_stream = stream;
+      
+        CUDA_RUNTIME_FN(cudaGetDevice(&m_device));
+    
+        CUDA_DRIVER_FN(cuDeviceGet(&m_cu_device, m_device));
+
+        CUDA_DRIVER_FN(cuCtxGetCurrent(&m_cu_context));
+        
+        if (m_cu_context == nullptr) {
+          CUDA_DRIVER_FN(cuCtxCreate(&m_cu_context,
+                                     0,
+                                     m_cu_device));
+
+          m_cu_context_is_creat = true;
+        }
+
+        m_cupti_event_data.cuda_context = m_cu_context;
+        m_cupti_event_data.cuda_device = m_cu_device;
+        m_cupti_event_data.is_root = true;
+
+        cupti_event_data_init(&m_cupti_event_data);
+      }
+
+      void calc_metrics() {
+        if (m_cupti_event_data.has_metrics) {
+          cupti_event_data_calc_metrics(&m_cupti_event_data);
+        }
+      }
+
+      void end() {
+        cupti_event_data_free(&m_cupti_event_data);
+        if (m_cu_context_is_creat) {
+          ASSERT(m_cu_context != nullptr);
+          CUDA_DRIVER_FN(cuCtxDestroy(m_cu_context));
+        }
+        reset();
+      }
+    };
+  
+  cupti_event_data_t* event_data() { return &m_per_trace.m_cupti_event_data; }
+  
+  per_trace m_per_trace;
+  
+  std::unique_ptr<hook_run_info> m_run_info;
+
+  std::string m_region_name;
+  
+  host_thread_id_type m_host_thread_id;
+  
+  bool m_hook_enabled;
+};
+
+class hook_driver_manager {
+public:
+  hook_driver* driver_for(hook_driver::host_thread_id_type thread) {
+    if (!m_hooks[thread]) {
+      m_hooks[thread].reset(new hook_driver(thread));
+    }
+    return m_hooks.at(thread).get();
   }
   
 private:
-  cupti_event_data_t m_cupti_event_data;
-  
-  std::unique_ptr<hook_run_info> m_run_info;
-  
-  host_thread_id_type m_host_thread_id;
-  int m_device;
-  CUdevice m_cu_device;
-  CUcontext m_cu_context;
-  cudaStream_t m_cuda_stream;
-  bool m_cu_context_is_creat;
-  bool m_enabled;
+  std::unordered_map<hook_driver::host_thread_id_type,
+                     std::unique_ptr<hook_driver>> m_hooks;
 };
+
+static std::unique_ptr<hook_driver_manager> g_drvman(new hook_driver_manager());
+
+C_LINKAGE_START
+
+static char g_region_buffer[256] = {0};
+
+static cudaLaunchKernel_fn_t real_cudaLaunchKernel = nullptr;
+
+void print_func(const void* func) {
+  const char* f = static_cast<const char*>(func);
+  printf("[HOOK INFO - func: string = %s, address %p" PRIx64 "]\n", f, func);
+}
 
 NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  dim3 gridDim,
