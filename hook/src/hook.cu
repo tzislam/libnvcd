@@ -1028,6 +1028,22 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
     real_cudaLaunchKernel = (cudaLaunchKernel_fn_t) dlsym(RTLD_NEXT, "cudaLaunchKernel");
   }
   if (g_enabled) {
+#if defined (NVCD_HOOK_DRIVER)
+    hook_driver* driver = g_drvman->driver_for(pthread_self());
+
+    driver->event_trace_begin(gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z,
+                              stream);
+
+    ret = driver->run(real_cudaLaunchKernel,
+                      func,
+                      gridDim,
+                      blockDim,
+                      args,
+                      sharedMem,
+                      stream);
+  
+    driver->event_trace_end();
+#else
     if (call_for(func).is_ready()) {
       printf("[HOOK ON %s - %s; symbol = %p]\n", __FUNC__, g_region_buffer, func);
       if (g_timer) {
@@ -1040,6 +1056,7 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 	g_timer->end_kernel();
       }
     }
+#endif
   }
   else {
     printf("[HOOK OFF %s]\n", __FUNC__);
@@ -1083,11 +1100,18 @@ NVCD_EXPORT void libnvcd_begin(const char* region_name) {
   ASSERT(region_name != nullptr);
   ASSERT(strlen(region_name) <= 256);
   if (region_name != nullptr) {
+#if defined (NVCD_HOOK_DRIVER)
+    g_drvman
+      ->driver_for(pthread_self())
+      ->region_begin(std::move(std::string(region_name)));
+    g_enabled = true;
+#else
     strncpy(g_region_buffer, region_name, 255);
     g_enabled = true;
     if (g_timer) {
       g_timer->begin_region(region_name);
     }
+#endif
   }
 }
 
@@ -1098,6 +1122,10 @@ NVCD_EXPORT void libnvcd_end() {
   // coulud arise internally in the future.
   ASSERT(g_enabled == true);
   if (g_enabled) {
+#if defined (NVCD_HOOK_DRIVER)
+    g_drvman->driver_for(pthread_self())->region_end();
+    g_enabled = false;
+#else
     if (g_timer) { 
       g_timer->end_region();
       g_timer->record();   
@@ -1106,8 +1134,10 @@ NVCD_EXPORT void libnvcd_end() {
     // reset_timer() is called
     g_enabled = false;
     reset_timer();
+#endif
     hook_run_info::num_runs = 0;
   }
+
 }
 
 C_LINKAGE_END

@@ -16,4 +16,4 @@ $(HOOK_LIB): objdep $(HOOK_OBJ) $(HOOK_H) $(LIB)
 	$(CXX) $(LD_FLAGS) -L$(NVCD_HOME)/bin $(HOOK_OBJ) -lnvcd $(LIBS) -o $(NVCD_HOME)/bin/$(HOOK_LIB)
 
 $(HOOK_ROOT)/obj/%.o: $(HOOK_ROOT)/src/%.cu
-	$(NVCC) $(NVCC_FLAGS) --compiler-options "-fPIC" -c $< -o $@
+	$(NVCC) $(NVCC_FLAGS) --compiler-options "-fPIC -DNVCD_HOOK_DRIVER" -c $< -o $@
