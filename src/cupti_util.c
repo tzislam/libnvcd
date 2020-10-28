@@ -1891,6 +1891,7 @@ NVCD_EXPORT bool cupti_event_data_callback_finished(cupti_event_data_t* e) {
 }
 
 void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
+                                          void* user_param,
 					  cupti_event_data_enum_event_counters_fn_t fn) {
   ASSERT(e->count_event_groups_read == e->num_event_groups);
   bool keep_iterating = true;
@@ -1981,11 +1982,12 @@ void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
       
 	cupti_enum_event_counter_iteration_t it =
 	  {
+           .value = pcounters[k],
+           .event = e->event_id_buffer[ib_offset + event],
+           .group = e->event_groups[group],
+           .user_param = user_param,
 	   .instance = event_instance,
-	   .num_instances = nipg,
-	   .value = pcounters[k],
-	   .event = e->event_id_buffer[ib_offset + event],
-	   .group = e->event_groups[group]
+	   .num_instances = nipg	  
 	  };
 
 	keep_iterating = fn(&it);

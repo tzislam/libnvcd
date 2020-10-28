@@ -117,8 +117,6 @@ counter_map_type operator - (const counter_map_type& a, const counter_map_type& 
   return diff;
 }
 
-extern struct hook_run_info* g_run_info;
-
 struct hook_run_info {
   
   counter_map_type counters_start;
@@ -146,36 +144,39 @@ struct hook_run_info {
     run_kernel_exec_count++;
   }
   
-  void update() {
+  void update(cupti_event_data_t* event_data) {
     ASSERT(curr_num_threads != 0);   
 
     curr_num_threads = 0;
     run_kernel_exec_count = 0;
    
-    cupti_event_data_t* global = nvcd_get_events();
+
     // we do this to compute the difference
     // from the previous run
     for (const auto& kv: counters_end) {
       counters_start[kv.first] = kv.second;      
     }
     
-    cupti_event_data_enum_event_counters(global, hook_run_info::enum_event_counters);    
+    cupti_event_data_enum_event_counters(event_data,
+                                         this,
+                                         hook_run_info::enum_event_counters);    
     
     counters_diff = counters_end - counters_start;
 
     num_runs++;
   }
 
-  static bool enum_event_counters(cupti_enum_event_counter_iteration_t* it) {    
-    if (g_run_info->counters_end[it->event].empty()) {
-      g_run_info->counters_end[it->event].resize(it->num_instances, 0);
+  static bool enum_event_counters(cupti_enum_event_counter_iteration_t* it) {
+    hook_run_info* run_info = static_cast<hook_run_info*>(it->user_param);
+    if (run_info->counters_end[it->event].empty()) {
+      run_info->counters_end[it->event].resize(it->num_instances, 0);
     }
     ASSERT(it->instance < it->num_instances);
-    g_run_info->counters_end[it->event][it->instance] += it->value;
+    run_info->counters_end[it->event][it->instance] += it->value;
     return true;
   }
   
-  void report() {
+  void report(cupti_event_data_t* event_data) {
     ASSERT(num_runs > 0);
     
     msg_userf("================================ invocation %" PRIu64 " for \'%s\' ================================\n",
@@ -209,15 +210,17 @@ struct hook_run_info {
     
     msg_userf("%s", ss.str().c_str());
     
-    cupti_report_event_data(nvcd_get_events());
+    cupti_report_event_data(event_data);
   }
 };
 
 size_t hook_run_info::num_runs = 0;
 
+static hook_run_info* g_run_info = nullptr;
+
 __TONAME___CUDA_EXPORT void __toname___report() {
   ASSERT(g_run_info != nullptr);    
-  g_run_info->report();
+  g_run_info->report(nvcd_get_events());
 }
 
 __TONAME___CUDA_EXPORT void __toname___init() {
@@ -256,7 +259,7 @@ __TONAME___CUDA_EXPORT void __toname___host_end() {
     
   nvcd_calc_metrics();
 
-  g_run_info->update();
+  g_run_info->update(nvcd_get_events());
 
   __toname___report();   
 
@@ -282,8 +285,6 @@ __TONAME___CUDA_EXPORT void __toname___terminate() {
 
   g_nvcd.initialized = false;
 }
-
-hook_run_info* g_run_info = nullptr;
 
 #define NVCD_TIMEFLAGS_NONE 0
 #define NVCD_TIMEFLAGS_REGION (1 << 2)

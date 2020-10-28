@@ -943,7 +943,7 @@ struct nvcd_run_info {
       counters_start[kv.first] = kv.second;      
     }
     
-    cupti_event_data_enum_event_counters(global, nvcd_run_info::enum_event_counters);    
+    cupti_event_data_enum_event_counters(global, nullptr, nvcd_run_info::enum_event_counters);    
     
     counters_diff = counters_end - counters_start;
 
