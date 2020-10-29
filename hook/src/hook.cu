@@ -1,4 +1,7 @@
 #include <cuda_runtime_api.h>
+#include <cupti.h>
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 #include <nvcd/commondef.h>
 #include <nvcd/util.h>
@@ -17,9 +20,12 @@
 #include <type_traits>
 #include <sstream>
 #include <iomanip>
+#include <functional>
+#include <thread>
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <time.h>
 #include <ctype.h>
 #include <sys/time.h>
@@ -35,12 +41,6 @@
 #include <assert.h>
 #include <string.h>
 #include <cstdint>
-
-#include <pthread.h>
-
-#include <cupti.h>
-#include <cuda.h>
-#include <cuda_runtime.h>
 
 #ifdef __CUDACC__
 #ifndef PRIu64
@@ -81,6 +81,35 @@
 #define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
 
 #define DEV_PRINT_PTR(v) msg_verbosef("&(%s) = %p, %s = %p\n", #v, &v, #v, v)                                                           
+
+static void hook_msg(bool fatal, const char* file, const char* func, int line, const char* prefix, const char* message, ...) {
+  char* buffer = (char*) calloc(strlen(message) + 128, sizeof(char));
+  
+  if (C_ASSERT(buffer != nullptr)) {
+    va_list ap;
+    va_start(ap, message);
+    vsprintf(buffer, message, ap);
+    va_end(ap);
+
+    fprintf(stdout, "[%s:%s:%i] (%s) %s\n", file, func, line, prefix, buffer);
+  }
+  else {
+    fprintf(stdout, "[%s:%s:%i] (%s) OOM when allocating log buffer.\n", file, func, line, prefix);
+  }
+  
+  fflush(stdout);
+  
+  if (fatal) {
+    sleep(2);
+    exit(EHOOK);
+  }
+}
+
+#define HOOK_INFO(msg) hook_msg(false, __FILE__, __func__, __LINE__, "HOOK INFO", "%s", msg)
+#define HOOK_FATAL(msg) hook_msg(true, __FILE__, __func__, __LINE__, "HOOK FATAL ERROR", "%s", msg)
+
+#define HOOK_INFOF(msg, ...) hook_msg(false, __FILE__, __func__, __LINE__, "HOOK INFO", msg, __VA_ARGS__)
+#define HOOK_FATALF(msg, ...) hook_msg(true, __FILE__, __func__, __LINE__, "HOOK FATAL ERROR", msg, __VA_ARGS__)
 
 using instance_vec_type = std::vector<uint64_t>;
 using counter_map_type = std::unordered_map<CUpti_EventID, instance_vec_type>;
@@ -600,13 +629,13 @@ namespace {
   const std::vector<timetree::ptr_type>& get_children(const timetree::ptr_type& parent) {
     return dynamic_cast<timenode*>(parent.get())->children;
   }
-
+  
   struct add {
     const std::string& dump;
 
-    void to(const std::string& region_name) {
+    void to(const std::string& region_name, std::vector<hook_time_record>& records) {
       bool found = false;
-      for (auto& entry: g_time_records) {
+      for (auto& entry: records) {
         found = entry.region_name == region_name;
         if (found) {
           entry.dumps.push_back(dump);
@@ -614,7 +643,7 @@ namespace {
         }
       }
       if (!found) {
-        g_time_records.push_back(hook_time_record {region_name, {dump}});
+        records.push_back(hook_time_record {region_name, {dump}});
       }
     }
   };
@@ -757,13 +786,13 @@ struct hook_time_info {
     }
   }
 
-  void record() {
+  void record(std::vector<hook_time_record>& records) {
     ASSERT(!region_name.empty());
     std::stringstream ss;
     for (const auto& child_ptr: get_children(root)) {
       ss << child_ptr->to_string(region_name, flags, 0);
     }
-    add{ss.str()}.to(region_name);
+    add{ss.str()}.to(region_name, records);
   }
 };
 
@@ -837,21 +866,23 @@ static inline cudaError_t nvcd_run2(const TKernFunType& kernel,
 
 typedef cudaError_t (*cudaLaunchKernel_fn_t)(const void* func, dim3 gridDim, dim3 blockDim, void** args, size_t sharedMem, cudaStream_t stream);
 
+using hook_thread_id_type = std::thread::id;
+
 class hook_driver {
 public:
-  using host_thread_id_type = pthread_t;
-
-  hook_driver(host_thread_id_type htid)
+  hook_driver(hook_thread_id_type htid)
     : m_run_info(new hook_run_info()),
       m_host_thread_id(htid),
       m_hook_enabled(false)
   {}
   
   void event_trace_begin(int num_cuda_threads, cudaStream_t stream) {
-    ASSERT(!m_region_name.empty());
+    ASSERT(!m_per_region.m_region_name.empty());
     ASSERT(num_cuda_threads > 0);
+
+    if (m_per_region.m_timer) m_per_region.m_timer->begin_kernel();
     
-    m_run_info->region_name = m_region_name;
+    m_run_info->region_name = m_per_region.m_region_name;
     m_run_info->curr_num_threads = static_cast<size_t>(num_cuda_threads);
     
     m_per_trace.begin(stream);
@@ -860,12 +891,14 @@ public:
   template <class ...TArgs>
   cudaError_t run(cudaLaunchKernel_fn_t real_cudaLaunchKernel, TArgs... args) {
     cudaError_t result = cudaSuccess;
-
+    
     auto run_trace_loop_for = [&](cupti_event_data_t* e) {
       cupti_event_data_begin(e);
       while (result == cudaSuccess && !cupti_event_data_callback_finished(e)) {
+        if (m_per_region.m_timer) m_per_region.m_timer->begin_run();
         result = real_cudaLaunchKernel(args...);
         CUDA_RUNTIME_FN(cudaDeviceSynchronize());
+        if (m_per_region.m_timer) m_per_region.m_timer->end_run();
         m_run_info->run_kernel_count_inc();
       }
       cupti_event_data_end(e);
@@ -883,12 +916,11 @@ public:
 
       cupti_event_data_t* metric_event_buffer =
         & (event_data()->metric_data->event_data[0]);
-
-      for (uint32_t i = 0;
-           result == cudaSuccess &&
-             i < event_data()->metric_data->num_metrics;
-           ++i) {
+      
+      uint32_t i = 0;
+      while (result == cudaSuccess && i < event_data()->metric_data->num_metrics) {
         run_trace_loop_for(&metric_event_buffer[i]);
+        i++;
       }
     }
 
@@ -902,119 +934,175 @@ public:
     m_run_info->report(event_data());
     
     m_per_trace.end();
+
+    if (m_per_region.m_timer) m_per_region.m_timer->end_kernel();
   }
   
   void region_begin(std::string region_name) {
-    m_region_name = std::move(region_name);
+    auto hash_id = std::hash<hook_thread_id_type>()(m_host_thread_id);
+    m_per_region.begin(std::move(region_name + std::to_string(hash_id)));
+    enable();
   }
 
   void region_end() {
-    
+    disable();
+    m_per_region.end();
   }
 
+  void time(uint32_t flags) {
+    if (C_ASSERT(!enabled())) {
+      m_per_region.time(flags);
+    }
+  }
+
+  void time_report() {
+    m_per_region.report();
+  }
+
+  bool enabled() const { return m_hook_enabled; }
+  
+  void enable() { m_hook_enabled = true; }
+  void disable() { m_hook_enabled = false; }
   
 private:
-    struct per_trace {
-      cupti_event_data_t m_cupti_event_data;
-      CUcontext m_cu_context;
-      CUdevice m_cu_device;
-      cudaStream_t m_cuda_stream;
-      int m_device;
+  // Refers to data that lives/dies per every event trace
+  struct per_trace {    
+    cupti_event_data_t m_cupti_event_data;
+    CUcontext m_cu_context;
+    CUdevice m_cu_device;
+    cudaStream_t m_cuda_stream;
+    int m_device;
     
-      bool m_cu_context_is_creat;
+    bool m_cu_context_is_creat;
     
-      per_trace() {
-        reset();
-      }
+    per_trace() {
+      reset();
+    }
 
-      void reset() {
-        cupti_event_data_set_null(&m_cupti_event_data);
-        m_cu_context = nullptr;
-        m_cu_device = -1;
-        m_cuda_stream = nullptr;
-        m_device = -1;
-        m_cu_context_is_creat = false;
-      }
+    void reset() {
+      cupti_event_data_set_null(&m_cupti_event_data);
+      //
+      m_cu_context = nullptr;
+      m_cu_device = -1;
+      m_cuda_stream = nullptr;
+      m_device = -1;
+      m_cu_context_is_creat = false;
+    }
 
-      void begin(cudaStream_t stream) {
-        m_cuda_stream = stream;
+    void begin(cudaStream_t stream) {
+      m_cuda_stream = stream;
       
-        CUDA_RUNTIME_FN(cudaGetDevice(&m_device));
+      CUDA_RUNTIME_FN(cudaGetDevice(&m_device));
     
-        CUDA_DRIVER_FN(cuDeviceGet(&m_cu_device, m_device));
+      CUDA_DRIVER_FN(cuDeviceGet(&m_cu_device, m_device));
 
-        CUDA_DRIVER_FN(cuCtxGetCurrent(&m_cu_context));
+      CUDA_DRIVER_FN(cuCtxGetCurrent(&m_cu_context));
         
-        if (m_cu_context == nullptr) {
-          CUDA_DRIVER_FN(cuCtxCreate(&m_cu_context,
-                                     0,
-                                     m_cu_device));
-
-          m_cu_context_is_creat = true;
-        }
-
-        m_cupti_event_data.cuda_context = m_cu_context;
-        m_cupti_event_data.cuda_device = m_cu_device;
-        m_cupti_event_data.is_root = true;
-
-        cupti_event_data_init(&m_cupti_event_data);
+      if (m_cu_context == nullptr) {
+        CUDA_DRIVER_FN(cuCtxCreate(&m_cu_context,
+                                   0,
+                                   m_cu_device));
+        m_cu_context_is_creat = true;
       }
 
-      void calc_metrics() {
-        if (m_cupti_event_data.has_metrics) {
-          cupti_event_data_calc_metrics(&m_cupti_event_data);
-        }
-      }
+      m_cupti_event_data.cuda_context = m_cu_context;
+      m_cupti_event_data.cuda_device = m_cu_device;
+      m_cupti_event_data.is_root = true;
 
-      void end() {
-        cupti_event_data_free(&m_cupti_event_data);
-        if (m_cu_context_is_creat) {
-          ASSERT(m_cu_context != nullptr);
-          CUDA_DRIVER_FN(cuCtxDestroy(m_cu_context));
-        }
-        reset();
+      cupti_event_data_init(&m_cupti_event_data);
+    }
+
+    void calc_metrics() {
+      if (m_cupti_event_data.has_metrics) {
+        cupti_event_data_calc_metrics(&m_cupti_event_data);
       }
-    };
+    }
+
+    void end() {
+      cupti_event_data_free(&m_cupti_event_data);
+      if (m_cu_context_is_creat) {
+        ASSERT(m_cu_context != nullptr);
+        CUDA_DRIVER_FN(cuCtxDestroy(m_cu_context));
+      }
+      reset();
+    }
+  };
+
+  // Refers to data that's likely to live/die per
+  // every region
+  struct per_region {
+    std::vector<hook_time_record> m_hook_time_records;
+    std::unique_ptr<hook_time_info> m_timer;
+    std::string m_region_name;
+    
+    void time(uint32_t flags) {
+      // user disabled timer, so we'll refrain from
+      // continuing to record.
+      if (flags == 0) {
+        m_timer.reset(nullptr);
+      } else {        
+        m_timer.reset(new hook_time_info());
+        m_timer->flags = timeflags(flags);
+      }
+    }
+
+    void report() {
+      std::stringstream ss;
+      for (const auto& region_entries: m_hook_time_records) {
+        for (const auto& dump: region_entries.dumps) {
+          ss << dump;
+        }
+      }
+      m_hook_time_records.clear();
+      printf("%s\n", ss.str().c_str());
+    }
+    
+    void begin(std::string region_name) {
+      m_region_name = std::move(region_name);
+      if (m_timer) {
+        m_timer->begin_region(m_region_name.c_str());
+      }
+    }
+
+    void end() {
+      if (m_timer) {
+        m_timer->end_region();
+        m_timer->record(m_hook_time_records);
+        timeflags tmp(m_timer->flags);
+        m_timer.reset(new hook_time_info());
+        m_timer->flags = tmp;
+      }
+    }
+  };
   
   cupti_event_data_t* event_data() { return &m_per_trace.m_cupti_event_data; }
   
   per_trace m_per_trace;
+  per_region m_per_region;
   
   std::unique_ptr<hook_run_info> m_run_info;
-
-  std::string m_region_name;
   
-  host_thread_id_type m_host_thread_id;
+  hook_thread_id_type m_host_thread_id;
   
   bool m_hook_enabled;
 };
 
-class hook_driver_manager {
-public:
-  hook_driver* driver_for(hook_driver::host_thread_id_type thread) {
-    if (!m_hooks[thread]) {
-      m_hooks[thread].reset(new hook_driver(thread));
-    }
-    return m_hooks.at(thread).get();
-  }
-  
-private:
-  std::unordered_map<hook_driver::host_thread_id_type,
-                     std::unique_ptr<hook_driver>> m_hooks;
-};
-
-static std::unique_ptr<hook_driver_manager> g_drvman(new hook_driver_manager());
 
 C_LINKAGE_START
 
-static char g_region_buffer[256] = {0};
+using hook_driver_map_type = std::unordered_map<hook_thread_id_type,
+                                                std::unique_ptr<hook_driver>>;
+static hook_driver_map_type g_hooks;
+
+static inline hook_driver* get_driver() {
+  hook_thread_id_type thread = std::this_thread::get_id();
+  if (!g_hooks[thread]) {
+    g_hooks[thread].reset(new hook_driver(thread));
+  }
+  return g_hooks.at(thread).get();
+}
 
 static cudaLaunchKernel_fn_t real_cudaLaunchKernel = nullptr;
-
-void print_func(const void* func) {
-  const char* f = static_cast<const char*>(func);
-  printf("[HOOK INFO - func: string = %s, address %p" PRIx64 "]\n", f, func);
-}
 
 NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  dim3 gridDim,
@@ -1023,13 +1111,14 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  size_t sharedMem,
 						  cudaStream_t stream) {
   cudaError_t ret = cudaSuccess;
-  
+
   if (real_cudaLaunchKernel == nullptr) {
     real_cudaLaunchKernel = (cudaLaunchKernel_fn_t) dlsym(RTLD_NEXT, "cudaLaunchKernel");
   }
-  if (g_enabled) {
+  
 #if defined (NVCD_HOOK_DRIVER)
-    hook_driver* driver = g_drvman->driver_for(pthread_self());
+  hook_driver* driver = get_driver();
+  if (driver->enabled()) {
 
     driver->event_trace_begin(gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z,
                               stream);
@@ -1043,30 +1132,36 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
                       stream);
   
     driver->event_trace_end();
+  }
 #else
+  if (g_enabled) {
+    HOOK_INFO("OK.NO_DRIVER");
     if (call_for(func).is_ready()) {
       printf("[HOOK ON %s - %s; symbol = %p]\n", __FUNC__, g_region_buffer, func);
       if (g_timer) {
-	g_timer->begin_kernel();
+        g_timer->begin_kernel();
       }
       __toname___host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
-      ret = nvcd_run2(real_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
+      ret = nvcd_run2(r_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
       __toname___host_end();
       if (g_timer) {
-	g_timer->end_kernel();
+        g_timer->end_kernel();
       }
     }
-#endif
   }
+#endif // NVCD_HOOK_DRIVER
   else {
-    printf("[HOOK OFF %s]\n", __FUNC__);
+    HOOK_INFO("OK.NOT_ENABLED");
+    //printf("[HOOK OFF %s]\n", __FUNC__);
     ret = real_cudaLaunchKernel(func, gridDim, blockDim, args, sharedMem, stream);
   }
-  //  print_func(func);
   return ret;
 }
 
 NVCD_EXPORT void libnvcd_time(uint32_t flags) {
+#if defined (NVCD_HOOK_DRIVER)
+  get_driver()->time(flags);
+#else
   // We absolutely don't want to mess with the timer state
   // if a region has been enabled.
   ASSERT(!g_enabled);
@@ -1080,9 +1175,13 @@ NVCD_EXPORT void libnvcd_time(uint32_t flags) {
       g_timer->flags = timeflags(flags);
     }
   }
+#endif
 }
 
 NVCD_EXPORT void libnvcd_time_report() {
+#if defined (NVCD_HOOK_DRIVER)
+  get_driver()->time_report();
+#else
   std::stringstream ss;
   for (const auto& region_entries: g_time_records) {
     for (const auto& dump: region_entries.dumps) {
@@ -1091,6 +1190,7 @@ NVCD_EXPORT void libnvcd_time_report() {
   }
   printf("%s\n", ss.str().c_str());
   g_time_records.clear();
+#endif
 }
 
 NVCD_EXPORT void libnvcd_begin(const char* region_name) {
@@ -1101,42 +1201,44 @@ NVCD_EXPORT void libnvcd_begin(const char* region_name) {
   ASSERT(strlen(region_name) <= 256);
   if (region_name != nullptr) {
 #if defined (NVCD_HOOK_DRIVER)
-    g_drvman
-      ->driver_for(pthread_self())
-      ->region_begin(std::move(std::string(region_name)));
-    g_enabled = true;
+    get_driver()->region_begin(std::move(std::string(region_name)));
 #else
-    strncpy(g_region_buffer, region_name, 255);
+    HOOK_INFO("OK.NO_DRIVER");
+    strncpy(g_region_buffer, region_name, 255); 
     g_enabled = true;
     if (g_timer) {
       g_timer->begin_region(region_name);
     }
 #endif
   }
+  else {
+    HOOK_FATAL("BAD PATH");
+  }
 }
 
 NVCD_EXPORT void libnvcd_end() {
+#if defined (NVCD_HOOK_DRIVER)
+  if (C_ASSERT(get_driver()->enabled())) {
+    get_driver()->region_end();
+  }
+#else
+  ASSERT(g_enabled == true);
   // g_enabled == false implies a significant flaw
   // in the program logic of the caller.
   // It also opens the door to further errors that
-  // coulud arise internally in the future.
-  ASSERT(g_enabled == true);
-  if (g_enabled) {
-#if defined (NVCD_HOOK_DRIVER)
-    g_drvman->driver_for(pthread_self())->region_end();
-    g_enabled = false;
-#else
+  // could arise internally in the future.
+  if (g_enabled) {    
     if (g_timer) { 
       g_timer->end_region();
-      g_timer->record();   
+      g_timer->record(g_time_records);   
     }
     // make sure this is set to false before
     // reset_timer() is called
     g_enabled = false;
     reset_timer();
-#endif
     hook_run_info::num_runs = 0;
   }
+#endif
 
 }
 

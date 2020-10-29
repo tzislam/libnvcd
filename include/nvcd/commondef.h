@@ -158,7 +158,7 @@ typedef uint32_t bool32_t; // alignment and portability
 
 enum {
   ENO_ERROR = 0,
-  EUNSUPPORTED_EVENTS,
+  EUNSUPPORTED_EVENTS = 200,
   EBAD_INPUT,
   EASSERT,
   ECUDA_DRIVER,
@@ -167,7 +167,8 @@ enum {
   ERACE_CONDITION,
   EUSER_EXIT,
   EHELP,
-  EBAD_PATH
+  EBAD_PATH,
+  EHOOK
 };
 
 #ifdef __cplusplus
