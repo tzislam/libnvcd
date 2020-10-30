@@ -156,6 +156,12 @@ typedef uint32_t bool32_t; // alignment and portability
 
 #define STRFMT_INDEXU32_HEX32 "[%" PRIu32 "]: %" PRIx32     
 
+#if defined (__cplusplus)
+#define NVCD_THREAD_LOCAL thread_local
+#else
+#define NVCD_THREAD_LOCAL __thread
+#endif
+
 enum {
   ENO_ERROR = 0,
   EUNSUPPORTED_EVENTS = 200,
