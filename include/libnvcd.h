@@ -12,10 +12,25 @@ typedef void (*libnvcd_time_report_fn_t)(void);
 
 // these function pointers are dynamically loaded
 // from the preloaded hook.
-static libnvcd_begin_fn_t libnvcd_begin = NULL;
-static libnvcd_end_fn_t libnvcd_end = NULL;
-static libnvcd_time_fn_t libnvcd_time = NULL;
-static libnvcd_time_report_fn_t libnvcd_time_report = NULL;
+
+#if defined (__cplusplus)
+#define LIBNVCD_DECL extern "C"
+#define LIBNVCD_DEFN extern "C"
+#else
+#define LIBNVCD_DECL extern
+#define LIBNVCD_DEFN
+#endif
+
+LIBNVCD_DECL libnvcd_begin_fn_t libnvcd_begin;
+LIBNVCD_DECL libnvcd_end_fn_t libnvcd_end;
+LIBNVCD_DECL libnvcd_time_fn_t libnvcd_time;
+LIBNVCD_DECL libnvcd_time_report_fn_t libnvcd_time_report;
+
+#define LIBNVCD_STORE_FUNCTION_POINTERS_HERE\
+  LIBNVCD_DEFN libnvcd_begin_fn_t libnvcd_begin = NULL;\
+  LIBNVCD_DEFN libnvcd_end_fn_t libnvcd_end = NULL;\
+  LIBNVCD_DEFN libnvcd_time_fn_t libnvcd_time = NULL;\
+  LIBNVCD_DEFN libnvcd_time_report_fn_t libnvcd_time_report = NULL
 
 // Timeflags: a bitwise OR of any of these 
 // can be passed to libnvcd_time() to indicate
