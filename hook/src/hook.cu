@@ -22,6 +22,7 @@
 #include <iomanip>
 #include <functional>
 #include <thread>
+#include <mutex>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -105,10 +106,15 @@ static void hook_msg(bool fatal, const char* file, const char* func, int line, c
   }
 }
 
+#if defined (NVCD_HOOK_ENABLE_LOGGING)
 #define HOOK_INFO(msg) hook_msg(false, __FILE__, __func__, __LINE__, "HOOK INFO", "%s", msg)
-#define HOOK_FATAL(msg) hook_msg(true, __FILE__, __func__, __LINE__, "HOOK FATAL ERROR", "%s", msg)
-
 #define HOOK_INFOF(msg, ...) hook_msg(false, __FILE__, __func__, __LINE__, "HOOK INFO", msg, __VA_ARGS__)
+#else
+#define HOOK_INFO(msg)
+#define HOOK_INFOF(msg, ...)
+#endif
+
+#define HOOK_FATAL(msg) hook_msg(true, __FILE__, __func__, __LINE__, "HOOK FATAL ERROR", "%s", msg)
 #define HOOK_FATALF(msg, ...) hook_msg(true, __FILE__, __func__, __LINE__, "HOOK FATAL ERROR", msg, __VA_ARGS__)
 
 using instance_vec_type = std::vector<uint64_t>;
@@ -868,6 +874,15 @@ typedef cudaError_t (*cudaLaunchKernel_fn_t)(const void* func, dim3 gridDim, dim
 
 using hook_thread_id_type = std::thread::id;
 
+static std::string get_thread_id_string(hook_thread_id_type hook_thread_id) {
+  //auto hash_std_thread_id = std::hash<hook_thread_id_type>()(hook_thread_id);
+  uint64_t syscall_thread_id = get_thread_id();
+  std::stringstream ss;
+  ss << "[syscall_thread_id = " << syscall_thread_id
+     << ",std_thread_id = " << hook_thread_id << "]";
+  return ss.str();
+}
+
 class hook_driver {
 public:
   hook_driver(hook_thread_id_type htid)
@@ -885,13 +900,15 @@ public:
     m_run_info->region_name = m_per_region.m_region_name;
     m_run_info->curr_num_threads = static_cast<size_t>(num_cuda_threads);
     
-    m_per_trace.begin(stream);
+    m_per_trace.begin(stream, m_host_thread_id);
   }
 
   template <class ...TArgs>
   cudaError_t run(cudaLaunchKernel_fn_t real_cudaLaunchKernel, TArgs... args) {
     cudaError_t result = cudaSuccess;
-    
+
+    // We use this for both metrics and events. Variadic arguments here are
+    // used because we don't really need direct access to the parameters.
     auto run_trace_loop_for = [&](cupti_event_data_t* e) {
       cupti_event_data_begin(e);
       while (result == cudaSuccess && !cupti_event_data_callback_finished(e)) {
@@ -908,7 +925,8 @@ public:
       run_trace_loop_for(event_data());
     }
 
-    if (result == cudaSuccess && event_data()->has_metrics) {  
+    if (result == cudaSuccess && event_data()->has_metrics) {
+      // Runtime validation
       ASSERT(event_data()->is_root == true);                                       
       ASSERT(event_data()->initialized == true);                                   
       ASSERT(event_data()->metric_data != nullptr);                                   
@@ -939,8 +957,9 @@ public:
   }
   
   void region_begin(std::string region_name) {
-    auto hash_id = std::hash<hook_thread_id_type>()(m_host_thread_id);
-    m_per_region.begin(std::move(region_name + std::to_string(hash_id)));
+    std::stringstream ss;
+    ss << get_thread_id_string(m_host_thread_id) << region_name; 
+    m_per_region.begin(std::move(ss.str()));
     enable();
   }
 
@@ -989,7 +1008,7 @@ private:
       m_cu_context_is_creat = false;
     }
 
-    void begin(cudaStream_t stream) {
+    void begin(cudaStream_t stream, hook_thread_id_type tid) {
       m_cuda_stream = stream;
       
       CUDA_RUNTIME_FN(cudaGetDevice(&m_device));
@@ -1008,6 +1027,18 @@ private:
       m_cupti_event_data.cuda_context = m_cu_context;
       m_cupti_event_data.cuda_device = m_cu_device;
       m_cupti_event_data.is_root = true;
+
+      std::string tis(get_thread_id_string(tid));
+      
+      HOOK_INFOF("\n"
+                 "%s"\n
+                 "m_device = %i\n"
+                 "m_cu_device = %i\n"
+                 "m_cu_context = %p\n"
+                 "m_cu_context_is_creat = %s",
+                 tis.c_str(),
+                 m_device, m_cu_device, m_cu_context,
+                 (m_cu_context_is_creat ? "true" : "false"));
 
       cupti_event_data_init(&m_cupti_event_data);
     }
@@ -1087,19 +1118,30 @@ private:
   bool m_hook_enabled;
 };
 
-
 C_LINKAGE_START
 
-using hook_driver_map_type = std::unordered_map<hook_thread_id_type,
-                                                std::unique_ptr<hook_driver>>;
-static hook_driver_map_type g_hooks;
+using mutex_type = std::mutex;
+using raii_lock_type = std::lock_guard<mutex_type>;
+
+static mutex_type g_hook_lock;
+
+#if defined(NVCD_HOOK_DRIVER)
+static void lock_report(const char* func) { std::string tis(get_thread_id_string(std::this_thread::get_id()));
+                                                            HOOK_INFOF("[Func = %s]%sLock Taken", 
+                                                                       func,
+                                                                       tis.c_str()); }
+#define NVCD_HOOK_LOCK_RAII raii_lock_type guard(g_hook_lock);(void)guard;lock_report(__func__)
+#else
+#define NVCD_HOOK_LOCK_RAII
+#endif
+
+static NVCD_THREAD_LOCAL std::unique_ptr<hook_driver> g_driver(nullptr);
 
 static inline hook_driver* get_driver() {
-  hook_thread_id_type thread = std::this_thread::get_id();
-  if (!g_hooks[thread]) {
-    g_hooks[thread].reset(new hook_driver(thread));
+  if (!g_driver) {
+    g_driver.reset(new hook_driver(std::this_thread::get_id()));
   }
-  return g_hooks.at(thread).get();
+  return g_driver.get();
 }
 
 static cudaLaunchKernel_fn_t real_cudaLaunchKernel = nullptr;
@@ -1110,8 +1152,10 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 						  void** args,
 						  size_t sharedMem,
 						  cudaStream_t stream) {
+  
   cudaError_t ret = cudaSuccess;
-
+  NVCD_HOOK_LOCK_RAII;
+  
   if (real_cudaLaunchKernel == nullptr) {
     real_cudaLaunchKernel = (cudaLaunchKernel_fn_t) dlsym(RTLD_NEXT, "cudaLaunchKernel");
   }
@@ -1119,7 +1163,6 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 #if defined (NVCD_HOOK_DRIVER)
   hook_driver* driver = get_driver();
   if (driver->enabled()) {
-
     driver->event_trace_begin(gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z,
                               stream);
 
@@ -1159,6 +1202,7 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
 }
 
 NVCD_EXPORT void libnvcd_time(uint32_t flags) {
+  NVCD_HOOK_LOCK_RAII;
 #if defined (NVCD_HOOK_DRIVER)
   get_driver()->time(flags);
 #else
@@ -1179,6 +1223,7 @@ NVCD_EXPORT void libnvcd_time(uint32_t flags) {
 }
 
 NVCD_EXPORT void libnvcd_time_report() {
+  NVCD_HOOK_LOCK_RAII;
 #if defined (NVCD_HOOK_DRIVER)
   get_driver()->time_report();
 #else
@@ -1194,11 +1239,13 @@ NVCD_EXPORT void libnvcd_time_report() {
 }
 
 NVCD_EXPORT void libnvcd_begin(const char* region_name) {
+  NVCD_HOOK_LOCK_RAII;
   // a null region name is totally useless,
   // and will also likely create a segfault,
   // so we may as well enforce non-null input.
   ASSERT(region_name != nullptr);
   ASSERT(strlen(region_name) <= 256);
+
   if (region_name != nullptr) {
 #if defined (NVCD_HOOK_DRIVER)
     get_driver()->region_begin(std::move(std::string(region_name)));
@@ -1217,6 +1264,7 @@ NVCD_EXPORT void libnvcd_begin(const char* region_name) {
 }
 
 NVCD_EXPORT void libnvcd_end() {
+  NVCD_HOOK_LOCK_RAII;
 #if defined (NVCD_HOOK_DRIVER)
   if (C_ASSERT(get_driver()->enabled())) {
     get_driver()->region_end();
