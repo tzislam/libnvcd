@@ -193,7 +193,7 @@ NVCD_EXPORT uint32_t cupti_get_num_event_names(cupti_event_data_t* e) {
   return ret;
 }
 
-static CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
+static NVCD_THREAD_LOCAL CUpti_runtime_api_trace_cbid g_cupti_runtime_cbids[] = {
   CUPTI_RUNTIME_TRACE_CBID_cudaLaunch_v3020,
   CUPTI_RUNTIME_TRACE_CBID_cudaLaunchKernel_v7000
 };
@@ -703,11 +703,11 @@ typedef struct group_info {
   CUpti_EventGroup group;
 } group_info_t; 
 
-static volatile bool g_process_group_aos = false;
+static volatile NVCD_THREAD_LOCAL bool g_process_group_aos = false;
 
-static group_info_t* g_group_info_buffer = NULL;
-static uint32_t g_group_info_count = 0;
-static uint32_t g_group_info_size = 0;
+static NVCD_THREAD_LOCAL group_info_t* g_group_info_buffer = NULL;
+static NVCD_THREAD_LOCAL uint32_t g_group_info_count = 0;
+static NVCD_THREAD_LOCAL uint32_t g_group_info_size = 0;
 
 static void group_info_append(group_info_t* info, uint32_t group) {
   if (g_group_info_buffer == NULL) {
@@ -1101,8 +1101,8 @@ static void init_cupti_event_buffers(cupti_event_data_t* e) {
   }
 }
 
-static const size_t PEG_BUFFER_SZ = 1 << 20;
-static char* _peg_buffer = NULL;
+static NVCD_THREAD_LOCAL const size_t PEG_BUFFER_SZ = 1 << 20;
+static NVCD_THREAD_LOCAL char* _peg_buffer = NULL;
 
 static void print_event_group_soa(cupti_event_data_t* e, uint32_t group) {
   if (_peg_buffer == NULL) {
@@ -1325,8 +1325,8 @@ static void collect_group_events(cupti_event_data_t* e) {
 }
 
 
-static bool _message_reported = false;
-static bool _error_unknown_reported = false;
+static NVCD_THREAD_LOCAL bool _message_reported = false;
+static NVCD_THREAD_LOCAL bool _error_unknown_reported = false;
 
 NVCD_EXPORT void CUPTIAPI cupti_event_callback(void* userdata,
                                                CUpti_CallbackDomain domain,
