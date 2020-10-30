@@ -28,8 +28,8 @@ void exit_msg(FILE* out, int error, const char* message, ...) {
 static inline bool msg_ok(msg_level_t m) {
   // TODO:
   // provide a better configuration interface for this.
-  const bool opt_verbose_output = true;
-  const bool opt_diagnostic_output = true;  
+  const bool opt_verbose_output = false;
+  const bool opt_diagnostic_output = false;  
   return
     (m == MSG_LEVEL_VERBOSE && opt_verbose_output == true) ||
     (m == MSG_LEVEL_DIAG && opt_diagnostic_output == true) ||
