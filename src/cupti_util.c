@@ -1277,13 +1277,6 @@ static void collect_group_events(cupti_event_data_t* e) {
   for (uint32_t i = 0; i < e->num_event_groups; ++i) {
     if (e->event_group_read_states[i] == CED_EVENT_GROUP_UNREAD) {
       read_group_all_events(e, i);
-
-      if (g_process_group_aos) {
-        read_group_per_event(e, i);
-        group_info_validate(e,
-                            &g_group_info_buffer[i],
-                            i);
-      }
     }
   }
 
