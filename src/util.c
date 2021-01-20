@@ -26,14 +26,18 @@ void exit_msg(FILE* out, int error, const char* message, ...) {
 }
 
 static inline bool msg_ok(msg_level_t m) {
+  // TODO:
+  // provide a better configuration interface for this.
+  const bool opt_verbose_output = false;
+  const bool opt_diagnostic_output = false;  
   return
-    (m == MSG_LEVEL_VERBOSE && g_nvcd.opt_verbose_output == true) ||
-    (m == MSG_LEVEL_DIAG && g_nvcd.opt_diagnostic_output == true) ||
+    (m == MSG_LEVEL_VERBOSE && opt_verbose_output == true) ||
+    (m == MSG_LEVEL_DIAG && opt_diagnostic_output == true) ||
     (m != MSG_LEVEL_VERBOSE && m != MSG_LEVEL_DIAG);
 }
 
-static const size_t MSG_BUFFER_SZ = 1 << 24;
-static char* g_msg_buffer = NULL;
+static NVCD_THREAD_LOCAL const size_t MSG_BUFFER_SZ = 1 << 14;
+static NVCD_THREAD_LOCAL char* g_msg_buffer = NULL;
 
 void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const char* msg, ...) {
   if (g_msg_buffer == NULL) {
@@ -56,6 +60,12 @@ void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const c
     va_end(ap);
   
     strcat(prefix, "[");
+    {
+      char tmp[64] = {0};
+      snprintf(&tmp[0], 64, "thread_id = %" PRIu64, get_thread_id());
+      strcat(prefix, tmp);
+    }
+    strcat(prefix, ",msg_level = ");
     switch (m) {
     case MSG_LEVEL_VERBOSE:
       strcat(prefix, "VERBOSE");
@@ -92,6 +102,8 @@ void msg_impl(msg_level_t m, int line, const char* file, const char* fn, const c
     } else {
       fprintf(stdout, "%s", g_msg_buffer);
     }
+
+    fflush(stdout);
   }
 }
 
@@ -283,40 +295,6 @@ NVCD_EXPORT void write_logf_impl(const char* func,
 
   free(buffer);
 }
-
-#if 0
-// if we decide to continue down this path,
-// be sure to declare cudaLaunch and and cudaSetupArgument
-// in util.h with NVCD_EXPORT
-
-typedef cudaError_t (*cudaLaunch_fn_t)(const void* entry);
-
-static cudaLaunch_fn_t real_cudaLaunch = NULL;
-
-NVCD_EXPORT cudaError_t cudaLaunch(const void* entry) {
-  if (real_cudaLaunch == NULL) {
-    real_cudaLaunch = (cudaLaunch_fn_t)dlsym(RTLD_NEXT, "cudaLaunch");
-  }
-  
-  printf("[HOOK %s]\n", __FUNC__);
-  
-  return (*real_cudaLaunch)(entry);
-}
-
-typedef cudaError_t (*cudaSetupArgument_fn_t)(const void* arg, size_t size, size_t offset);
-
-static cudaSetupArgument_fn_t real_cudaSetupArgument;
-
-NVCD_EXPORT cudaError_t cudaSetupArgument(const void* arg, size_t size, size_t offset) {
-  if (real_cudaSetupArgument == NULL) {
-    real_cudaSetupArgument = (cudaSetupArgument_fn_t)dlsym(RTLD_NEXT, "cudaSetupArgument");
-  }
-
-  printf("[HOOK %s]\n", __FUNC__);
-
-  return (*real_cudaSetupArgument)(arg, size, offset);
-}
-#endif
 
 C_LINKAGE_END
 

@@ -163,12 +163,15 @@ enum {
 };
 
 typedef struct cupti_enum_event_counter_iteration {
-  uint32_t instance;
-  uint32_t num_instances;
-  
   uint64_t value;
+
   CUpti_EventID event;
   CUpti_EventGroup group;
+
+  void* user_param;
+  
+  uint32_t instance;
+  uint32_t num_instances;
 } cupti_enum_event_counter_iteration_t;
 
 // if the callback returns true,
@@ -226,6 +229,7 @@ NVCD_EXPORT char** cupti_get_event_names(cupti_event_data_t* e, size_t* out_len)
 NVCD_EXPORT uint32_t cupti_get_num_event_names(cupti_event_data_t* e);
 
 NVCD_EXPORT void cupti_event_data_enum_event_counters(cupti_event_data_t* e,
+                                                      void* user_param,
 						      cupti_event_data_enum_event_counters_fn_t fn);
 
 C_LINKAGE_END

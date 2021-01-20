@@ -9,6 +9,9 @@
 
 #include <time.h>
 #include <sys/time.h>
+#include <unistd.h>
+#include <sys/syscall.h>
+
 
 C_LINKAGE_START
 
@@ -27,6 +30,8 @@ void exit_msg(FILE* out, int error, const char* message, ...);
 void* double_buffer_size(void* buffer,
                          size_t elem_size,
                          size_t* current_length);
+
+static inline uint64_t get_thread_id(void);
 
 typedef enum msg_level
   {
@@ -81,6 +86,11 @@ NVCD_EXPORT void write_logf_impl(const char* func,
 				 int line,
 				 const char* message,
 				 ...);
+
+static inline uint64_t get_thread_id(void) {
+  return (uint64_t)syscall(SYS_gettid);
+}
+
 
 typedef enum darray_error
   {

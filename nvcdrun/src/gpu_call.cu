@@ -3,8 +3,9 @@
 #include <libnvcd.h>
 #include <stdio.h>
 
-extern "C" {
+LIBNVCD_STORE_FUNCTION_POINTERS_HERE;
 
+extern "C" {  
   __global__ void kernel2() {
     volatile int i = 200000;
     while (i > 0) {
