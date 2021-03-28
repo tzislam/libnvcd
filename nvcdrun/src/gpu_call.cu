@@ -19,7 +19,7 @@ extern "C" {
     if (thread < num_threads) {
       volatile unsigned i = 0;
       while (i < 100000) {
-	i++;
+	      i++;
       }
     }
   }
@@ -29,15 +29,11 @@ extern "C" {
 
     int num_threads = blockDim.x * gridDim.x;
 
-    if (thread == 0) {
-    
-    }
-
     if (thread < num_threads) {
       volatile int number = 0;
 
       for (int i = 0; i < 100000; ++i) {
-	number += i;
+	      number += i;
       }
     }
   }
@@ -48,7 +44,7 @@ extern "C" {
 
     puts("=======================================================================");
     printf("[nvcdrun] running test kernels within two separate regions. timeflags = %s\n",
-	   libnvcd_time_str(timeflags));
+	  libnvcd_time_str(timeflags));
     puts("=======================================================================");
     
     libnvcd_time(timeflags);
@@ -61,12 +57,6 @@ extern "C" {
 
     for (unsigned i = 0; i < repeat; ++i) {
       nvcd_kernel_test<<<nblock, threads>>>();   
-
-      //      num_threads = 2048;
-
-      //      threads = num_threads / nblock;
-      //   nvcd_kernel_test<<<nblock, threads>>>();
-
       kernel3<<<nblock, threads>>>();
     }
     
