@@ -38,6 +38,14 @@ NVCC_FLAGS := $(NVCC_STD) $(INCLUDE) --compiler-options "$(BASE_FLAGS)"
 LIBS=-L/usr/lib/x86_64-linux-gnu -L$(CUPTI)/lib64 -L$(CUDA_HOME)/lib64 -lcuda -lcudart -lcupti -ldl
 
 NVCC_ARCH := "-arch=$(CUDA_ARCH_SM)"
+#
+# These are used in $(UTIL_GROUP_INFO) target, in nvcdinfo/Makefile:
+#
+# this is the device ID parameter that is passed to nvcdinfo
+NVCDINFO_DEVICE_ID ?= 0
+#
+# this is the maximum size of each group of events in the associated CSV
+NVIDINFO_GROUP_SIZE ?= 5
 
 ifeq ($(DEBUG),1)
 	CC_FLAGS := $(CC_FLAGS) -g -ggdb -O0

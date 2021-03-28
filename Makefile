@@ -55,6 +55,7 @@ clean:
 	rm -rf nvcdrun/obj
 	rm -rf nvcdinfo/obj
 	rm -rf hook/obj
+	rm -rf $(UTIL_GROUP_INFO_DIRECTORY)
 
 compile: $(HOOK_LIB) $(TEST_BIN) $(UTIL_BIN)
 recompile: clean compile
