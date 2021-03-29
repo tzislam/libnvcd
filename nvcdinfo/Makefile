@@ -28,7 +28,7 @@ $(UTIL_GROUP_INFO_DEVICE_DIRECTORY):
 	mkdir -p $@
 
 $(UTIL_BIN): $(UTIL_OBJ) $(LIB)
-	$(CXX) $(UTIL_CXX_FLAGS) $(UTIL_LIBS) $(UTIL_OBJ) -o $(NVCD_HOME)/bin/$(UTIL_BIN)
+	$(CXX) $(UTIL_CXX_FLAGS) $(UTIL_OBJ) $(UTIL_LIBS) -o $(NVCD_HOME)/bin/$(UTIL_BIN)
 
 $(UTIL_ROOT)/obj/%.o: $(UTIL_ROOT)/src/%.cpp objdep
 	$(CXX) $(UTIL_CXX_FLAGS) $(ARCH) -c $< -o $@

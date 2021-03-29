@@ -20,7 +20,7 @@ OBJ := $(subst $(SRCDIR), $(OBJDIR), $(TOBJ))
 LIB := libnvcd.so
 
 $(LIB): $(OBJ)
-	$(CC) $(CC_FLAGS) $(LD_FLAGS) $(LIBS) $(OBJ) -o bin/$(LIB)
+	$(CC) $(CC_FLAGS) $(LD_FLAGS) $(OBJ) $(LIBS) -o bin/$(LIB)
 
 $(LIB).pre: $(PRE)
 

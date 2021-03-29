@@ -11,7 +11,7 @@ TEST_SRCDIR := $(TEST_ROOT)/src
 
 TEST_OBJ := $(subst $(TEST_SRCDIR), $(TEST_OBJDIR), $(TEST_OBJ_C) $(TEST_OBJ_CU))
 
-TEST_LIBS := $(LIBS)
+TEST_LIBS := $(LIBS) -pthread
 
 TEST_BIN := nvcdrun
 
@@ -20,7 +20,7 @@ TEST_CXX_FLAGS := $(CXX_FLAGS) -I$(TEST_ROOT)/include
 TEST_NVCC_FLAGS := $(NVCC_FLAGS) -I$(TEST_ROOT)/include
 
 $(TEST_BIN): $(TEST_OBJ) $(LIB)
-	$(CXX) $(TEST_CXX_FLAGS) $(TEST_LIBS) $(TEST_OBJ) -o $(NVCD_HOME)/bin/$(TEST_BIN)
+	$(CXX) $(TEST_CXX_FLAGS) $(TEST_OBJ) $(TEST_LIBS) -o $(NVCD_HOME)/bin/$(TEST_BIN)
 
 $(TEST_BIN).pre: $(TEST_PRE) $(LIB).pre
 
