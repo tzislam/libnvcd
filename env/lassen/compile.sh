@@ -17,4 +17,6 @@ export CUDA_HOME=${cuda_r}
 module load gcc/8.3.1
 module load cuda/${cuda_v}
 
+# Avoid errors; if after sourcing this script there's issues related to preloaded binaries,
+# comment this.
 unset LD_PRELOAD
