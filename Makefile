@@ -34,6 +34,8 @@ include $(NVCD_HOME)/nvcdinfo/Makefile
 
 include $(NVCD_HOME)/hook/Makefile
 
+all: $(HOOK_LIB) $(UTIL_BIN) $(TEST_BIN)
+ 
 # Housekeeping
 objdep:
 	mkdir -p obj
