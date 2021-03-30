@@ -75,9 +75,9 @@
 #define HOST __host__
 #define GLOBAL __global__
 
-#define __TONAME___DEV_EXPORT static inline DEV
-#define __TONAME___CUDA_EXPORT static inline HOST
-#define __TONAME___GLOBAL_EXPORT static GLOBAL
+#define NVCD_DEV_EXPORT static inline DEV
+#define NVCD_CUDA_EXPORT static inline HOST
+#define NVCD_GLOBAL_EXPORT static GLOBAL
 
 #define STREAM_HEX(bytes) "0x" << std::uppercase << std::setfill('0') << std::setw((bytes) << 1) << std::hex
 
@@ -253,12 +253,12 @@ size_t hook_run_info::num_runs = 0;
 
 static hook_run_info* g_run_info = nullptr;
 
-__TONAME___CUDA_EXPORT void __toname___report() {
+NVCD_CUDA_EXPORT void nvcd_report() {
   ASSERT(g_run_info != nullptr);    
   g_run_info->report(nvcd_get_events());
 }
 
-__TONAME___CUDA_EXPORT void __toname___init() {
+NVCD_CUDA_EXPORT void nvcd_init() {
   nvcd_init_cuda();
 
   if (g_run_info == nullptr) {
@@ -269,8 +269,8 @@ __TONAME___CUDA_EXPORT void __toname___init() {
   ASSERT(g_run_info != nullptr);
 }
 
-__TONAME___CUDA_EXPORT void __toname___host_begin(const char* region_name, int num_cuda_threads) {     
-  __toname___init();
+NVCD_CUDA_EXPORT void nvcd_host_begin(const char* region_name, int num_cuda_threads) {     
+  nvcd_init();
 
   g_run_info->region_name = std::string(region_name);
 
@@ -283,26 +283,26 @@ __TONAME___CUDA_EXPORT void __toname___host_begin(const char* region_name, int n
                    g_nvcd.contexts[0]);
 }
 
-__TONAME___CUDA_EXPORT bool __toname___host_finished() {
+NVCD_CUDA_EXPORT bool nvcd_host_finished() {
   return cupti_event_data_callback_finished(nvcd_get_events());
 }
 
-__TONAME___CUDA_EXPORT void __toname___terminate();
+NVCD_CUDA_EXPORT void nvcd_terminate();
 
-__TONAME___CUDA_EXPORT void __toname___host_end() {
+NVCD_CUDA_EXPORT void nvcd_host_end() {
   ASSERT(g_nvcd.initialized == true);
     
   nvcd_calc_metrics();
 
   g_run_info->update(nvcd_get_events());
 
-  __toname___report();   
+  nvcd_report();   
 
-  __toname___terminate();
+  nvcd_terminate();
 }
  
 
-__TONAME___CUDA_EXPORT void __toname___terminate() {
+NVCD_CUDA_EXPORT void nvcd_terminate() {
   nvcd_reset_event_data();
  
   for (int i = 0; i < g_nvcd.num_devices; ++i) {
@@ -853,7 +853,7 @@ static inline cudaError_t nvcd_run2(const TKernFunType& kernel,
 
   if (nvcd_has_events()) {
     cupti_event_data_begin(nvcd_get_events());  
-    while (result == cudaSuccess && !__toname___host_finished()) {
+    while (result == cudaSuccess && !nvcd_host_finished()) {
       if (g_timer) g_timer->begin_run();
       result = kernel(args...);                       
       CUDA_RUNTIME_FN(cudaDeviceSynchronize());
@@ -1184,9 +1184,9 @@ NVCD_EXPORT __host__ cudaError_t cudaLaunchKernel(const void* func,
       if (g_timer) {
         g_timer->begin_kernel();
       }
-      __toname___host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
+      nvcd_host_begin(g_region_buffer, gridDim.x * gridDim.y * gridDim.z * blockDim.x * blockDim.y * blockDim.z);
       ret = nvcd_run2(r_cudaLaunchKernel, func, gridDim, blockDim, args, sharedMem, stream);
-      __toname___host_end();
+      nvcd_host_end();
       if (g_timer) {
         g_timer->end_kernel();
       }
