@@ -45,7 +45,7 @@ NVCC_ARCH := "-arch=$(CUDA_ARCH_SM)"
 NVCDINFO_DEVICE_ID ?= 0
 #
 # this is the maximum size of each group of events in the associated CSV
-NVIDINFO_GROUP_SIZE ?= 5
+NVCDINFO_GROUP_SIZE ?= 5
 
 ifeq ($(DEBUG),1)
 	CC_FLAGS := $(CC_FLAGS) -g -ggdb -O0
